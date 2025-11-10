@@ -1,0 +1,707 @@
+# **Project Name**
+
+Every time you choose to apply a rule(s), explicitly state the rule(s) you are applying. You can abbreviate the rule description to a single word or phrase.
+
+## **Project Context**
+
+The project is a sample project. It is built using react.
+
+## **Code Style and Structure**
+
+- Prefer iteration and modularization over code duplication.
+- Naming Conventions:
+  - React UI component's names should be PascalCase.
+  - All other helper files should be camelCase. (non-component files)
+  - All the folder names should be camelCase.
+  - SCSS files should be named in camelCase and match their component names
+- Write concise, technical code with accurate comments and documentation and examples.
+- Destructuring your props is a good way to help make your coder cleaner and more maintainable.
+   ```jsx
+   // Example
+   const UserDetails = (props) => {
+     const { id, userData, ...restProps } = props;
+   };
+   ```
+
+- Some rules related to React Hooks:
+  - First declare all the props
+  - Second declare all the default hooks like navigate, dispatch, location, history and other …
+  - Third declare all the redux-states which is declared by useSelectors
+  - Forth declare all the component states which is declared by useState
+  - Fifth declare all the useEffects and if useEffect includes any functions then declare that function and then add useEffect under that function.
+  - Use useCallback() function for dispatch any actions
+
+- Routing Standards:
+  - All route paths must be defined in the enums (src/common/enums/enumConstant.js)
+  - Always use the enum values for route paths instead of hardcoding them
+  - Example: `<Route path={RoutePath.RANKINGS} element={<Rankings/>}/>`
+  - Group related routes together in the enum with comments
+  - Keep route paths consistent with feature names
+
+- Common Components:
+  - Header and other common components should be placed in src/components/layout
+  - These components should be reusable across the project
+  - Use MainLayout component to wrap pages that share common layout elements
+  - Common components should be responsive by default
+  - Handle mobile/tablet/desktop views appropriately
+
+- Styling Standards:
+  - Use SCSS for component-specific styles
+  - Organize SCSS files in src/assets/scss directory with proper subdirectories
+  - Each feature should have its own SCSS file in a corresponding subdirectory
+  - Import all SCSS files in main.scss
+  - Avoid using CSS-in-JS when possible, prefer SCSS modules
+  - Use BEM naming convention for SCSS classes
+  - Keep styles modular and reusable
+  - Use variables for common values (colors, spacing, etc.)
+  - Example structure:
+    ```
+    src/assets/scss/
+    ├── main.scss                # Main SCSS file importing all other files
+    ├── variables/               # Global variables and mixins
+    │   ├── _colors.scss
+    │   └── _breakpoints.scss
+    ├── rankings/               # Feature-specific styles
+    │   └── rankings.scss
+    ├── sidebar/
+    │   └── sidebar.scss
+    └── pagination/
+        └── pagination.scss
+    ```
+
+- Responsive Design Standards:
+  - Use mobile-first approach
+  - Handle responsive layouts at component level
+  - Use proper breakpoints for different screen sizes
+  - Ensure content is accessible on all devices
+  - Test responsive behavior thoroughly
+  - Example breakpoints:
+    ```scss
+    $breakpoints: (
+      'sm': 640px,
+      'md': 768px,
+      'lg': 1024px,
+      'xl': 1280px,
+      '2xl': 1536px
+    );
+    ```
+
+- Asset Management:
+  - All assets (images, icons, fonts, etc.) must be stored in the src/assets directory
+  - Use appropriate subdirectories (images/, svg/, fonts/) for different asset types
+  - Place images directly in the images directory, do not create unnecessary subdirectories
+  - Import assets directly in components using ES6 imports
+  - Never store assets in the public directory unless they need to be accessed directly by URL
+  - Use meaningful and descriptive names for asset files
+  - Example:
+    ```jsx
+    // ✅ Good
+    import logo from '../assets/images/logo.png';
+    import userAvatar from '../assets/images/user-avatar.png';
+    
+    // ❌ Bad
+    <img src="/public/logo.png" />
+    <img src="/images/logos/sub-folder/logo.png" />
+    ```
+  - Asset organization:
+    ```
+    src/assets/
+    ├── images/          # All image files directly here (png, jpg, etc.)
+    │   ├── logo.png
+    │   ├── user-avatar.png
+    │   └── banner.jpg
+    ├── svg/            # SVG files
+    ├── fonts/          # Font files
+    └── scss/           # SCSS files
+    ```
+  - Image naming conventions:
+    - Use lowercase letters
+    - Use hyphens for spaces
+    - Be descriptive but concise
+    - Include purpose or context if needed
+    - Examples:
+      ```
+      header-logo.png
+      user-avatar.jpg
+      hero-banner.png
+      ```
+
+## **Folder Structure**
+
+```
+src/
+├── actions/                    # Redux actions
+│   ├── types.js               # Action type constants
+│   └── [feature]Actions.js    # Feature-specific actions
+├── api/                       # API integrations
+│   ├── [feature].js          # Feature-specific API functions
+│   └── index.js              # API instance and utilities
+├── assets/                    # Static assets (images, fonts, etc.)
+│   └── [asset_type]/         # Organized by asset type
+├── common/                    # Shared utilities and constants
+│   ├── enums/                  # Enumeration constants
+│   ├── cssClassesUtility/      # CSS utility functions
+│   ├── s3UploadFile/           # File upload utilities
+│   └── styleConstant.js        # Global style constants
+├── components/                 # Reusable UI components
+│   ├── forms/                  # Form-related components
+│   │   ├── Button.jsx
+│   │   ├── Checkbox.jsx
+│   │   ├── TextInput.jsx
+│   │   └── SelectBox.jsx
+│   ├── layout/                 # Layout components
+│   │   ├── Card.jsx
+│   │   └── Table.jsx
+│   ├── feedback/               # User feedback components
+│   │   ├── Loader.jsx
+│   │   ├── ToastContainer.jsx
+│   │   └── ToolTip.jsx
+│   ├── navigation/             # Navigation components
+│   │   ├── Pagination.jsx
+│   │   └── Tabs.jsx
+│   └── privateRoute/        # Authentication route components
+├── contexts/                # React Context providers
+│   └── [context]Context.js  # Feature-specific contexts
+├── pages/                   # Page-level components
+│   └── [feature]/          # Feature-specific pages
+│       ├── index.jsx       # Main feature page
+│       └── components/     # Feature-specific components
+├── reducers/               # Redux reducers
+│   ├── [feature].js       # Feature-specific reducers
+│   └── index.js           # Root reducer
+├── sagas/                  # Redux-saga handlers
+│   ├── [feature]Saga.js   # Feature-specific sagas
+│   └── index.js           # Root saga
+├── schemas/                # Data validation schemas
+│   └── [feature]Schema.js # Feature-specific schemas
+├── utils/                  # Utility functions
+│   └── [utility].js       # Specific utility files
+├── App.jsx                 # Main app component
+├── index.css              # Global styles
+└── main.jsx               # Entry point
+```
+
+---
+
+## **Tech Stack**
+- React
+- Redux-saga
+- Tailwind-CSS
+- MUI
+- Lodash
+
+
+## **API-Integration**
+
+### **1. Define Action Types**
+
+File: `src/actions/types.js`
+
+- While defining any action for API, there will br minimum 3 actions should be defined. Foe handling, start, success and failure.
+- Example:
+```javascript
+// Example Action Types
+export const EXAMPLE_FETCH_START = 'EXAMPLE_FETCH_START';
+export const EXAMPLE_FETCH_SUCCESS = 'EXAMPLE_FETCH_SUCCESS';
+export const EXAMPLE_FETCH_FAILURE = 'EXAMPLE_FETCH_FAILURE';
+```
+
+---
+
+### **2. Create Actions**
+
+File: `src/actions/exampleActions.js`
+
+- Example:
+```javascript
+import * as TYPES from './types.js';
+
+export const exampleFetchStart = (payload) => ({
+  type: TYPES.EXAMPLE_FETCH_START,
+  payload,
+});
+
+export const exampleFetchSuccess = (data) => ({
+  type: TYPES.EXAMPLE_FETCH_SUCCESS,
+  data,
+});
+
+export const exampleFetchFailure = (error) => ({
+  type: TYPES.EXAMPLE_FETCH_FAILURE,
+  error,
+});
+```
+
+---
+
+### **3. Define API Functions**
+
+File: `src/api/example.js`
+- Use the API functions from the `utils/api.js` file which contains the base URL and the axios instance.
+- Example:
+```javascript
+import { get, post, put, deleteRequest } from 'utils/api.js';
+
+export const fetchExample = (params) => {
+  return get('/example', params);
+};
+
+export const getExampleById = (id) => {
+  return get(`/example/${id}`);
+};
+
+export const addExample = (data) => {
+  return post(`/example`, data);
+};
+
+export const deleteExample = (id) => {
+  return deleteRequest(`/example/${id}`);
+};
+
+export const updateExample = (data) => {
+  const exampleId = data.id;
+  delete data['id'];
+  return put(`/example/${exampleId}`, data);
+};
+
+export const example = {
+  fetchExample,
+  getExampleById,
+  addExample,
+  deleteExample,
+  updateExample,
+};
+```
+
+File: `src/api/index.js`
+
+```javascript
+import { example } from './example';
+
+export const API = {
+  ...example,
+};
+```
+
+---
+
+### **4. Create a Redux Reducer**
+
+File: `src/reducers/exampleReducer.js`
+- Initial state will vary as per the reducer.
+- Add loading state for each API, like for fetch example: `isFetchExampleLoading`.
+- Example:
+```javascript
+import * as TYPES from '../actions/types';
+
+const initialState = {
+  data: null,  // Will be defined according to the reducer
+  isFetchExampleLoading: false,
+  error: null,
+};
+
+const exampleReducer = (state = initialState, action) => {
+  switch (action.type) {
+    case TYPES.EXAMPLE_FETCH_START:
+      return { ...state, isFetchExampleLoading: true, error: null };
+    case TYPES.EXAMPLE_FETCH_SUCCESS:
+      return { ...state, data: action.data, isLoading: false };
+    case TYPES.EXAMPLE_FETCH_FAILURE:
+      return { ...state, isFetchExampleLoading: false, error: action.error };
+    default:
+      return state;
+  }
+};
+
+export default exampleReducer;
+```
+
+File: `src/reducers/index.js`
+
+```javascript
+import { combineReducers } from 'redux';
+import exampleReducer from './exampleReducer';
+
+const rootReducer = combineReducers({
+  example: exampleReducer,
+  // Add other reducers here
+});
+
+export default rootReducer;
+```
+
+---
+
+### **5. Create Redux-Saga Handler**
+
+File: `src/sagas/exampleSaga.js`
+
+```javascript
+import { call, put, takeEvery, all } from 'redux-saga/effects';
+import * as TYPES from '../actions/types';
+import { fetchExample } from '../api/example';
+import { exampleFetchSuccess, exampleFetchFailure } from '../actions/exampleActions';
+
+function* handleExampleFetch(action) {
+  try {
+    const data = yield call(fetchExample, action.payload);
+    yield put(exampleFetchSuccess(data));
+  } catch (error) {
+    yield put(exampleFetchFailure(error.message));
+  }
+}
+
+function* watchExampleFetch() {
+  yield takeEvery(TYPES.EXAMPLE_FETCH_START, handleExampleFetch);
+}
+
+export default function* exampleSaga() {
+  yield all([watchExampleFetch()]);
+}
+```
+
+File: `src/sagas/index.js`
+- In this file, you have to yield all the sagas separately.
+```javascript
+import { all, fork } from 'redux-saga/effects';
+import exampleSaga from './exampleSaga';
+
+export default function* rootSaga() {
+  yield all([fork(exampleSaga)]);
+  // Add other sagas here as needed
+}
+```
+
+---
+
+### **7. Create a Page Component**
+
+File: `src/pages/ExamplePage.jsx`
+- Use the Integrated API in the page/component as per the below example.
+- Example:
+```javascript
+import React, { useEffect } from 'react';
+import { useDispatch, useSelector } from 'react-redux';
+import { exampleFetchStart } from '../actions/exampleActions';
+
+const ExamplePage = () => {
+  const dispatch = useDispatch();
+  const { data, isLoading, error } = useSelector((state) => state.example);
+
+  useEffect(() => {
+    dispatch(exampleFetchStart({ query: 'example' }));
+  }, [dispatch]);
+
+  return (
+    <div>
+      {isLoading && <p>Loading...</p>}
+      {error && <p>Error: {error}</p>}
+      {data && <pre>{JSON.stringify(data, null, 2)}</pre>}
+    </div>
+  );
+};
+
+export default ExamplePage;
+```
+
+---
+
+## **UI Generation**
+
+### **1. General Rules for UI Components**
+- Follow Material-UI (MUI) design principles and use MUI components
+- Use Tailwind CSS for custom styling and responsive design
+- Maintain consistent spacing using Tailwind's spacing utilities
+- Use color tokens from the project's theme
+- Implement responsive design using Tailwind's breakpoint utilities
+- Component names should be PascalCase (e.g., `HeaderSection`, `ContentCard`)
+
+### **2. Component Structure Guidelines**
+Each component should follow these guidelines:
+- Use functional components with proper prop destructuring
+- Group related components in the `components` directory
+- Use descriptive prop names that reflect their purpose
+- Apply consistent spacing and layout using Tailwind classes
+- Use MUI components for complex UI elements (buttons, cards, etc.)
+
+Example component structure:
+```jsx
+import React from 'react';
+import { Card as MuiCard } from '@mui/material';
+
+const ContentCard = ({ title, description, onClick, className, ...restProps }) => {
+  return (
+    <MuiCard
+      className={`p-4 m-2 rounded-lg shadow-md ${className}`}
+      onClick={onClick}
+      {...restProps}
+    >
+      <h2 className="text-xl font-semibold mb-2">{title}</h2>
+      <p className="text-gray-600">{description}</p>
+    </MuiCard>
+  );
+};
+
+export default ContentCard;
+```
+
+### **3. Must Follow Guidelines for UI Generation**
+
+#### **Component Guidelines**
+1. Component Organization:
+   - Place all reusable components directly in the components directory
+   - Only create subdirectories when there is a clear organizational need:
+     - layout/: For layout-specific components (Header, Footer, Sidebar)
+     - privateRoute/: For authentication-related route components
+     - feature/: For complex feature-specific components with multiple related files
+   - Example structure:
+     ```
+     src/components/
+     ├── Button.jsx           # Direct component files
+     ├── Card.jsx
+     ├── TextInput.jsx
+     ├── Table.jsx
+     ├── Pagination.jsx
+     ├── layout/             # Layout-specific components
+     │   ├── Header.jsx
+     │   └── Sidebar.jsx
+     └── feature/           # Feature-specific components
+         └── ComponentName.jsx
+     ```
+   - When to create a subdirectory:
+     - ✅ For layout components that form the app's structure
+     - ✅ For feature-specific components with multiple related files
+     - ✅ For components that need their own assets or utilities
+     - ❌ Don't create subdirectories for simple, single-file components
+     - ❌ Don't create subdirectories just for categorization
+
+2. Component Usage:
+   - Use MUI components for complex UI elements
+   - Use Tailwind for layout and custom styling
+   - Implement mobile-first responsive design
+   - Use CSS modules for component-specific styles when needed
+   - Define and reuse styles from tailwind config
+   - Common responsive patterns:
+     ```jsx
+     // Container
+     className="w-full max-w-7xl mx-auto px-4 sm:px-6 lg:px-8"
+     
+     // Grid
+     className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4"
+     
+     // Flexbox
+     className="flex flex-col lg:flex-row gap-3 sm:gap-6"
+     
+     // Typography
+     className="text-sm sm:text-base lg:text-lg"
+     ```
+
+3. Props and State Management:
+   - Destructure props at the component level
+   - Keep components focused and single-responsibility
+   - Use React hooks following the project's hook rules
+   - Implement proper loading and error states:
+     ```jsx
+     // Loading state
+     {isLoading ? <Skeleton /> : <Content />}
+     
+     // Error state
+     {error ? <ErrorMessage /> : <Content />}
+     ```
+
+4. Resource Management:
+   - Define theme constants in tailwind.config:
+     ```js
+     module.exports = {
+       theme: {
+         extend: {
+           colors: {
+             navy: '#03234C',
+             'text-primary': '#171A1F',
+             'text-secondary': '#898989'
+           },
+           spacing: {
+             'card-padding': '1.5rem',
+             'container-padding': '2rem'
+           }
+         }
+       }
+     }
+     ```
+
+   - Common component patterns:
+     ```jsx
+     // Card pattern
+     className="bg-white rounded-lg border border-gray-200 p-3 sm:p-6"
+     
+     // Interactive elements
+     className="text-blue-500 hover:underline cursor-pointer"
+     
+     // Grid layouts
+     className="grid grid-cols-[80px_1fr] sm:grid-cols-[120px_1fr]"
+     ```
+
+### **Responsive Design Guidelines**
+1. Breakpoint Usage:
+   - Use standard breakpoints:
+     ```
+     xs: 375px  // Small mobile
+     sm: 640px  // Mobile
+     md: 768px  // Tablet
+     lg: 1024px // Desktop
+     xl: 1280px // Large desktop
+     ```
+
+2. Mobile-First Patterns:
+   - Start with mobile layout
+   - Add complexity at larger breakpoints
+   - Common patterns:
+     ```jsx
+     // Stacking to horizontal
+     className="flex flex-col lg:flex-row"
+     
+     // Grid columns
+     className="grid-cols-1 sm:grid-cols-2 lg:grid-cols-3"
+     
+     // Spacing
+     className="gap-3 sm:gap-4 lg:gap-6"
+     
+     // Typography
+     className="text-sm sm:text-base lg:text-lg"
+     ```
+
+3. Layout Adjustments:
+   - Padding/Margin:
+     ```jsx
+     className="p-3 sm:p-6"
+     className="mx-4 sm:mx-6 lg:mx-8"
+     ```
+   - Width/Height:
+     ```jsx
+     className="w-full lg:w-2/3"
+     className="min-h-[140px] sm:min-h-[200px]"
+     ```
+   - Image sizes:
+     ```jsx
+     className="w-8 h-8 sm:w-10 sm:h-10"
+     ```
+
+4. Content Adaptation:
+   - Text truncation:
+     ```jsx
+     className="line-clamp-2"
+     className="truncate"
+     ```
+   - Responsive visibility:
+     ```jsx
+     className="hidden sm:block"
+     className="block sm:hidden"
+     ```
+
+## **Design Standards**
+
+### **1. Tailwind Guidelines**
+
+#### Core Principles
+- Use Tailwind classes over inline styles
+- Follow mobile-first approach
+- Use even numbers for spacing
+- Avoid arbitrary values in square brackets `[]`
+
+```jsx
+// ✅ Good
+<div className="p-4 mx-2 text-lg" />
+
+// ❌ Bad
+<div className="p-[4.3rem] mt-[7px]" style={{margin: '1rem'}} />
+```
+
+#### Responsive Design
+```jsx
+// Mobile first - Layer up from smallest
+<div className="text-sm md:text-base lg:text-lg" />
+
+// Breakpoints
+sm: 640px+  |  md: 768px+  |  lg: 1024px+  |  xl: 1280px+
+```
+
+#### Common Patterns
+
+```jsx
+// Layout
+<div className="flex items-center justify-between" /> // Flexbox
+<div className="grid grid-cols-1 md:grid-cols-2" />  // Grid
+
+// Typography
+<h1 className="text-2xl md:text-4xl font-bold" />    // Heading
+<p className="text-base text-gray-600" />            // Body
+
+// Spacing
+<div className="p-4 md:p-6 space-y-4" />            // Consistent spacing
+
+// Colors
+<button className="bg-blue-500 hover:bg-blue-600" /> // Primary
+<div className="text-red-500" />                     // Error state
+```
+
+### **2. MUI + Tailwind Integration**
+```jsx
+// Base MUI with Tailwind customization
+<Button
+  variant="contained"
+  className="bg-primary-500 px-6 py-2"
+/>
+
+// Container pattern
+<Container className="max-w-7xl mx-auto px-4 sm:px-6">
+  {/* Content */}
+</Container>
+```
+
+- Directory Structure Rules:
+  - Components Directory:
+    - Place all reusable components directly in the components directory
+    - Only create subdirectories when there is a clear organizational need:
+      - layout/: For layout-specific components (Header, Footer, Sidebar)
+      - privateRoute/: For authentication-related route components
+      - feature/: For complex feature-specific components with multiple related files
+    - Example structure:
+      ```
+      src/components/
+      ├── Button.jsx           # Direct component files
+      ├── Card.jsx
+      ├── TextInput.jsx
+      ├── Table.jsx
+      ├── Pagination.jsx
+      ├── layout/             # Layout-specific components
+      │   ├── Header.jsx
+      │   └── Sidebar.jsx
+      └── feature/           # Feature-specific components
+          └── ComponentName.jsx
+      ```
+
+  - Pages Directory:
+    - Always create a directory for each page/feature
+    - Place page-specific components in a components subdirectory
+    - Keep page-specific utilities and hooks in the page directory
+    - Example structure:
+      ```
+      src/pages/
+      ├── auth/              # Authentication feature
+      │   ├── components/    # Auth-specific components
+      │   ├── Login.jsx     
+      │   └── Register.jsx  
+      ├── rankings/          # Rankings feature
+      │   ├── components/    # Rankings-specific components
+      │   └── index.jsx      # Main rankings page
+      └── user/              # User management feature
+          ├── components/    # User-specific components
+          ├── UserForm.jsx
+          └── UserList.jsx
+      ```
+    - Directory Rules:
+      - ✅ Create a directory for each major feature/page
+      - ✅ Use components/ subdirectory for page-specific components
+      - ✅ Group related pages under a common directory
+      - ❌ Don't place page files directly in pages directory
+      - ❌ Don't mix page files with their components
