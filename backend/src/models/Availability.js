@@ -34,6 +34,24 @@ const availabilitySchema = new mongoose.Schema({
   isActive: {
     type: Boolean,
     default: true
+  },
+  appointmentDuration: {
+    type: Number,
+    min: 15,
+    max: 240
+  },
+  consultationType: {
+    type: String,
+    enum: ['in-person', 'online', 'both'],
+    default: 'both'
+  },
+  maxAppointments: {
+    type: Number,
+    min: 1
+  },
+  notes: {
+    type: String,
+    maxlength: 500
   }
 }, {
   timestamps: true

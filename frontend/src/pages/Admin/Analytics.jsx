@@ -27,6 +27,9 @@ const AdminAnalytics = () => {
         if (data.appointmentsOverTime && !Array.isArray(data.appointmentsOverTime)) {
           data.appointmentsOverTime = [];
         }
+        if (data.cumulativeUserGrowth && !Array.isArray(data.cumulativeUserGrowth)) {
+          data.cumulativeUserGrowth = [];
+        }
         
         // Validate and normalize data structure
         if (data.userGrowth) {
@@ -38,6 +41,13 @@ const AdminAnalytics = () => {
         
         if (data.appointmentsOverTime) {
           data.appointmentsOverTime = data.appointmentsOverTime.map(item => ({
+            _id: item._id || '',
+            count: Number(item.count) || 0
+          }));
+        }
+        
+        if (data.cumulativeUserGrowth) {
+          data.cumulativeUserGrowth = data.cumulativeUserGrowth.map(item => ({
             _id: item._id || '',
             count: Number(item.count) || 0
           }));
@@ -106,32 +116,133 @@ const AdminAnalytics = () => {
     );
   };
 
-  const SimpleLineChart = ({ data, title }) => {
+  // Bar Chart for Time Series Data (better for period-based data)
+  const TimeSeriesBarChart = ({ data, color = 'blue' }) => {
     if (!data || data.length === 0) {
       return (
-        <div className="text-center py-8 text-gray-500 dark:text-gray-400">
-          <p>No data available</p>
+        <div className="text-center py-12 text-gray-500 dark:text-gray-400">
+          <svg className="w-16 h-16 mx-auto mb-4 opacity-50" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" />
+          </svg>
+          <p className="font-medium">No data available</p>
           <p className="text-xs mt-2">Try selecting a different time period</p>
         </div>
       );
     }
     
-    // Filter out invalid data and ensure we have valid counts
     const validData = data.filter(d => d && d._id && (d.count !== undefined && d.count !== null));
     if (validData.length === 0) {
       return (
-        <div className="text-center py-8 text-gray-500 dark:text-gray-400">
+        <div className="text-center py-12 text-gray-500 dark:text-gray-400">
           <p>No valid data points</p>
         </div>
       );
     }
     
     const counts = validData.map(d => Number(d.count) || 0);
-    const maxValue = Math.max(...counts, 1); // Ensure at least 1 to avoid issues
-    const minValue = Math.min(...counts, 0);
-    const range = maxValue - minValue || 1; // Prevent division by zero
+    const maxValue = Math.max(...counts, 1);
     const total = counts.reduce((sum, count) => sum + count, 0);
     const average = validData.length > 0 ? total / validData.length : 0;
+    
+    const colorClasses = {
+      blue: { bg: 'bg-blue-500', hover: 'hover:bg-blue-600', text: 'text-blue-600' },
+      green: { bg: 'bg-green-500', hover: 'hover:bg-green-600', text: 'text-green-600' },
+      purple: { bg: 'bg-purple-500', hover: 'hover:bg-purple-600', text: 'text-purple-600' },
+      teal: { bg: 'bg-teal-500', hover: 'hover:bg-teal-600', text: 'text-teal-600' },
+    };
+    
+    const colors = colorClasses[color] || colorClasses.blue;
+    
+    const formatDate = (dateStr) => {
+      if (!dateStr) return '';
+      try {
+        if (typeof dateStr === 'string' && dateStr.includes('-')) {
+          const [year, month, day] = dateStr.split('-');
+          const date = new Date(parseInt(year), parseInt(month) - 1, parseInt(day));
+          if (isNaN(date.getTime())) return dateStr;
+          return date.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+        }
+        const date = new Date(dateStr);
+        if (isNaN(date.getTime())) return dateStr;
+        return date.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+      } catch (e) {
+        return dateStr;
+      }
+    };
+    
+    return (
+      <div className="space-y-4">
+        <div className="flex items-center justify-between text-sm">
+          <div>
+            <span className="text-gray-600 dark:text-gray-400">Total: </span>
+            <span className="font-semibold text-gray-900 dark:text-white">{total}</span>
+          </div>
+          <div>
+            <span className="text-gray-600 dark:text-gray-400">Avg: </span>
+            <span className="font-semibold text-gray-900 dark:text-white">{average.toFixed(1)}</span>
+          </div>
+        </div>
+        <div className="space-y-3">
+          {validData.map((item, index) => {
+            const height = maxValue > 0 ? ((item.count || 0) / maxValue) * 100 : 0;
+            return (
+              <div key={index} className="space-y-1">
+                <div className="flex items-center justify-between text-xs">
+                  <span className="font-medium text-gray-700 dark:text-gray-300">{formatDate(item._id)}</span>
+                  <span className={`font-semibold ${colors.text} dark:text-${color}-400`}>{item.count || 0}</span>
+                </div>
+                <div className="relative h-8 bg-gray-200 dark:bg-gray-700 rounded-lg overflow-hidden">
+                  <div
+                    className={`h-full ${colors.bg} ${colors.hover} transition-all duration-500 flex items-center justify-end pr-2 rounded-lg`}
+                    style={{ width: `${height}%` }}
+                  >
+                    {height > 20 && (
+                      <span className="text-xs font-medium text-white">{item.count || 0}</span>
+                    )}
+                  </div>
+                  {height <= 20 && (
+                    <div className="absolute inset-0 flex items-center justify-end pr-2 text-xs font-medium text-gray-700 dark:text-gray-300">
+                      {item.count || 0}
+                    </div>
+                  )}
+                </div>
+              </div>
+            );
+          })}
+        </div>
+      </div>
+    );
+  };
+
+  // Area Chart for Cumulative Data (better for showing growth over time)
+  const CumulativeAreaChart = ({ data }) => {
+    if (!data || data.length === 0) {
+      return (
+        <div className="text-center py-12 text-gray-500 dark:text-gray-400">
+          <svg className="w-16 h-16 mx-auto mb-4 opacity-50" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" />
+          </svg>
+          <p className="font-medium">No data available</p>
+        </div>
+      );
+    }
+    
+    const validData = data.filter(d => d && d._id && (d.count !== undefined && d.count !== null));
+    if (validData.length === 0) {
+      return (
+        <div className="text-center py-12 text-gray-500 dark:text-gray-400">
+          <p>No valid data points</p>
+        </div>
+      );
+    }
+    
+    const counts = validData.map(d => Number(d.count) || 0);
+    const maxValue = Math.max(...counts, 1);
+    const minValue = Math.min(...counts, 0);
+    const range = maxValue - minValue || 1;
+    const total = counts[counts.length - 1] || 0; // Last value is the cumulative total
+    const firstValue = counts[0] || 0;
+    const growth = total - firstValue;
 
     // Format date for display - handle YYYY-MM-DD format from MongoDB
     const formatDate = (dateStr) => {
@@ -152,60 +263,42 @@ const AdminAnalytics = () => {
       }
     };
 
-    // Chart dimensions (in viewBox coordinates)
-    const chartWidth = 90; // 90% of viewBox width (5% padding on each side)
-    const chartHeight = 80; // 80% of viewBox height (10% padding top, 10% bottom)
-    const paddingLeft = 5;
-    const paddingTop = 10;
-    const paddingBottom = 10;
-
-    // Calculate points for the line chart using absolute numeric coordinates
+    // Calculate average for display
+    const average = validData.length > 0 ? total / validData.length : 0;
+    
+    // Create area chart path
     const getPoint = (index, count) => {
       const dataLength = validData.length;
-      // Calculate X position (horizontal spacing)
-      let x;
-      if (dataLength === 1) {
-        x = paddingLeft + chartWidth / 2; // Center single point
-      } else {
-        x = paddingLeft + (index / (dataLength - 1)) * chartWidth;
-      }
-      
-      // Calculate Y position (vertical position based on value)
+      const x = dataLength === 1 
+        ? 5 + 45 // Center single point
+        : 5 + (index / Math.max(dataLength - 1, 1)) * 90;
       const numCount = Number(count) || 0;
-      let normalizedValue;
-      if (range > 0) {
-        normalizedValue = (numCount - minValue) / range;
-      } else {
-        normalizedValue = 0.5; // Center if all values are the same
-      }
-      
-      // Invert Y axis (SVG Y increases downward, but we want higher values at top)
-      const y = paddingTop + chartHeight - (normalizedValue * chartHeight);
-      
-      // Ensure coordinates are within bounds
-      return { 
-        x: Math.max(paddingLeft, Math.min(paddingLeft + chartWidth, x)), 
-        y: Math.max(paddingTop, Math.min(paddingTop + chartHeight, y))
-      };
+      const normalizedValue = range > 0 ? (numCount - minValue) / range : 0.5;
+      const y = 10 + 80 - (normalizedValue * 80);
+      return { x: Math.max(5, Math.min(95, x)), y: Math.max(10, Math.min(90, y)) };
     };
-
-    // Generate points string for polyline (must be space-separated "x,y" pairs)
-    const pointsString = validData.map((item, index) => {
-      const point = getPoint(index, item.count || 0);
-      // Ensure we return numbers, not strings with % or other characters
-      return `${point.x},${point.y}`;
-    }).join(' ');
+    
+    // Create path for area fill
+    const areaPath = validData.length > 0 ? (() => {
+      const points = validData.map((item, index) => getPoint(index, item.count || 0));
+      const firstPoint = points[0];
+      const lastPoint = points[points.length - 1];
+      const linePath = points.map((p, i) => `${i === 0 ? 'M' : 'L'} ${p.x} ${p.y}`).join(' ');
+      return `${linePath} L ${lastPoint.x} 90 L ${firstPoint.x} 90 Z`;
+    })() : '';
 
     return (
       <div className="space-y-4">
         <div className="flex items-center justify-between text-sm">
           <div>
-            <span className="text-gray-600 dark:text-gray-400">Total: </span>
+            <span className="text-gray-600 dark:text-gray-400">Current Total: </span>
             <span className="font-semibold text-gray-900 dark:text-white">{total}</span>
           </div>
           <div>
-            <span className="text-gray-600 dark:text-gray-400">Avg: </span>
-            <span className="font-semibold text-gray-900 dark:text-white">{average.toFixed(1)}</span>
+            <span className="text-gray-600 dark:text-gray-400">Growth: </span>
+            <span className={`font-semibold ${growth >= 0 ? 'text-green-600 dark:text-green-400' : 'text-red-600 dark:text-red-400'}`}>
+              {growth >= 0 ? '+' : ''}{growth}
+            </span>
           </div>
         </div>
         <div className="relative h-64 bg-gray-50 dark:bg-gray-900/50 rounded-lg p-4">
@@ -219,9 +312,9 @@ const AdminAnalytics = () => {
             {[10, 30, 50, 70, 90].map((y) => (
               <line
                 key={y}
-                x1={paddingLeft}
+                x1="5"
                 y1={y}
-                x2={paddingLeft + chartWidth}
+                x2="95"
                 y2={y}
                 stroke="#e5e7eb"
                 strokeWidth="0.3"
@@ -230,37 +323,71 @@ const AdminAnalytics = () => {
               />
             ))}
             
-            {/* Y-axis line */}
+            {/* Y-axis */}
             <line
-              x1={paddingLeft}
-              y1={paddingTop}
-              x2={paddingLeft}
-              y2={paddingTop + chartHeight}
+              x1="5"
+              y1="10"
+              x2="5"
+              y2="90"
               stroke="#d1d5db"
               strokeWidth="0.5"
               className="dark:stroke-gray-600"
             />
             
-            {/* X-axis line */}
+            {/* X-axis */}
             <line
-              x1={paddingLeft}
-              y1={paddingTop + chartHeight}
-              x2={paddingLeft + chartWidth}
-              y2={paddingTop + chartHeight}
+              x1="5"
+              y1="90"
+              x2="95"
+              y2="90"
               stroke="#d1d5db"
               strokeWidth="0.5"
               className="dark:stroke-gray-600"
             />
             
-            {/* Line chart - render polyline with numeric coordinates */}
-            {validData.length > 0 && pointsString && (
-              <polyline
-                fill="none"
+            {/* Gradient definition */}
+            <defs>
+              <linearGradient id="areaGradient" x1="0%" y1="0%" x2="0%" y2="100%">
+                <stop offset="0%" stopColor="#3b82f6" stopOpacity="0.4" />
+                <stop offset="100%" stopColor="#3b82f6" stopOpacity="0.1" />
+              </linearGradient>
+            </defs>
+            
+            {/* Area fill */}
+            {validData.length > 0 && areaPath && (
+              <path
+                d={areaPath}
+                fill="url(#areaGradient)"
+              />
+            )}
+            
+            {/* Line chart */}
+            {validData.length > 1 && (() => {
+              const points = validData.map((item, index) => getPoint(index, item.count || 0));
+              const linePath = points.map((p, i) => `${i === 0 ? 'M' : 'L'} ${p.x} ${p.y}`).join(' ');
+              return (
+                <path
+                  d={linePath}
+                  fill="none"
+                  stroke="#3b82f6"
+                  strokeWidth="2.5"
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                />
+              );
+            })()}
+            
+            {/* Single point line */}
+            {validData.length === 1 && (
+              <line
+                x1="5"
+                y1={getPoint(0, validData[0].count || 0).y}
+                x2="95"
+                y2={getPoint(0, validData[0].count || 0).y}
                 stroke="#3b82f6"
                 strokeWidth="2"
-                strokeLinecap="round"
-                strokeLinejoin="round"
-                points={pointsString}
+                strokeDasharray="5,5"
+                opacity="0.6"
               />
             )}
             
@@ -272,13 +399,13 @@ const AdminAnalytics = () => {
                   <circle
                     cx={point.x}
                     cy={point.y}
-                    r="3"
+                    r="3.5"
                     fill="#3b82f6"
                     stroke="#fff"
-                    strokeWidth="1.5"
-                    className="hover:r-4 transition-all cursor-pointer"
+                    strokeWidth="2"
+                    className="hover:r-5 transition-all cursor-pointer"
                   />
-                  <title>{formatDate(item._id)}: {item.count || 0}</title>
+                  <title>{formatDate(item._id)}: {item.count || 0} users</title>
                 </g>
               );
             })}
@@ -362,18 +489,36 @@ const AdminAnalytics = () => {
           
           {/* Summary Statistics */}
           {analytics && (
-            <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-6">
+            <div className="grid grid-cols-1 md:grid-cols-5 gap-4 mb-6">
+              {/* Total Registered Users in DOXI - Prominent */}
+              <div className="bg-gradient-to-br from-blue-500 to-blue-600 dark:from-blue-600 dark:to-blue-700 rounded-xl shadow-lg p-4 border border-blue-400 dark:border-blue-600">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <p className="text-sm text-blue-100 dark:text-blue-200 font-medium">Total Registered Users</p>
+                    <p className="text-3xl font-bold text-white mt-2">
+                      {analytics.totalRegisteredUsers || analytics.usersByRole?.reduce((sum, r) => sum + (r.count || 0), 0) || 0}
+                    </p>
+                    <p className="text-xs text-blue-100 dark:text-blue-200 mt-1">All-time in DOXI</p>
+                  </div>
+                  <div className="p-3 bg-white/20 rounded-lg">
+                    <svg className="w-7 h-7 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4.354a4 4 0 110 5.292M15 21H3v-1a6 6 0 0112 0v1zm0 0h6v-1a6 6 0 00-9-5.197M13 7a4 4 0 11-8 0 4 4 0 018 0z" />
+                    </svg>
+                  </div>
+                </div>
+              </div>
               <div className="bg-white dark:bg-gray-800 rounded-xl shadow-md p-4 border border-gray-200 dark:border-gray-700">
                 <div className="flex items-center justify-between">
                   <div>
-                    <p className="text-sm text-gray-600 dark:text-gray-400">Total Users</p>
+                    <p className="text-sm text-gray-600 dark:text-gray-400">Users (Period)</p>
                     <p className="text-2xl font-bold text-gray-900 dark:text-white mt-1">
-                      {analytics.usersByRole?.reduce((sum, r) => sum + (r.count || 0), 0) || 0}
+                      {analytics.userGrowth?.reduce((sum, u) => sum + (u.count || 0), 0) || 0}
                     </p>
+                    <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">Last {period} days</p>
                   </div>
                   <div className="p-3 bg-blue-100 dark:bg-blue-900/30 rounded-lg">
                     <svg className="w-6 h-6 text-blue-600 dark:text-blue-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4.354a4 4 0 110 5.292M15 21H3v-1a6 6 0 0112 0v1zm0 0h6v-1a6 6 0 00-9-5.197M13 7a4 4 0 11-8 0 4 4 0 018 0z" />
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 7h8m0 0v8m0-8l-8 8-4-4-6 6" />
                     </svg>
                   </div>
                 </div>
@@ -434,16 +579,31 @@ const AdminAnalytics = () => {
 
         {analytics && (
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-            {/* User Growth */}
+            {/* Total Registered Users Over Time - Cumulative Growth */}
             <div className="bg-white dark:bg-gray-800 rounded-xl shadow-md p-6 border border-gray-200 dark:border-gray-700">
-              <h2 className="text-xl font-bold text-gray-900 dark:text-white mb-4">User Growth</h2>
-              <SimpleLineChart data={analytics.userGrowth || []} />
+              <div className="mb-4">
+                <h2 className="text-xl font-bold text-gray-900 dark:text-white">Total Registered Users Over Time</h2>
+                <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">Cumulative growth of all users registered in DOXI</p>
+              </div>
+              <CumulativeAreaChart data={analytics.cumulativeUserGrowth || []} />
+            </div>
+
+            {/* User Growth (Period) */}
+            <div className="bg-white dark:bg-gray-800 rounded-xl shadow-md p-6 border border-gray-200 dark:border-gray-700">
+              <div className="mb-4">
+                <h2 className="text-xl font-bold text-gray-900 dark:text-white">User Growth (Period)</h2>
+                <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">New users registered in the last {period} days</p>
+              </div>
+              <TimeSeriesBarChart data={analytics.userGrowth || []} color="blue" />
             </div>
 
             {/* Appointments Over Time */}
             <div className="bg-white dark:bg-gray-800 rounded-xl shadow-md p-6 border border-gray-200 dark:border-gray-700">
-              <h2 className="text-xl font-bold text-gray-900 dark:text-white mb-4">Appointments Over Time</h2>
-              <SimpleLineChart data={analytics.appointmentsOverTime || []} />
+              <div className="mb-4">
+                <h2 className="text-xl font-bold text-gray-900 dark:text-white">Appointments Over Time</h2>
+                <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">Appointments created in the last {period} days</p>
+              </div>
+              <TimeSeriesBarChart data={analytics.appointmentsOverTime || []} color="green" />
             </div>
 
             {/* Appointments by Status */}

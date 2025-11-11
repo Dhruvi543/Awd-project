@@ -73,7 +73,11 @@ export const apiService = {
   getDoctor: (id) => apiClient.get(`/api/doctors/${id}`),
   updateDoctorProfile: (doctorData) => apiClient.put('/api/doctors/profile', doctorData),
   getDoctorAvailability: (id) => apiClient.get(`/api/doctors/${id}/availability`),
-  updateDoctorAvailability: (availabilityData) => apiClient.put('/api/doctors/availability', availabilityData),
+  // Doctor's own availability management
+  getMyAvailability: () => apiClient.get('/api/doctors/availability/me'),
+  createMyAvailability: (availabilityData) => apiClient.post('/api/doctors/availability', availabilityData),
+  updateMyAvailability: (id, availabilityData) => apiClient.put(`/api/doctors/availability/${id}`, availabilityData),
+  deleteMyAvailability: (id) => apiClient.delete(`/api/doctors/availability/${id}`),
   
   // Appointment methods
   getAppointments: (params = {}) => apiClient.get('/api/appointments', { params }),
@@ -82,7 +86,9 @@ export const apiService = {
   deleteAppointment: (id) => apiClient.delete(`/api/appointments/${id}`),
   cancelAppointment: (id) => apiClient.patch(`/api/appointments/${id}/cancel`),
   confirmAppointment: (id) => apiClient.patch(`/api/appointments/${id}/confirm`),
-  completeAppointment: (id) => apiClient.patch(`/api/appointments/${id}/complete`),
+  rejectAppointment: (id, rejectionReason) => apiClient.patch(`/api/appointments/${id}/reject`, { rejectionReason }),
+  cancelConfirmedAppointment: (id, cancellationReason) => apiClient.patch(`/api/appointments/${id}/cancel-confirmed`, { cancellationReason }),
+  completeAppointment: (id, prescription) => apiClient.patch(`/api/appointments/${id}/complete`, { prescription }),
   
   // Notification methods
   getNotifications: () => apiClient.get('/api/notifications'),

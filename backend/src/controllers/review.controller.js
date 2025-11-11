@@ -1,7 +1,6 @@
 import { z } from 'zod';
 import mongoose from 'mongoose';
 import Review from '../models/Review.js';
-import Appointment from '../models/Appointment.js';
 import User from '../models/User.js';
 import asyncHandler from '../utils/asyncHandler.js';
 
@@ -27,24 +26,85 @@ const createReviewSchema = z.object({
 
 // Get reviews for a doctor
 const getDoctorReviews = asyncHandler(async (req, res) => {
-  const { doctorId } = req.params;
+  try {
+    const { doctorId } = req.params;
+    
+    // Validate doctorId
+    if (!doctorId) {
+      return res.status(400).json({
+        success: false,
+        message: 'Doctor ID is required'
+      });
+    }
 
-  const reviews = await Review.find({ doctor: doctorId })
-    .populate('patient', 'name email')
-    .populate('appointment')
-    .sort({ createdAt: -1 });
+    // Validate ObjectId format
+    if (!mongoose.Types.ObjectId.isValid(doctorId)) {
+      return res.status(400).json({
+        success: false,
+        message: 'Invalid doctor ID format'
+      });
+    }
 
-  // Calculate average rating
-  const avgRating = reviews.length > 0
-    ? reviews.reduce((sum, review) => sum + review.rating, 0) / reviews.length
-    : 0;
+    // Convert to ObjectId for reliable querying
+    const doctorObjectId = new mongoose.Types.ObjectId(doctorId);
+    console.log('Fetching reviews for doctor ID:', doctorId, 'ObjectId:', doctorObjectId);
 
-  res.json({
-    success: true,
-    reviews,
-    averageRating: avgRating.toFixed(1),
-    totalReviews: reviews.length,
-  });
+    // Query reviews with proper ObjectId conversion
+    // Reviews are based on experience, not tied to appointments
+    const reviews = await Review.find({ doctor: doctorObjectId })
+      .populate('patient', 'name email phone')
+      .sort({ createdAt: -1 });
+
+    console.log('Reviews found for doctor:', reviews.length);
+    if (reviews.length > 0) {
+      console.log('Sample review:', {
+        id: reviews[0]._id,
+        doctor: reviews[0].doctor,
+        patient: reviews[0].patient?.name,
+        rating: reviews[0].rating,
+        comment: reviews[0].comment
+      });
+    } else {
+      // Debug: Check if there are any reviews in the database for this doctor
+      const allReviewsForDoctor = await Review.find({ doctor: doctorObjectId }).lean();
+      console.log('Raw reviews query result (without populate):', allReviewsForDoctor.length);
+      if (allReviewsForDoctor.length > 0) {
+        console.log('Raw review doctor field:', allReviewsForDoctor[0].doctor);
+        console.log('Doctor ObjectId:', doctorObjectId.toString());
+        console.log('Match:', allReviewsForDoctor[0].doctor.toString() === doctorObjectId.toString());
+      }
+    }
+
+    // Calculate average rating
+    const avgRating = reviews.length > 0
+      ? reviews.reduce((sum, review) => sum + review.rating, 0) / reviews.length
+      : 0;
+
+    // Calculate rating distribution
+    const ratingDistribution = {
+      5: reviews.filter(r => r.rating === 5).length,
+      4: reviews.filter(r => r.rating === 4).length,
+      3: reviews.filter(r => r.rating === 3).length,
+      2: reviews.filter(r => r.rating === 2).length,
+      1: reviews.filter(r => r.rating === 1).length,
+    };
+
+    res.json({
+      success: true,
+      data: reviews,
+      reviews, // Keep for backward compatibility
+      averageRating: parseFloat(avgRating.toFixed(1)),
+      totalReviews: reviews.length,
+      ratingDistribution
+    });
+  } catch (error) {
+    console.error('Error fetching doctor reviews:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Error fetching doctor reviews',
+      error: error.message
+    });
+  }
 });
 
 // Create a review
@@ -78,8 +138,19 @@ const createReview = asyncHandler(async (req, res) => {
     
     console.log('Review data validated:', reviewData);
 
+    // Validate and convert doctor ID to ObjectId
+    if (!mongoose.Types.ObjectId.isValid(reviewData.doctor)) {
+      return res.status(400).json({
+        success: false,
+        message: 'Invalid doctor ID format',
+      });
+    }
+
+    const doctorObjectId = new mongoose.Types.ObjectId(reviewData.doctor);
+    console.log('Doctor ID converted to ObjectId:', doctorObjectId.toString());
+
     // Check if doctor exists and is approved
-    const doctor = await User.findById(reviewData.doctor);
+    const doctor = await User.findById(doctorObjectId);
     if (!doctor || doctor.role !== 'doctor') {
       return res.status(404).json({
         success: false,
@@ -96,25 +167,27 @@ const createReview = asyncHandler(async (req, res) => {
 
     // Allow multiple reviews per doctor - no restriction
     // Users can post reviews anytime without limitations
-
-    // Get the most recent appointment (if any) for reference
-    const recentAppointment = await Appointment.findOne({
-      patient: patientId,
-      doctor: reviewData.doctor
-    }).sort({ appointmentDate: -1 });
+    // Reviews are based on experience, not tied to specific appointments
 
     const review = new Review({
-      doctor: reviewData.doctor,
+      doctor: doctorObjectId, // Use converted ObjectId
       rating: reviewData.rating,
       comment: reviewData.comment && reviewData.comment.trim() !== '' ? reviewData.comment.trim() : undefined,
       patient: patientId,
-      appointment: recentAppointment?._id || null, // Link to appointment if exists, otherwise null
+      // No appointment linking - reviews are based on overall experience
     });
 
     await review.save();
     await review.populate('patient', 'name email');
+    await review.populate('doctor', 'name');
 
-    console.log('Review created successfully:', review._id);
+    console.log('Review created successfully:', {
+      reviewId: review._id,
+      doctor: review.doctor?._id || review.doctor,
+      doctorName: review.doctor?.name,
+      patient: review.patient?._id || review.patient,
+      rating: review.rating
+    });
 
     res.status(201).json({
       success: true,
@@ -138,7 +211,6 @@ const getPatientReviews = asyncHandler(async (req, res) => {
     
     const reviews = await Review.find({ patient: patientId })
       .populate('doctor', 'name specialization')
-      .populate('appointment')
       .sort({ createdAt: -1 });
     
     res.json({

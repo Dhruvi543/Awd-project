@@ -108,7 +108,7 @@ const getDoctorAvailability = asyncHandler(async (req, res) => {
     const availability = await Availability.find({
       doctor: doctorId,
       isActive: true
-    }).sort({ dayOfWeek: 1, startTime: 1 });
+    }).sort({ startDate: 1, startTime: 1 });
     
     res.json({
       success: true,
@@ -123,9 +123,338 @@ const getDoctorAvailability = asyncHandler(async (req, res) => {
   }
 });
 
+// Get current doctor's own availability (authenticated)
+const getMyAvailability = asyncHandler(async (req, res) => {
+  try {
+    const doctorId = req.user._id;
+    
+    const availability = await Availability.find({
+      doctor: doctorId
+    }).sort({ type: 1, startDate: 1, startTime: 1 });
+    
+    res.json({
+      success: true,
+      data: availability
+    });
+  } catch (error) {
+    res.status(500).json({
+      success: false,
+      message: 'Error fetching availability',
+      error: error.message
+    });
+  }
+});
+
+// Create availability/schedule (authenticated doctor)
+const createMyAvailability = asyncHandler(async (req, res) => {
+  try {
+    const doctorId = req.user._id;
+    const { type, dayOfWeek, startTime, endTime, startDate, endDate, reason, appointmentDuration, consultationType, maxAppointments, notes } = req.body;
+    
+    // Validate required fields based on type
+    if (type === 'schedule') {
+      // For date-based schedule, require date and times
+      if (!startDate || !startTime || !endTime) {
+        return res.status(400).json({
+          success: false,
+          message: 'Date, start time, and end time are required for availability'
+        });
+      }
+      
+      // Validate time range
+      if (startTime >= endTime) {
+        return res.status(400).json({
+          success: false,
+          message: 'End time must be after start time'
+        });
+      }
+      
+      // Validate appointment duration if provided
+      if (appointmentDuration && (appointmentDuration < 15 || appointmentDuration > 240)) {
+        return res.status(400).json({
+          success: false,
+          message: 'Appointment duration must be between 15 and 240 minutes'
+        });
+      }
+      
+      // Validate consultation type
+      if (consultationType && !['in-person', 'online', 'both'].includes(consultationType)) {
+        return res.status(400).json({
+          success: false,
+          message: 'Invalid consultation type. Must be: in-person, online, or both'
+        });
+      }
+      
+      // Validate max appointments if provided
+      if (maxAppointments && maxAppointments < 1) {
+        return res.status(400).json({
+          success: false,
+          message: 'Max appointments must be at least 1'
+        });
+      }
+    } else if (type === 'leave') {
+      if (!startDate || !endDate) {
+        return res.status(400).json({
+          success: false,
+          message: 'Start date and end date are required for leave'
+        });
+      }
+      
+      // Validate date range
+      const leaveStart = new Date(startDate);
+      const leaveEnd = new Date(endDate);
+      leaveStart.setHours(0, 0, 0, 0);
+      leaveEnd.setHours(23, 59, 59, 999);
+      
+      if (leaveStart > leaveEnd) {
+        return res.status(400).json({
+          success: false,
+          message: 'End date must be after or equal to start date'
+        });
+      }
+      
+      // Check for overlapping leaves
+      const existingLeaves = await Availability.find({
+        doctor: doctorId,
+        type: 'leave',
+        isActive: true
+      });
+      
+      for (const existingLeave of existingLeaves) {
+        if (existingLeave.startDate && existingLeave.endDate) {
+          const existingStart = new Date(existingLeave.startDate);
+          existingStart.setHours(0, 0, 0, 0);
+          const existingEnd = new Date(existingLeave.endDate);
+          existingEnd.setHours(23, 59, 59, 999);
+          
+          // Check if dates overlap
+          if ((leaveStart <= existingEnd && leaveEnd >= existingStart)) {
+            return res.status(400).json({
+              success: false,
+              message: `Leave dates overlap with existing leave from ${existingStart.toLocaleDateString()} to ${existingEnd.toLocaleDateString()}. Please adjust your dates.`
+            });
+          }
+        }
+      }
+    } else {
+      return res.status(400).json({
+        success: false,
+        message: 'Invalid type. Must be "schedule" or "leave"'
+      });
+    }
+    
+    const availability = new Availability({
+      doctor: doctorId,
+      type,
+      dayOfWeek,
+      startTime,
+      endTime,
+      startDate: startDate ? new Date(startDate) : undefined,
+      endDate: endDate ? new Date(endDate) : undefined,
+      reason,
+      appointmentDuration: appointmentDuration ? parseInt(appointmentDuration) : undefined,
+      consultationType: consultationType || 'both',
+      maxAppointments: maxAppointments ? parseInt(maxAppointments) : undefined,
+      notes: notes ? notes.trim() : undefined
+    });
+    
+    await availability.save();
+    
+    res.status(201).json({
+      success: true,
+      message: 'Availability created successfully',
+      data: availability
+    });
+  } catch (error) {
+    res.status(500).json({
+      success: false,
+      message: 'Error creating availability',
+      error: error.message
+    });
+  }
+});
+
+// Update availability (authenticated doctor)
+const updateMyAvailability = asyncHandler(async (req, res) => {
+  try {
+    const doctorId = req.user._id;
+    const { id } = req.params;
+    const { type, dayOfWeek, startTime, endTime, startDate, endDate, reason, isActive, appointmentDuration, consultationType, maxAppointments, notes } = req.body;
+    
+    const availability = await Availability.findById(id);
+    
+    if (!availability) {
+      return res.status(404).json({
+        success: false,
+        message: 'Availability not found'
+      });
+    }
+    
+    // Check if the availability belongs to the doctor
+    if (availability.doctor.toString() !== doctorId.toString()) {
+      return res.status(403).json({
+        success: false,
+        message: 'You are not authorized to update this availability'
+      });
+    }
+    
+    // If updating leave dates, check for overlaps
+    if ((type === 'leave' || availability.type === 'leave') && (startDate || endDate)) {
+      const checkStartDate = startDate ? new Date(startDate) : availability.startDate;
+      const checkEndDate = endDate ? new Date(endDate) : availability.endDate;
+      
+      if (checkStartDate && checkEndDate) {
+        const leaveStart = new Date(checkStartDate);
+        const leaveEnd = new Date(checkEndDate);
+        leaveStart.setHours(0, 0, 0, 0);
+        leaveEnd.setHours(23, 59, 59, 999);
+        
+        if (leaveStart > leaveEnd) {
+          return res.status(400).json({
+            success: false,
+            message: 'End date must be after or equal to start date'
+          });
+        }
+        
+        // Check for overlapping leaves (excluding current leave)
+        const existingLeaves = await Availability.find({
+          doctor: doctorId,
+          type: 'leave',
+          isActive: true,
+          _id: { $ne: id }
+        });
+        
+        for (const existingLeave of existingLeaves) {
+          if (existingLeave.startDate && existingLeave.endDate) {
+            const existingStart = new Date(existingLeave.startDate);
+            existingStart.setHours(0, 0, 0, 0);
+            const existingEnd = new Date(existingLeave.endDate);
+            existingEnd.setHours(23, 59, 59, 999);
+            
+            // Check if dates overlap
+            if ((leaveStart <= existingEnd && leaveEnd >= existingStart)) {
+              return res.status(400).json({
+                success: false,
+                message: `Leave dates overlap with existing leave from ${existingStart.toLocaleDateString()} to ${existingEnd.toLocaleDateString()}. Please adjust your dates.`
+              });
+            }
+          }
+        }
+      }
+    }
+    
+    // Validate time range if updating schedule times
+    if (type === 'schedule' && startTime && endTime) {
+      if (startTime >= endTime) {
+        return res.status(400).json({
+          success: false,
+          message: 'End time must be after start time'
+        });
+      }
+    }
+    
+    // Validate appointment duration if provided
+    if (appointmentDuration !== undefined) {
+      const duration = parseInt(appointmentDuration);
+      if (duration < 15 || duration > 240) {
+        return res.status(400).json({
+          success: false,
+          message: 'Appointment duration must be between 15 and 240 minutes'
+        });
+      }
+      availability.appointmentDuration = duration;
+    }
+    
+    // Validate consultation type if provided
+    if (consultationType && !['in-person', 'online', 'both'].includes(consultationType)) {
+      return res.status(400).json({
+        success: false,
+        message: 'Invalid consultation type. Must be: in-person, online, or both'
+      });
+    }
+    
+    if (type) availability.type = type;
+    if (dayOfWeek !== undefined) availability.dayOfWeek = dayOfWeek;
+    if (startTime) availability.startTime = startTime;
+    if (endTime) availability.endTime = endTime;
+    if (startDate) availability.startDate = new Date(startDate);
+    if (endDate) availability.endDate = new Date(endDate);
+    if (reason !== undefined) availability.reason = reason;
+    if (isActive !== undefined) availability.isActive = isActive;
+    if (consultationType) availability.consultationType = consultationType;
+    if (maxAppointments !== undefined) {
+      const max = parseInt(maxAppointments);
+      if (max < 1) {
+        return res.status(400).json({
+          success: false,
+          message: 'Max appointments must be at least 1'
+        });
+      }
+      availability.maxAppointments = max || undefined;
+    }
+    if (notes !== undefined) availability.notes = notes ? notes.trim() : undefined;
+    
+    await availability.save();
+    
+    res.json({
+      success: true,
+      message: 'Availability updated successfully',
+      data: availability
+    });
+  } catch (error) {
+    res.status(500).json({
+      success: false,
+      message: 'Error updating availability',
+      error: error.message
+    });
+  }
+});
+
+// Delete availability (authenticated doctor)
+const deleteMyAvailability = asyncHandler(async (req, res) => {
+  try {
+    const doctorId = req.user._id;
+    const { id } = req.params;
+    
+    const availability = await Availability.findById(id);
+    
+    if (!availability) {
+      return res.status(404).json({
+        success: false,
+        message: 'Availability not found'
+      });
+    }
+    
+    // Check if the availability belongs to the doctor
+    if (availability.doctor.toString() !== doctorId.toString()) {
+      return res.status(403).json({
+        success: false,
+        message: 'You are not authorized to delete this availability'
+      });
+    }
+    
+    await Availability.deleteOne({ _id: availability._id });
+    
+    res.json({
+      success: true,
+      message: 'Availability deleted successfully'
+    });
+  } catch (error) {
+    res.status(500).json({
+      success: false,
+      message: 'Error deleting availability',
+      error: error.message
+    });
+  }
+});
+
 export {
   getDoctors,
   getDoctor,
-  getDoctorAvailability
+  getDoctorAvailability,
+  getMyAvailability,
+  createMyAvailability,
+  updateMyAvailability,
+  deleteMyAvailability
 };
 

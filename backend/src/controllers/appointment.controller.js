@@ -19,6 +19,45 @@ const compareObjectIds = (id1, id2) => {
   return objId1.equals(objId2);
 };
 
+// Helper function to check if a date falls within any active leave period
+const isDateOnLeave = async (doctorId, checkDate) => {
+  try {
+    // Normalize the check date to start of day for comparison
+    const checkDateStart = new Date(checkDate);
+    checkDateStart.setHours(0, 0, 0, 0);
+    
+    // Find all active leave records for this doctor
+    const leaves = await Availability.find({
+      doctor: doctorId,
+      type: 'leave',
+      isActive: true
+    });
+    
+    // Check if the date falls within any leave period
+    for (const leave of leaves) {
+      if (leave.startDate && leave.endDate) {
+        const startDate = new Date(leave.startDate);
+        startDate.setHours(0, 0, 0, 0);
+        const endDate = new Date(leave.endDate);
+        endDate.setHours(23, 59, 59, 999);
+        
+        if (checkDateStart >= startDate && checkDateStart <= endDate) {
+          return {
+            isOnLeave: true,
+            leave: leave
+          };
+        }
+      }
+    }
+    
+    return { isOnLeave: false };
+  } catch (error) {
+    console.error('Error checking leave status:', error);
+    // If there's an error, don't block the appointment
+    return { isOnLeave: false };
+  }
+};
+
 // Get patient's appointments
 const getPatientAppointments = asyncHandler(async (req, res) => {
   try {
@@ -149,6 +188,17 @@ const bookAppointment = asyncHandler(async (req, res) => {
       return res.status(400).json({
         success: false,
         message: 'Appointments can only be booked up to 30 days in advance'
+      });
+    }
+    
+    // Check if doctor is on leave on the requested date
+    const leaveCheck = await isDateOnLeave(doctorId, appointmentDate);
+    if (leaveCheck.isOnLeave) {
+      const leaveStart = new Date(leaveCheck.leave.startDate).toLocaleDateString();
+      const leaveEnd = new Date(leaveCheck.leave.endDate).toLocaleDateString();
+      return res.status(400).json({
+        success: false,
+        message: `Doctor is on leave from ${leaveStart} to ${leaveEnd}. Please select another date.`
       });
     }
     
@@ -308,6 +358,17 @@ const updatePatientAppointment = asyncHandler(async (req, res) => {
         return res.status(400).json({
           success: false,
           message: 'Appointments can only be booked up to 30 days in advance'
+        });
+      }
+      
+      // Check if doctor is on leave on the requested date
+      const leaveCheck = await isDateOnLeave(appointment.doctor, appointmentDate);
+      if (leaveCheck.isOnLeave) {
+        const leaveStart = new Date(leaveCheck.leave.startDate).toLocaleDateString();
+        const leaveEnd = new Date(leaveCheck.leave.endDate).toLocaleDateString();
+        return res.status(400).json({
+          success: false,
+          message: `Doctor is on leave from ${leaveStart} to ${leaveEnd}. Please select another date.`
         });
       }
       
@@ -517,14 +578,21 @@ const getDoctorAvailability = asyncHandler(async (req, res) => {
       });
     }
     
+    // Get both schedules and leaves
     const availability = await Availability.find({
       doctor: doctorId,
       isActive: true
-    }).sort({ dayOfWeek: 1, startTime: 1 });
+    }).sort({ type: 1, dayOfWeek: 1, startTime: 1, startDate: 1 });
+    
+    // Separate schedules and leaves for better frontend handling
+    const schedules = availability.filter(a => a.type === 'schedule');
+    const leaves = availability.filter(a => a.type === 'leave');
     
     res.json({
       success: true,
-      data: availability
+      data: availability,
+      schedules: schedules,
+      leaves: leaves
     });
   } catch (error) {
     res.status(500).json({
@@ -535,12 +603,361 @@ const getDoctorAvailability = asyncHandler(async (req, res) => {
   }
 });
 
+// Get doctor's appointments
+const getDoctorAppointments = asyncHandler(async (req, res) => {
+  try {
+    const doctorId = req.user._id;
+    const { status, filter } = req.query;
+    
+    let query = { doctor: doctorId };
+    
+    // Filter by status
+    if (status && status !== 'all') {
+      if (status === 'confirmed' || status === 'scheduled') {
+        query.status = 'confirmed';
+      } else {
+        query.status = status;
+      }
+    }
+    
+    // Filter by date (upcoming, past)
+    if (filter === 'upcoming') {
+      query.appointmentDate = { $gte: new Date() };
+      query.status = { $ne: 'cancelled' };
+    } else if (filter === 'past') {
+      query.appointmentDate = { $lt: new Date() };
+    }
+    
+    const appointments = await Appointment.find(query)
+      .populate('patient', 'name email phone')
+      .sort({ appointmentDate: -1 });
+    
+    res.json({
+      success: true,
+      data: appointments
+    });
+  } catch (error) {
+    res.status(500).json({
+      success: false,
+      message: 'Error fetching appointments',
+      error: error.message
+    });
+  }
+});
+
+// Confirm appointment (doctor)
+const confirmAppointment = asyncHandler(async (req, res) => {
+  try {
+    const doctorId = req.user._id;
+    const appointmentId = req.params.id;
+    
+    const appointment = await Appointment.findById(appointmentId);
+    
+    if (!appointment) {
+      return res.status(404).json({
+        success: false,
+        message: 'Appointment not found'
+      });
+    }
+    
+    // Check if appointment belongs to doctor
+    if (!compareObjectIds(appointment.doctor, doctorId)) {
+      return res.status(403).json({
+        success: false,
+        message: 'You can only confirm your own appointments'
+      });
+    }
+    
+    // Check if appointment can be confirmed
+    if (appointment.status !== 'pending') {
+      return res.status(400).json({
+        success: false,
+        message: `Cannot confirm appointment with status: ${appointment.status}`
+      });
+    }
+    
+    appointment.status = 'confirmed';
+    await appointment.save();
+    await appointment.populate('patient', 'name email');
+    await appointment.populate('doctor', 'name email specialization');
+    
+    // Create notification for patient
+    try {
+      const appointmentDate = new Date(appointment.appointmentDate);
+      const formattedDate = appointmentDate.toLocaleDateString('en-US', { 
+        weekday: 'long', 
+        year: 'numeric', 
+        month: 'long', 
+        day: 'numeric' 
+      });
+      const patientNotification = new Notification({
+        user: appointment.patient._id,
+        type: 'appointment_confirmed',
+        message: `Your appointment with Dr. ${appointment.doctor.name} has been confirmed. Scheduled for ${formattedDate} at ${appointment.startTime} - ${appointment.endTime}`,
+        link: `/patient/appointments`,
+        relatedUser: doctorId,
+        relatedAppointment: appointment._id
+      });
+      await patientNotification.save();
+    } catch (notifError) {
+      console.error('Error creating notification:', notifError);
+    }
+    
+    res.json({
+      success: true,
+      message: 'Appointment confirmed successfully',
+      data: appointment
+    });
+  } catch (error) {
+    console.error('Error confirming appointment:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Error confirming appointment',
+      error: error.message
+    });
+  }
+});
+
+// Reject appointment (doctor)
+const rejectAppointment = asyncHandler(async (req, res) => {
+  try {
+    const doctorId = req.user._id;
+    const appointmentId = req.params.id;
+    const { rejectionReason } = req.body;
+    
+    if (!rejectionReason || rejectionReason.trim() === '') {
+      return res.status(400).json({
+        success: false,
+        message: 'Rejection reason is required'
+      });
+    }
+    
+    const appointment = await Appointment.findById(appointmentId);
+    
+    if (!appointment) {
+      return res.status(404).json({
+        success: false,
+        message: 'Appointment not found'
+      });
+    }
+    
+    // Check if appointment belongs to doctor
+    if (!compareObjectIds(appointment.doctor, doctorId)) {
+      return res.status(403).json({
+        success: false,
+        message: 'You can only reject your own appointments'
+      });
+    }
+    
+    // Check if appointment can be rejected
+    if (appointment.status !== 'pending') {
+      return res.status(400).json({
+        success: false,
+        message: `Cannot reject appointment with status: ${appointment.status}`
+      });
+    }
+    
+    appointment.status = 'cancelled';
+    appointment.rejectionReason = rejectionReason.trim();
+    await appointment.save();
+    await appointment.populate('patient', 'name email');
+    await appointment.populate('doctor', 'name email specialization');
+    
+    // Create notification for patient
+    try {
+      const patientNotification = new Notification({
+        user: appointment.patient._id,
+        type: 'appointment_rejected',
+        message: `Your appointment with Dr. ${appointment.doctor.name} on ${new Date(appointment.appointmentDate).toLocaleDateString()} at ${appointment.startTime} has been rejected. Reason: ${rejectionReason}`,
+        link: `/patient/appointments`,
+        relatedUser: doctorId,
+        relatedAppointment: appointment._id,
+        rejectionReason: rejectionReason.trim()
+      });
+      await patientNotification.save();
+    } catch (notifError) {
+      console.error('Error creating notification:', notifError);
+    }
+    
+    res.json({
+      success: true,
+      message: 'Appointment rejected successfully',
+      data: appointment
+    });
+  } catch (error) {
+    console.error('Error rejecting appointment:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Error rejecting appointment',
+      error: error.message
+    });
+  }
+});
+
+// Cancel confirmed appointment (doctor)
+const cancelConfirmedAppointment = asyncHandler(async (req, res) => {
+  try {
+    const doctorId = req.user._id;
+    const appointmentId = req.params.id;
+    const { cancellationReason } = req.body;
+    
+    if (!cancellationReason || cancellationReason.trim() === '') {
+      return res.status(400).json({
+        success: false,
+        message: 'Cancellation reason is required'
+      });
+    }
+    
+    const appointment = await Appointment.findById(appointmentId);
+    
+    if (!appointment) {
+      return res.status(404).json({
+        success: false,
+        message: 'Appointment not found'
+      });
+    }
+    
+    // Check if appointment belongs to doctor
+    if (!compareObjectIds(appointment.doctor, doctorId)) {
+      return res.status(403).json({
+        success: false,
+        message: 'You can only cancel your own appointments'
+      });
+    }
+    
+    // Check if appointment can be cancelled (must be confirmed)
+    if (appointment.status !== 'confirmed') {
+      return res.status(400).json({
+        success: false,
+        message: `Cannot cancel appointment with status: ${appointment.status}. Only confirmed appointments can be cancelled.`
+      });
+    }
+    
+    appointment.status = 'cancelled';
+    appointment.rejectionReason = cancellationReason.trim();
+    await appointment.save();
+    await appointment.populate('patient', 'name email');
+    await appointment.populate('doctor', 'name email specialization');
+    
+    // Create notification for patient
+    try {
+      const appointmentDate = new Date(appointment.appointmentDate);
+      const formattedDate = appointmentDate.toLocaleDateString('en-US', { 
+        weekday: 'long', 
+        year: 'numeric', 
+        month: 'long', 
+        day: 'numeric' 
+      });
+      const patientNotification = new Notification({
+        user: appointment.patient._id,
+        type: 'appointment_cancelled',
+        message: `Your confirmed appointment with Dr. ${appointment.doctor.name} scheduled for ${formattedDate} at ${appointment.startTime} - ${appointment.endTime} has been cancelled. Reason: ${cancellationReason}`,
+        link: `/patient/appointments`,
+        relatedUser: doctorId,
+        relatedAppointment: appointment._id,
+        rejectionReason: cancellationReason.trim()
+      });
+      await patientNotification.save();
+    } catch (notifError) {
+      console.error('Error creating notification:', notifError);
+    }
+    
+    res.json({
+      success: true,
+      message: 'Appointment cancelled successfully',
+      data: appointment
+    });
+  } catch (error) {
+    console.error('Error cancelling appointment:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Error cancelling appointment',
+      error: error.message
+    });
+  }
+});
+
+// Complete appointment (doctor)
+const completeAppointment = asyncHandler(async (req, res) => {
+  try {
+    const doctorId = req.user._id;
+    const appointmentId = req.params.id;
+    const { prescription } = req.body;
+    
+    const appointment = await Appointment.findById(appointmentId);
+    
+    if (!appointment) {
+      return res.status(404).json({
+        success: false,
+        message: 'Appointment not found'
+      });
+    }
+    
+    // Check if appointment belongs to doctor
+    if (!compareObjectIds(appointment.doctor, doctorId)) {
+      return res.status(403).json({
+        success: false,
+        message: 'You can only complete your own appointments'
+      });
+    }
+    
+    // Check if appointment can be completed
+    if (appointment.status !== 'confirmed') {
+      return res.status(400).json({
+        success: false,
+        message: `Cannot complete appointment with status: ${appointment.status}`
+      });
+    }
+    
+    appointment.status = 'completed';
+    if (prescription) {
+      appointment.prescription = prescription;
+    }
+    await appointment.save();
+    await appointment.populate('patient', 'name email');
+    await appointment.populate('doctor', 'name email specialization');
+    
+    // Create notification for patient
+    try {
+      const patientNotification = new Notification({
+        user: appointment.patient._id,
+        type: 'appointment_completed',
+        message: `Your appointment with Dr. ${appointment.doctor.name} on ${new Date(appointment.appointmentDate).toLocaleDateString()} has been completed`,
+        link: `/patient/appointments`,
+        relatedUser: doctorId,
+        relatedAppointment: appointment._id
+      });
+      await patientNotification.save();
+    } catch (notifError) {
+      console.error('Error creating notification:', notifError);
+    }
+    
+    res.json({
+      success: true,
+      message: 'Appointment completed successfully',
+      data: appointment
+    });
+  } catch (error) {
+    console.error('Error completing appointment:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Error completing appointment',
+      error: error.message
+    });
+  }
+});
+
 export {
   getPatientAppointments,
+  getDoctorAppointments,
   bookAppointment,
   cancelAppointment,
   updatePatientAppointment,
   deletePatientAppointment,
+  confirmAppointment,
+  rejectAppointment,
+  cancelConfirmedAppointment,
+  completeAppointment,
   getDoctorAvailability
 };
 

@@ -11,7 +11,17 @@ const initialState = {
       const storedToken = localStorage.getItem('token');
       // Only return user if both user and token exist
       if (storedUser && storedToken) {
-        return JSON.parse(storedUser);
+        const user = JSON.parse(storedUser);
+        // Normalize user object: ensure _id exists (backend returns id, MongoDB uses _id)
+        const normalizedUser = {
+          ...user,
+          _id: user._id || user.id
+        };
+        // Update localStorage with normalized user to fix existing sessions
+        if (user.id && !user._id) {
+          localStorage.setItem('user', JSON.stringify(normalizedUser));
+        }
+        return normalizedUser;
       }
       // Clear stale data if token is missing
       if (storedUser && !storedToken) {
@@ -102,11 +112,16 @@ export const AuthProvider = ({ children }) => {
       const response = await apiService.getProfile();
       if (response.data.success && response.data.data) {
         const userData = response.data.data;
+        // Normalize user object: ensure _id exists (backend returns id, MongoDB uses _id)
+        const normalizedUser = {
+          ...userData,
+          _id: userData._id || userData.id
+        };
         // Update localStorage
-        localStorage.setItem('user', JSON.stringify(userData));
+        localStorage.setItem('user', JSON.stringify(normalizedUser));
         // Update state
-        dispatch({ type: 'SET_USER', payload: userData });
-        return userData;
+        dispatch({ type: 'SET_USER', payload: normalizedUser });
+        return normalizedUser;
       }
     } catch (error) {
       console.error('Failed to get current user:', error);
@@ -126,13 +141,20 @@ export const AuthProvider = ({ children }) => {
       const response = await apiService.login(credentials);
       const { user, token } = response.data;
       if (user) {
-        localStorage.setItem('user', JSON.stringify(user));
+        // Normalize user object: ensure _id exists (backend returns id, MongoDB uses _id)
+        const normalizedUser = {
+          ...user,
+          _id: user._id || user.id
+        };
+        localStorage.setItem('user', JSON.stringify(normalizedUser));
+        dispatch({ type: 'LOGIN_SUCCESS', payload: { user: normalizedUser, token: token || null } });
+        return { success: true, user: normalizedUser };
       }
       if (token) {
         localStorage.setItem('token', token);
       }
-      dispatch({ type: 'LOGIN_SUCCESS', payload: { user, token: token || null } });
-      return { success: true, user };
+      dispatch({ type: 'LOGIN_SUCCESS', payload: { user: null, token: token || null } });
+      return { success: true, user: null };
     } catch (error) {
       const errorMessage = error.response?.data?.message || 'Login failed';
       dispatch({ type: 'LOGIN_FAILURE', payload: errorMessage });
@@ -145,13 +167,19 @@ export const AuthProvider = ({ children }) => {
     try {
       const response = await apiService.register(userData);
       const { user, token } = response.data;
+      let normalizedUser = null;
       if (user) {
-        localStorage.setItem('user', JSON.stringify(user));
+        // Normalize user object: ensure _id exists (backend returns id, MongoDB uses _id)
+        normalizedUser = {
+          ...user,
+          _id: user._id || user.id
+        };
+        localStorage.setItem('user', JSON.stringify(normalizedUser));
       }
       if (token) {
         localStorage.setItem('token', token);
       }
-      dispatch({ type: 'REGISTER_SUCCESS', payload: { user, token: token || null } });
+      dispatch({ type: 'REGISTER_SUCCESS', payload: { user: normalizedUser, token: token || null } });
       return { success: true };
     } catch (error) {
       const errorMessage = error.response?.data?.message || 'Registration failed';

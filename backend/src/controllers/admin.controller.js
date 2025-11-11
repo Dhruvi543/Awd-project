@@ -1190,6 +1190,30 @@ const getAnalytics = asyncHandler(async (req, res) => {
       }
     ]);
     
+    // Total registered users (all-time, cumulative)
+    const totalRegisteredUsers = await User.countDocuments();
+    
+    // Cumulative user registration over time (all-time, not just period)
+    const cumulativeUserGrowth = await User.aggregate([
+      {
+        $group: {
+          _id: { $dateToString: { format: '%Y-%m-%d', date: '$createdAt' } },
+          count: { $sum: 1 }
+        }
+      },
+      { $sort: { _id: 1 } }
+    ]);
+    
+    // Calculate cumulative counts
+    let cumulativeCount = 0;
+    const cumulativeUserData = cumulativeUserGrowth.map(item => {
+      cumulativeCount += item.count;
+      return {
+        _id: item._id,
+        count: cumulativeCount
+      };
+    });
+    
     res.json({
       success: true,
       data: {
@@ -1199,6 +1223,8 @@ const getAnalytics = asyncHandler(async (req, res) => {
         reviewsByRating,
         topDoctors: topDoctorsWithNames,
         usersByRole,
+        totalRegisteredUsers,
+        cumulativeUserGrowth: cumulativeUserData,
         period: days
       }
     });

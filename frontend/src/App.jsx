@@ -28,6 +28,7 @@ import DoctorAvailability from './pages/Doctor/Availability';
 import DoctorCalendar from './pages/Doctor/Calendar';
 import DoctorProfile from './pages/Doctor/Profile';
 import DoctorSettings from './pages/Doctor/Settings';
+import DoctorNotifications from './pages/Doctor/Notifications';
 
 // Patient Pages
 import PatientDashboard from './pages/Patient/Dashboard';
@@ -143,6 +144,7 @@ function App() {
             <Route path="reviews" element={<DoctorReviews />} />
             <Route path="availability" element={<DoctorAvailability />} />
             <Route path="calendar" element={<DoctorCalendar />} />
+            <Route path="notifications" element={<DoctorNotifications />} />
             <Route path="profile" element={<DoctorProfile />} />
             <Route path="settings" element={<DoctorSettings />} />
           </Route>

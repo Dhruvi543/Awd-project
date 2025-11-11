@@ -462,7 +462,19 @@ const PatientAppointments = () => {
                         {appointment.startTime} - {appointment.endTime}
                       </p>
                       {appointment.consultationNotes && (
-                        <p className="mt-2 text-sm">{appointment.consultationNotes}</p>
+                        <p className="mt-2 text-sm bg-gray-50 dark:bg-gray-700 p-3 rounded-lg">
+                          <strong>Notes:</strong> {appointment.consultationNotes}
+                        </p>
+                      )}
+                      {appointment.rejectionReason && (
+                        <p className="mt-2 text-sm bg-red-50 dark:bg-red-900/20 p-3 rounded-lg text-red-800 dark:text-red-400">
+                          <strong>Rejection Reason:</strong> {appointment.rejectionReason}
+                        </p>
+                      )}
+                      {appointment.prescription && (
+                        <p className="mt-2 text-sm bg-blue-50 dark:bg-blue-900/20 p-3 rounded-lg text-blue-800 dark:text-blue-400">
+                          <strong>Prescription:</strong> {appointment.prescription}
+                        </p>
                       )}
                     </div>
                   </div>

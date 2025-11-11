@@ -33,6 +33,9 @@ const appointmentSchema = new mongoose.Schema({
   },
   prescription: {
     type: String
+  },
+  rejectionReason: {
+    type: String
   }
 }, {
   timestamps: true

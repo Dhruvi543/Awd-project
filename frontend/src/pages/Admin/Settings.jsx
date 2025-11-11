@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useLayoutEffect, useRef } from 'react';
 import { apiService } from '../../api/apiService';
 import { useAuth } from '../../contexts/AuthContext';
 
@@ -10,12 +10,45 @@ const AdminSettings = () => {
   const [success, setSuccess] = useState(null);
   const [formData, setFormData] = useState({});
   const [errors, setErrors] = useState({});
+  const settingsTopRef = useRef(null);
+
+  // Scroll to top immediately when component mounts (before paint)
+  useLayoutEffect(() => {
+    // Remove any hash from URL that might cause scrolling
+    if (window.location.hash) {
+      window.history.replaceState(null, '', window.location.pathname);
+    }
+    // Force scroll to top immediately
+    window.scrollTo(0, 0);
+    document.documentElement.scrollTop = 0;
+    document.body.scrollTop = 0;
+  }, []);
 
   useEffect(() => {
     fetchSettings();
-    // Scroll to top when component mounts to show General Settings first
-    window.scrollTo({ top: 0, behavior: 'smooth' });
   }, []);
+
+  // Scroll to top after settings are loaded
+  useEffect(() => {
+    if (settings) {
+      // Multiple attempts to ensure scroll works
+      const scrollToTop = () => {
+        window.scrollTo({ top: 0, left: 0, behavior: 'instant' });
+        document.documentElement.scrollTop = 0;
+        document.body.scrollTop = 0;
+        if (settingsTopRef.current) {
+          settingsTopRef.current.scrollIntoView({ behavior: 'instant', block: 'start' });
+        }
+      };
+      
+      // Immediate scroll
+      scrollToTop();
+      
+      // Also try after a small delay to ensure DOM is ready
+      setTimeout(scrollToTop, 50);
+      setTimeout(scrollToTop, 200);
+    }
+  }, [settings]);
 
   const fetchSettings = async () => {
     try {
@@ -227,7 +260,7 @@ const AdminSettings = () => {
 
         {/* Settings Form */}
         {settings && (
-          <form onSubmit={handleSubmit} className="space-y-6" id="settings-form">
+          <form onSubmit={handleSubmit} className="space-y-6" id="settings-form" ref={settingsTopRef}>
             {/* General Settings */}
             <div className="bg-white dark:bg-gray-800 rounded-xl shadow-md p-6 border border-gray-200 dark:border-gray-700">
               <div className="mb-4">
