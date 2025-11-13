@@ -39,6 +39,7 @@ import PatientAvailability from './pages/Patient/Availability';
 import PatientSettings from './pages/Patient/Settings';
 import BookAppointment from './pages/Patient/BookAppointment';
 import PatientProfile from './pages/Patient/Profile';
+import PatientNotifications from './pages/Patient/Notifications';
 
 // Admin Pages
 import AdminDashboard from './pages/Admin/Dashboard';
@@ -48,7 +49,6 @@ import AdminAppointments from './pages/Admin/Appointments';
 import AdminReviews from './pages/Admin/Reviews';
 import AdminAvailability from './pages/Admin/Availability';
 import AdminAnalytics from './pages/Admin/Analytics';
-import AdminLogs from './pages/Admin/Logs';
 import AdminSettings from './pages/Admin/Settings';
 
 // Common Pages
@@ -130,6 +130,7 @@ function App() {
             <Route path="find-doctor" element={<FindDoctor />} />
             <Route path="reviews" element={<PatientReviews />} />
             <Route path="availability" element={<PatientAvailability />} />
+            <Route path="notifications" element={<PatientNotifications />} />
             <Route path="settings" element={<PatientSettings />} />
           </Route>
 
@@ -162,7 +163,6 @@ function App() {
             <Route path="reviews" element={<AdminReviews />} />
             <Route path="availability" element={<AdminAvailability />} />
             <Route path="analytics" element={<AdminAnalytics />} />
-            <Route path="logs" element={<AdminLogs />} />
             <Route path="settings" element={<AdminSettings />} />
           </Route>
 

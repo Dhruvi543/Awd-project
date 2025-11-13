@@ -12,11 +12,6 @@ const settingSchema = new mongoose.Schema({
     default: 'Your trusted healthcare appointment platform',
     required: true
   },
-  timezone: {
-    type: String,
-    default: 'UTC',
-    required: true
-  },
   
   // System Settings
   maintenanceMode: {

@@ -171,6 +171,10 @@ const DoctorRegisterForm = ({ setDoctorData }) => {
       } else if (value.length < 2) {
         error = 'Name must be at least 2 characters';
       }
+    } else if (name === 'licenseNo') {
+      if (!value) {
+        error = 'License number is required';
+      }
     } else if (name === 'password') {
       if (!value) {
         error = 'Password is required';
@@ -392,7 +396,7 @@ const DoctorRegisterForm = ({ setDoctorData }) => {
         </div>
         <div>
           <label htmlFor="licenseNo" className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-            License Number <span className="text-gray-500 text-xs">(Optional)</span>
+            License Number <span className="text-red-500">*</span>
           </label>
           <select
             id="licenseNo"
@@ -400,11 +404,12 @@ const DoctorRegisterForm = ({ setDoctorData }) => {
             value={formData.licenseNo}
             onChange={handleChange}
             onBlur={handleBlur}
+            required
             className={`w-full px-3 py-2 text-sm border rounded-md bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent ${
               errors.licenseNo ? 'border-red-500 dark:border-red-500' : 'border-gray-300 dark:border-gray-600'
             }`}
           >
-            <option value="">Select license number (optional)</option>
+            <option value="">Select license number</option>
             {licenseOptions.map((license) => (
               <option key={license} value={license}>
                 {license}

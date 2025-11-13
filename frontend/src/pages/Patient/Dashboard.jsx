@@ -24,33 +24,46 @@ const PatientDashboard = () => {
     try {
       setIsLoading(true);
       
-      // Fetch patient appointments
-      const appointmentsResponse = await apiService.getAppointments();
-      if (appointmentsResponse.data.success) {
-        const appointments = appointmentsResponse.data.data || [];
+      // Fetch all appointments for total count
+      const allAppointmentsResponse = await apiService.getAppointments();
+      const total = allAppointmentsResponse.data.success ? (allAppointmentsResponse.data.data || []).length : 0;
+      
+      // Fetch filtered appointments using database queries
+      const [pendingResponse, completedResponse, upcomingResponse] = await Promise.all([
+        apiService.getAppointments({ status: 'pending' }),
+        apiService.getAppointments({ status: 'completed' }),
+        apiService.getAppointments({ status: 'confirmed', filter: 'upcoming' })
+      ]);
+      
+      const pendingCount = pendingResponse.data.success ? (pendingResponse.data.data || []).length : 0;
+      const completedCount = completedResponse.data.success ? (completedResponse.data.data || []).length : 0;
+      
+      // Calculate upcoming count (confirmed and future date)
+      let upcomingCount = 0;
+      let upcomingList = [];
+      if (upcomingResponse.data.success) {
+        const upcoming = upcomingResponse.data.data || [];
+        const now = new Date();
+        now.setHours(0, 0, 0, 0);
         
-        const total = appointments.length;
-        const upcomingCount = appointments.filter(apt => 
-          apt.status === 'confirmed' && new Date(apt.appointmentDate) >= new Date()
-        ).length;
-        const completed = appointments.filter(apt => apt.status === 'completed').length;
-        const pending = appointments.filter(apt => apt.status === 'pending').length;
-        
-        setStats({
-          totalAppointments: total,
-          upcomingAppointments: upcomingCount,
-          completedAppointments: completed,
-          pendingAppointments: pending,
-        });
-
-        // Get upcoming appointments (next 3)
-        const upcomingList = appointments
-          .filter(apt => apt.status === 'confirmed' && new Date(apt.appointmentDate) >= new Date())
+        upcomingList = upcoming
+          .filter(apt => apt.status === 'confirmed' && new Date(apt.appointmentDate) >= now)
           .sort((a, b) => new Date(a.appointmentDate) - new Date(b.appointmentDate))
           .slice(0, 3);
         
-        setUpcomingAppointments(upcomingList);
+        upcomingCount = upcoming.filter(apt => 
+          apt.status === 'confirmed' && new Date(apt.appointmentDate) >= now
+        ).length;
       }
+      
+      setStats({
+        totalAppointments: total,
+        upcomingAppointments: upcomingCount,
+        completedAppointments: completedCount,
+        pendingAppointments: pendingCount,
+      });
+      
+      setUpcomingAppointments(upcomingList);
     } catch (error) {
       console.error('Error fetching dashboard data:', error);
     } finally {
@@ -123,7 +136,7 @@ const PatientDashboard = () => {
               </svg>
             )}
             color="bg-green-500"
-            link="/patient/appointments?status=confirmed"
+            link="/patient/appointments?status=upcoming"
           />
           <StatCard
             title="Pending"

@@ -1237,129 +1237,6 @@ const getAnalytics = asyncHandler(async (req, res) => {
   }
 });
 
-// ==================== SYSTEM LOGS ====================
-// Simple in-memory log storage (for demo - in production use proper logging service)
-const systemLogs = [];
-
-// Get all logs (VIEW)
-const getAllLogs = asyncHandler(async (req, res) => {
-  try {
-    const { level, page = 1, limit = 50 } = req.query;
-    const skip = (parseInt(page) - 1) * parseInt(limit);
-    
-    let filteredLogs = systemLogs;
-    if (level) {
-      filteredLogs = systemLogs.filter(log => log.level === level);
-    }
-    
-    // Sort by timestamp descending
-    filteredLogs.sort((a, b) => new Date(b.timestamp) - new Date(a.timestamp));
-    
-    const paginatedLogs = filteredLogs.slice(skip, skip + parseInt(limit));
-    const total = filteredLogs.length;
-    
-    res.json({
-      success: true,
-      data: paginatedLogs,
-      pagination: {
-        page: parseInt(page),
-        limit: parseInt(limit),
-        total,
-        pages: Math.ceil(total / parseInt(limit))
-      }
-    });
-  } catch (error) {
-    res.status(500).json({
-      success: false,
-      message: 'Error fetching logs',
-      error: error.message
-    });
-  }
-});
-
-// Create log (INSERT)
-const createLog = asyncHandler(async (req, res) => {
-  try {
-    const { level, message, action, userId, details } = req.body;
-    
-    const log = {
-      id: Date.now().toString(),
-      level: level || 'info',
-      message: message || '',
-      action: action || '',
-      userId: userId || req.user?._id?.toString() || '',
-      details: details || {},
-      timestamp: new Date().toISOString(),
-      ip: req.ip || req.connection.remoteAddress || ''
-    };
-    
-    systemLogs.push(log);
-    
-    // Keep only last 1000 logs in memory
-    if (systemLogs.length > 1000) {
-      systemLogs.shift();
-    }
-    
-    res.status(201).json({
-      success: true,
-      message: 'Log created successfully',
-      data: log
-    });
-  } catch (error) {
-    res.status(500).json({
-      success: false,
-      message: 'Error creating log',
-      error: error.message
-    });
-  }
-});
-
-// Delete log (DELETE)
-const deleteLog = asyncHandler(async (req, res) => {
-  try {
-    const logId = req.params.id;
-    const index = systemLogs.findIndex(log => log.id === logId);
-    
-    if (index === -1) {
-      return res.status(404).json({
-        success: false,
-        message: 'Log not found'
-      });
-    }
-    
-    systemLogs.splice(index, 1);
-    
-    res.json({
-      success: true,
-      message: 'Log deleted successfully'
-    });
-  } catch (error) {
-    res.status(500).json({
-      success: false,
-      message: 'Error deleting log',
-      error: error.message
-    });
-  }
-});
-
-// Clear all logs (DELETE)
-const clearAllLogs = asyncHandler(async (req, res) => {
-  try {
-    systemLogs.length = 0;
-    
-    res.json({
-      success: true,
-      message: 'All logs cleared successfully'
-    });
-  } catch (error) {
-    res.status(500).json({
-      success: false,
-      message: 'Error clearing logs',
-      error: error.message
-    });
-  }
-});
-
 // ==================== SETTINGS ====================
 // Get settings (VIEW)
 const getSettings = asyncHandler(async (req, res) => {
@@ -1451,7 +1328,7 @@ const updateSettings = asyncHandler(async (req, res) => {
     
     // Update all fields from request body
     const allowedFields = [
-      'siteName', 'siteDescription', 'timezone',
+      'siteName', 'siteDescription',
       'maintenanceMode', 'allowRegistration', 'requireEmailVerification', 'autoApproveDoctors',
       'maxAppointmentsPerDay', 'appointmentDuration', 'workingHoursStart', 'workingHoursEnd',
       'minPasswordLength', 'sessionTimeout'
@@ -1477,8 +1354,7 @@ const updateSettings = asyncHandler(async (req, res) => {
     
     console.log('Settings saved to database:', {
       siteName: settings.siteName,
-      siteDescription: settings.siteDescription,
-      timezone: settings.timezone
+      siteDescription: settings.siteDescription
     });
     
     res.json({
@@ -1839,11 +1715,6 @@ export {
   deleteAvailability,
   // Analytics
   getAnalytics,
-  // System Logs
-  getAllLogs,
-  createLog,
-  deleteLog,
-  clearAllLogs,
   // Settings
   getSettings,
   updateSettings,

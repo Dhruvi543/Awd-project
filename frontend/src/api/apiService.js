@@ -32,16 +32,39 @@ apiClient.interceptors.response.use(
   },
   (error) => {
     if (error.response?.status === 401) {
-      // Only clear and redirect if not already on login/register page
+      // Only clear and redirect if:
+      // 1. Not already on login/register page
+      // 2. The error is actually an authentication error (not a network error)
+      // 3. We have a token stored (meaning we were authenticated)
       const currentPath = window.location.pathname;
-      if (!currentPath.includes('/login') && !currentPath.includes('/register') && !currentPath.includes('/admin-login')) {
-        localStorage.removeItem('token');
-        localStorage.removeItem('user');
-        // Redirect based on current path
-        if (currentPath.includes('/admin')) {
-          window.location.href = '/admin-login';
-        } else {
-          window.location.href = '/login';
+      const hasToken = localStorage.getItem('token');
+      
+      // Only clear if we have a token and we're not on auth pages
+      // This prevents clearing on initial page load or network errors
+      if (hasToken && 
+          !currentPath.includes('/login') && 
+          !currentPath.includes('/register') && 
+          !currentPath.includes('/admin-login') &&
+          error.response?.data?.message !== 'Invalid credentials') {
+        // Check if this is a real auth failure (not just a network issue)
+        // Only clear if the error message indicates authentication failure
+        const errorMessage = error.response?.data?.message || '';
+        const isAuthError = errorMessage.includes('token') || 
+                           errorMessage.includes('unauthorized') || 
+                           errorMessage.includes('authentication') ||
+                           errorMessage.includes('expired');
+        
+        if (isAuthError) {
+          localStorage.removeItem('token');
+          localStorage.removeItem('user');
+          // Use a small delay to prevent race conditions
+          setTimeout(() => {
+            if (currentPath.includes('/admin')) {
+              window.location.href = '/admin-login';
+            } else {
+              window.location.href = '/login';
+            }
+          }, 100);
         }
       }
     }
@@ -78,6 +101,8 @@ export const apiService = {
   createMyAvailability: (availabilityData) => apiClient.post('/api/doctors/availability', availabilityData),
   updateMyAvailability: (id, availabilityData) => apiClient.put(`/api/doctors/availability/${id}`, availabilityData),
   deleteMyAvailability: (id) => apiClient.delete(`/api/doctors/availability/${id}`),
+  generateMonthlyAvailability: (monthData) => apiClient.post('/api/doctors/availability/generate-monthly', monthData),
+  toggleDateAvailability: (dateData) => apiClient.post('/api/doctors/availability/toggle-date', dateData),
   
   // Appointment methods
   getAppointments: (params = {}) => apiClient.get('/api/appointments', { params }),
@@ -144,12 +169,6 @@ export const apiService = {
   
   // Admin methods - Analytics
   getAnalytics: (params = {}) => apiClient.get('/api/admin/analytics', { params }),
-  
-  // Admin methods - System Logs
-  getAllLogs: (params = {}) => apiClient.get('/api/admin/logs', { params }),
-  createLog: (logData) => apiClient.post('/api/admin/logs', logData),
-  deleteLog: (id) => apiClient.delete(`/api/admin/logs/${id}`),
-  clearAllLogs: () => apiClient.delete('/api/admin/logs'),
   
   // Admin methods - Settings
   getSettings: () => apiClient.get('/api/admin/settings'),
