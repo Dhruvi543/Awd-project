@@ -39,6 +39,7 @@ import PatientAvailability from './pages/Patient/Availability';
 import PatientSettings from './pages/Patient/Settings';
 import BookAppointment from './pages/Patient/BookAppointment';
 import PatientProfile from './pages/Patient/Profile';
+import PatientNotifications from './pages/Patient/Notifications';
 
 // Admin Pages
 import AdminDashboard from './pages/Admin/Dashboard';
@@ -129,6 +130,7 @@ function App() {
             <Route path="find-doctor" element={<FindDoctor />} />
             <Route path="reviews" element={<PatientReviews />} />
             <Route path="availability" element={<PatientAvailability />} />
+            <Route path="notifications" element={<PatientNotifications />} />
             <Route path="settings" element={<PatientSettings />} />
           </Route>
 

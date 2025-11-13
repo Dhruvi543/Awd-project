@@ -101,6 +101,8 @@ export const apiService = {
   createMyAvailability: (availabilityData) => apiClient.post('/api/doctors/availability', availabilityData),
   updateMyAvailability: (id, availabilityData) => apiClient.put(`/api/doctors/availability/${id}`, availabilityData),
   deleteMyAvailability: (id) => apiClient.delete(`/api/doctors/availability/${id}`),
+  generateMonthlyAvailability: (monthData) => apiClient.post('/api/doctors/availability/generate-monthly', monthData),
+  toggleDateAvailability: (dateData) => apiClient.post('/api/doctors/availability/toggle-date', dateData),
   
   // Appointment methods
   getAppointments: (params = {}) => apiClient.get('/api/appointments', { params }),

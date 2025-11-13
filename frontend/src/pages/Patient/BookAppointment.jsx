@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { apiService } from '../../api/apiService';
 import { useAuth } from '../../contexts/AuthContext';
+import Toast from '../../components/feedback/Toast';
 
 const BookAppointment = () => {
   const navigate = useNavigate();
@@ -12,8 +13,8 @@ const BookAppointment = () => {
   const [doctor, setDoctor] = useState(null);
   const [isLoading, setIsLoading] = useState(true);
   const [isSubmitting, setIsSubmitting] = useState(false);
-  const [error, setError] = useState('');
-  const [success, setSuccess] = useState('');
+  const [toast, setToast] = useState(null);
+  const [fieldErrors, setFieldErrors] = useState({});
   const [showCalendar, setShowCalendar] = useState(false);
   const [selectedMonth, setSelectedMonth] = useState(new Date().getMonth());
   const [selectedYear, setSelectedYear] = useState(new Date().getFullYear());
@@ -91,13 +92,13 @@ const BookAppointment = () => {
 
   useEffect(() => {
     if (!isAuthenticated) {
-      setError('Please login to book an appointment');
+      setToast({ message: 'Please login to book an appointment', type: 'error' });
       setIsLoading(false);
       return;
     }
     
     if (user?.role !== 'patient') {
-      setError('Only patients can book appointments');
+      setToast({ message: 'Only patients can book appointments', type: 'error' });
       setIsLoading(false);
       return;
     }
@@ -136,17 +137,16 @@ const BookAppointment = () => {
   const fetchDoctor = async () => {
     try {
       setIsLoading(true);
-      setError('');
       const response = await apiService.getDoctor(doctorId);
       if (response.data && response.data.success) {
         setDoctor(response.data.data);
       } else {
-        setError('Failed to load doctor information. Please try again.');
+        setToast({ message: 'Failed to load doctor information. Please try again.', type: 'error' });
       }
     } catch (error) {
       console.error('Error fetching doctor:', error);
       const errorMessage = error.response?.data?.message || error.message || 'Failed to load doctor information';
-      setError(errorMessage);
+      setToast({ message: errorMessage, type: 'error' });
     } finally {
       setIsLoading(false);
     }
@@ -171,6 +171,11 @@ const BookAppointment = () => {
   const handleChange = (e) => {
     const { name, value } = e.target;
     
+    // Clear field error when user starts typing
+    if (fieldErrors[name]) {
+      setFieldErrors(prev => ({ ...prev, [name]: '' }));
+    }
+    
     if (name === 'startTime') {
       const selectedSlot = timeSlots.find(slot => slot.value === value);
       if (selectedSlot) {
@@ -187,6 +192,13 @@ const BookAppointment = () => {
         startTime: '',
         endTime: ''
       }));
+    } else if (name === 'phone') {
+      // Only allow digits, max 10
+      const phoneDigits = value.replace(/\D/g, '').slice(0, 10);
+      setFormData(prev => ({
+        ...prev,
+        [name]: phoneDigits
+      }));
     } else {
       setFormData(prev => ({
         ...prev,
@@ -196,58 +208,72 @@ const BookAppointment = () => {
   };
 
   const validateForm = () => {
+    const errors = {};
+    let isValid = true;
+
     if (!doctorId) {
-      setError('Please select a doctor first');
-      return false;
+      errors.doctor = 'Please select a doctor first';
+      isValid = false;
     }
 
     if (!formData.patientName || formData.patientName.trim() === '') {
-      setError('Patient name is required');
-      return false;
+      errors.patientName = 'Patient name is required';
+      isValid = false;
     }
 
     if (!formData.appointmentDate) {
-      setError('Please select an appointment date');
-      return false;
-    }
-
-    const appointmentDateTime = new Date(`${formData.appointmentDate}T${formData.startTime}`);
-    const now = new Date();
-    const hoursDifference = (appointmentDateTime - now) / (1000 * 60 * 60);
-    
-    if (hoursDifference < 24) {
-      setError('Appointments must be booked at least 24 hours in advance');
-      return false;
+      errors.appointmentDate = 'Please select an appointment date';
+      isValid = false;
+    } else {
+      const appointmentDateTime = new Date(`${formData.appointmentDate}T${formData.startTime || '12:00'}`);
+      const now = new Date();
+      const hoursDifference = (appointmentDateTime - now) / (1000 * 60 * 60);
+      
+      if (hoursDifference < 24) {
+        errors.appointmentDate = 'Appointments must be booked at least 24 hours in advance';
+        isValid = false;
+      }
     }
 
     if (!formData.startTime || !formData.endTime) {
-      setError('Please select an appointment time');
-      return false;
+      errors.startTime = 'Please select an appointment time';
+      isValid = false;
     }
 
     if (!formData.phone || formData.phone.trim() === '') {
-      setError('Phone number is required');
-      return false;
-    }
-
-    const phoneDigits = formData.phone.replace(/\D/g, '');
-    if (phoneDigits.length !== 10) {
-      setError('Please enter a valid 10-digit phone number');
-      return false;
+      errors.phone = 'Phone number is required';
+      isValid = false;
+    } else {
+      const phoneDigits = formData.phone.replace(/\D/g, '');
+      if (phoneDigits.length !== 10) {
+        errors.phone = 'Please enter a valid 10-digit phone number';
+        isValid = false;
+      }
     }
 
     if (!formData.reason || formData.reason.trim() === '') {
-      setError('Please provide a reason for the appointment');
-      return false;
+      errors.reason = 'Please provide a reason for the appointment';
+      isValid = false;
     }
 
-    return true;
+    setFieldErrors(errors);
+    
+    // Scroll to first error field
+    if (!isValid) {
+      const firstErrorField = Object.keys(errors)[0];
+      const errorElement = document.querySelector(`[name="${firstErrorField}"]`);
+      if (errorElement) {
+        errorElement.scrollIntoView({ behavior: 'smooth', block: 'center' });
+        errorElement.focus();
+      }
+    }
+
+    return isValid;
   };
 
   const handleSubmit = async (e) => {
     e.preventDefault();
-    setError('');
-    setSuccess('');
+    setFieldErrors({});
 
     if (!validateForm()) {
       return;
@@ -264,7 +290,7 @@ const BookAppointment = () => {
       });
 
       if (response.data.success) {
-        setSuccess('Appointment booked successfully! Redirecting...');
+        setToast({ message: 'Appointment booked successfully! Redirecting...', type: 'success' });
         setTimeout(() => {
           navigate('/patient/appointments');
         }, 2000);
@@ -283,7 +309,7 @@ const BookAppointment = () => {
         errorMessage = error.message;
       }
       
-      setError(errorMessage);
+      setToast({ message: errorMessage, type: 'error' });
     } finally {
       setIsSubmitting(false);
     }
@@ -422,6 +448,13 @@ const BookAppointment = () => {
 
   return (
     <div className="w-full">
+      {toast && (
+        <Toast
+          message={toast.message}
+          type={toast.type}
+          onClose={() => setToast(null)}
+        />
+      )}
       <div className="max-w-5xl mx-auto">
         {/* Header */}
         <div className="mb-6">
@@ -483,19 +516,6 @@ const BookAppointment = () => {
           </div>
         </div>
 
-        {/* Error/Success Messages */}
-        {error && (
-          <div className="bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-lg p-4 mb-6">
-            <p className="text-base text-red-800 dark:text-red-400">{error}</p>
-          </div>
-        )}
-
-        {success && (
-          <div className="bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-800 rounded-lg p-4 mb-6">
-            <p className="text-base text-green-800 dark:text-green-400">{success}</p>
-          </div>
-        )}
-
         {/* Booking Form */}
         <div className="bg-white dark:bg-gray-800 rounded-xl shadow-md p-8 border border-gray-200 dark:border-gray-700">
           {!doctorId && (
@@ -520,8 +540,20 @@ const BookAppointment = () => {
                     value={formData.patientName}
                     onChange={handleChange}
                     required
-                    className="w-full px-4 py-3 text-base border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                    className={`w-full px-4 py-3 text-base border rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:ring-2 focus:ring-blue-500 focus:border-transparent ${
+                      fieldErrors.patientName 
+                        ? 'border-red-500 dark:border-red-500 focus:ring-red-500' 
+                        : 'border-gray-300 dark:border-gray-600'
+                    }`}
                   />
+                  {fieldErrors.patientName && (
+                    <p className="text-sm text-red-600 dark:text-red-400 mt-1 flex items-center gap-1">
+                      <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                      </svg>
+                      {fieldErrors.patientName}
+                    </p>
+                  )}
                 </div>
                 <div>
                   <label className="block text-base font-medium text-gray-700 dark:text-gray-300 mb-2">
@@ -535,11 +567,24 @@ const BookAppointment = () => {
                     placeholder="Enter 10-digit phone number"
                     maxLength={10}
                     required
-                    className="w-full px-4 py-3 text-base border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                    className={`w-full px-4 py-3 text-base border rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:ring-2 focus:ring-blue-500 focus:border-transparent ${
+                      fieldErrors.phone 
+                        ? 'border-red-500 dark:border-red-500 focus:ring-red-500' 
+                        : 'border-gray-300 dark:border-gray-600'
+                    }`}
                   />
-                  <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">
-                    Enter 10 digits only
-                  </p>
+                  {fieldErrors.phone ? (
+                    <p className="text-sm text-red-600 dark:text-red-400 mt-1 flex items-center gap-1">
+                      <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                      </svg>
+                      {fieldErrors.phone}
+                    </p>
+                  ) : (
+                    <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">
+                      Enter 10 digits only
+                    </p>
+                  )}
                 </div>
               </div>
 
@@ -557,7 +602,11 @@ const BookAppointment = () => {
                     min={getMinDate()}
                     max={getMaxDate()}
                     required
-                    className="w-full px-4 py-3 text-base border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                    className={`w-full px-4 py-3 text-base border rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:ring-2 focus:ring-blue-500 focus:border-transparent ${
+                      fieldErrors.appointmentDate 
+                        ? 'border-red-500 dark:border-red-500 focus:ring-red-500' 
+                        : 'border-gray-300 dark:border-gray-600'
+                    }`}
                   />
                   <button
                     type="button"
@@ -574,7 +623,14 @@ const BookAppointment = () => {
                     {renderCalendar()}
                   </div>
                 )}
-                {formData.appointmentDate && (
+                {fieldErrors.appointmentDate ? (
+                  <p className="text-sm text-red-600 dark:text-red-400 mt-1 flex items-center gap-1">
+                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                    </svg>
+                    {fieldErrors.appointmentDate}
+                  </p>
+                ) : formData.appointmentDate && (
                   <p className="text-base text-gray-600 dark:text-gray-400 mt-2">
                     Selected: {new Date(formData.appointmentDate).toLocaleDateString('en-US', { 
                       weekday: 'long',
@@ -594,7 +650,11 @@ const BookAppointment = () => {
                 {!formData.appointmentDate ? (
                   <p className="text-base text-gray-500 dark:text-gray-400 py-3">Please select a date first</p>
                 ) : (
-                  <div className="grid grid-cols-4 sm:grid-cols-5 md:grid-cols-6 gap-3 max-h-64 overflow-y-auto p-3 border border-gray-200 dark:border-gray-700 rounded-lg bg-gray-50 dark:bg-gray-700/30">
+                  <div className={`grid grid-cols-4 sm:grid-cols-5 md:grid-cols-6 gap-3 max-h-64 overflow-y-auto p-3 border rounded-lg bg-gray-50 dark:bg-gray-700/30 ${
+                    fieldErrors.startTime 
+                      ? 'border-red-500 dark:border-red-500' 
+                      : 'border-gray-200 dark:border-gray-700'
+                  }`}>
                     {timeSlots.map((slot) => {
                       const isBooked = bookedSlots.includes(slot.value);
                       const isSelected = formData.startTime === slot.value;
@@ -624,7 +684,14 @@ const BookAppointment = () => {
                     })}
                   </div>
                 )}
-                {formData.startTime && (
+                {fieldErrors.startTime ? (
+                  <p className="text-sm text-red-600 dark:text-red-400 mt-1 flex items-center gap-1">
+                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                    </svg>
+                    {fieldErrors.startTime}
+                  </p>
+                ) : formData.startTime && (
                   <p className="text-base text-gray-600 dark:text-gray-400 mt-3 font-medium">
                     Selected Time: {timeSlots.find(s => s.value === formData.startTime)?.label} (30 minutes duration)
                   </p>
@@ -643,8 +710,20 @@ const BookAppointment = () => {
                   onChange={handleChange}
                   placeholder="e.g., General checkup, Follow-up, Specific symptoms"
                   required
-                  className="w-full px-4 py-3 text-base border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                  className={`w-full px-4 py-3 text-base border rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:ring-2 focus:ring-blue-500 focus:border-transparent ${
+                    fieldErrors.reason 
+                      ? 'border-red-500 dark:border-red-500 focus:ring-red-500' 
+                      : 'border-gray-300 dark:border-gray-600'
+                  }`}
                 />
+                {fieldErrors.reason && (
+                  <p className="text-sm text-red-600 dark:text-red-400 mt-1 flex items-center gap-1">
+                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                    </svg>
+                    {fieldErrors.reason}
+                  </p>
+                )}
               </div>
 
               {/* Additional Notes */}

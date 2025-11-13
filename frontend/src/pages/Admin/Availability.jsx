@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { apiService } from '../../api/apiService';
+import DoctorAvailabilityCalendar from '../../components/DoctorAvailabilityCalendar';
 
 const AdminAvailability = () => {
   const [availability, setAvailability] = useState([]);
@@ -12,6 +13,9 @@ const AdminAvailability = () => {
   const [typeFilter, setTypeFilter] = useState('all');
   const [currentPage, setCurrentPage] = useState(1);
   const [pagination, setPagination] = useState({ page: 1, limit: 10, total: 0, pages: 0 });
+  const [viewMode, setViewMode] = useState('table'); // 'table' or 'calendar'
+  const [selectedDoctorForCalendar, setSelectedDoctorForCalendar] = useState(null);
+  const [doctorAvailability, setDoctorAvailability] = useState([]);
 
   const daysOfWeek = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
 
@@ -19,6 +23,24 @@ const AdminAvailability = () => {
     fetchAvailability();
     fetchDoctors();
   }, [doctorFilter, typeFilter, currentPage]);
+
+  useEffect(() => {
+    if (viewMode === 'calendar' && selectedDoctorForCalendar) {
+      fetchDoctorAvailabilityForCalendar(selectedDoctorForCalendar);
+    }
+  }, [viewMode, selectedDoctorForCalendar]);
+
+  const fetchDoctorAvailabilityForCalendar = async (doctorId) => {
+    try {
+      const response = await apiService.getDoctorAvailability(doctorId);
+      if (response.data.success) {
+        setDoctorAvailability(response.data.data || []);
+      }
+    } catch (err) {
+      console.error('Error fetching doctor availability:', err);
+      setDoctorAvailability([]);
+    }
+  };
 
   const fetchDoctors = async () => {
     try {
@@ -81,24 +103,62 @@ const AdminAvailability = () => {
           <h1 className="text-3xl font-bold text-gray-900 dark:text-white mb-2">Availability Overview</h1>
             <p className="text-gray-600 dark:text-gray-400">View doctor availability and leaves. Only doctors can set their availability.</p>
           </div>
-          
-          {/* Info Box */}
-          <div className="bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-lg p-4 mb-6">
-            <div className="flex items-start gap-3">
-              <svg className="w-5 h-5 text-blue-600 dark:text-blue-400 mt-0.5 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
-              </svg>
-              <div>
-                <h3 className="text-sm font-semibold text-blue-900 dark:text-blue-300 mb-1">Admin View Only</h3>
-                <p className="text-sm text-blue-800 dark:text-blue-400">
-                  As an admin, you can only view and delete availability records. Doctors manage their own availability schedules and leaves through their dashboard.
-                </p>
-              </div>
+        </div>
+
+        {/* View Mode Toggle */}
+        <div className="bg-white dark:bg-gray-800 rounded-xl shadow-md p-4 mb-6 border border-gray-200 dark:border-gray-700">
+          <div className="flex items-center justify-between">
+            <h2 className="text-xl font-semibold text-gray-900 dark:text-white">
+              View Mode
+            </h2>
+            <div className="flex gap-2">
+              <button
+                onClick={() => setViewMode('table')}
+                className={`px-4 py-2 rounded-lg font-medium transition-colors ${
+                  viewMode === 'table'
+                    ? 'bg-blue-600 text-white'
+                    : 'bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-600'
+                }`}
+              >
+                Table View
+              </button>
+              <button
+                onClick={() => setViewMode('calendar')}
+                className={`px-4 py-2 rounded-lg font-medium transition-colors ${
+                  viewMode === 'calendar'
+                    ? 'bg-blue-600 text-white'
+                    : 'bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-600'
+                }`}
+              >
+                Calendar View
+              </button>
             </div>
           </div>
         </div>
 
+        {/* Doctor Selection for Calendar View */}
+        {viewMode === 'calendar' && (
+          <div className="bg-white dark:bg-gray-800 rounded-xl shadow-md p-4 mb-6 border border-gray-200 dark:border-gray-700">
+            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+              Select Doctor to View Calendar
+            </label>
+            <select
+              value={selectedDoctorForCalendar || ''}
+              onChange={(e) => setSelectedDoctorForCalendar(e.target.value)}
+              className="w-full px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:ring-2 focus:ring-blue-500"
+            >
+              <option value="">-- Select a doctor --</option>
+              {doctors.map(doctor => (
+                <option key={doctor._id} value={doctor._id}>
+                  {doctor.name} - {doctor.specialization}
+                </option>
+              ))}
+            </select>
+          </div>
+        )}
+
         {/* Filters */}
+        {viewMode === 'table' && (
         <div className="bg-white dark:bg-gray-800 rounded-xl shadow-md p-4 mb-6 border border-gray-200 dark:border-gray-700">
           <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
             <div>
@@ -142,6 +202,7 @@ const AdminAvailability = () => {
             </div>
           </div>
         </div>
+        )}
 
         {/* Error Message */}
         {error && (
@@ -150,7 +211,26 @@ const AdminAvailability = () => {
           </div>
         )}
 
+        {/* Calendar View */}
+        {viewMode === 'calendar' && selectedDoctorForCalendar && (
+          <div className="bg-white dark:bg-gray-800 rounded-xl shadow-md p-6 mb-6 border border-gray-200 dark:border-gray-700">
+            {selectedDoctorForCalendar && (
+              <div className="mb-4">
+                <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-2">
+                  {doctors.find(d => d._id === selectedDoctorForCalendar)?.name || 'Doctor'} - Availability Calendar
+                </h3>
+              </div>
+            )}
+            <DoctorAvailabilityCalendar 
+              availability={doctorAvailability}
+              doctorId={selectedDoctorForCalendar}
+              readOnly={true}
+            />
+          </div>
+        )}
+
         {/* Availability Table */}
+        {viewMode === 'table' && (
         <div className="bg-white dark:bg-gray-800 rounded-xl shadow-md border border-gray-200 dark:border-gray-700 overflow-hidden">
           {isLoading ? (
             <div className="text-center py-12 text-gray-500 dark:text-gray-400">Loading...</div>
@@ -264,6 +344,7 @@ const AdminAvailability = () => {
             </>
           )}
         </div>
+        )}
 
 
         {/* View Modal */}
