@@ -749,16 +749,8 @@ const AdminDoctors = () => {
                                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" />
                               </svg>
                             </button>
-                            <button
-                              onClick={() => handleEdit(doctor)}
-                              className="text-green-600 hover:text-green-900 dark:text-green-400 dark:hover:text-green-300"
-                              title="Edit"
-                            >
-                              <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
-                              </svg>
-                            </button>
-                            {!doctor.isApproved && (
+                            {!doctor.isApproved ? (
+                              // For pending doctors: show Approve and Reject buttons
                               <>
                                 <button
                                   onClick={() => handleApprove(doctor._id)}
@@ -779,16 +771,18 @@ const AdminDoctors = () => {
                                   </svg>
                                 </button>
                               </>
+                            ) : (
+                              // For approved doctors: only show Delete button
+                              <button
+                                onClick={() => handleDelete(doctor._id)}
+                                className="text-red-600 hover:text-red-900 dark:text-red-400 dark:hover:text-red-300"
+                                title="Delete"
+                              >
+                                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                                </svg>
+                              </button>
                             )}
-                            <button
-                              onClick={() => handleDelete(doctor._id)}
-                              className="text-red-600 hover:text-red-900 dark:text-red-400 dark:hover:text-red-300"
-                              title="Delete"
-                            >
-                              <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
-                              </svg>
-                            </button>
                           </div>
                         </td>
                       </tr>
@@ -1199,21 +1193,60 @@ const AdminDoctors = () => {
               </div>
               
               <div className="flex justify-end gap-3 mt-6 pt-4 border-t border-gray-200 dark:border-gray-700">
-                <button
-                  onClick={() => {
-                    setShowViewModal(false);
-                    handleEdit(selectedDoctor);
-                  }}
-                  className="px-4 py-2 bg-green-600 text-white rounded-md hover:bg-green-700"
-                >
-                  Edit
-                </button>
-                <button
-                  onClick={() => setShowViewModal(false)}
-                  className="px-4 py-2 bg-gray-600 text-white rounded-md hover:bg-gray-700"
-                >
-                  Close
-                </button>
+                {!selectedDoctor.isApproved ? (
+                  <>
+                    <button
+                      onClick={async () => {
+                        if (window.confirm('Are you sure you want to approve this doctor?')) {
+                          try {
+                            await apiService.approveDoctor(selectedDoctor._id);
+                            setShowViewModal(false);
+                            fetchDoctors();
+                            alert('Doctor approved successfully');
+                          } catch (err) {
+                            alert(err.response?.data?.message || 'Failed to approve doctor');
+                          }
+                        }
+                      }}
+                      className="px-6 py-2 bg-green-600 text-white rounded-md hover:bg-green-700 flex items-center gap-2 font-medium"
+                    >
+                      <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
+                      </svg>
+                      Approve
+                    </button>
+                    <button
+                      onClick={() => {
+                        setShowViewModal(false);
+                        handleReject(selectedDoctor);
+                      }}
+                      className="px-6 py-2 bg-red-600 text-white rounded-md hover:bg-red-700 flex items-center gap-2 font-medium"
+                    >
+                      <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                      </svg>
+                      Reject
+                    </button>
+                  </>
+                ) : (
+                  <>
+                    <button
+                      onClick={() => handleDelete(selectedDoctor._id)}
+                      className="px-6 py-2 bg-red-600 text-white rounded-md hover:bg-red-700 flex items-center gap-2 font-medium"
+                    >
+                      <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                      </svg>
+                      Delete
+                    </button>
+                    <button
+                      onClick={() => setShowViewModal(false)}
+                      className="px-6 py-2 bg-gray-600 text-white rounded-md hover:bg-gray-700 font-medium"
+                    >
+                      Close
+                    </button>
+                  </>
+                )}
               </div>
             </div>
           </div>

@@ -48,7 +48,6 @@ import AdminAppointments from './pages/Admin/Appointments';
 import AdminReviews from './pages/Admin/Reviews';
 import AdminAvailability from './pages/Admin/Availability';
 import AdminAnalytics from './pages/Admin/Analytics';
-import AdminLogs from './pages/Admin/Logs';
 import AdminSettings from './pages/Admin/Settings';
 
 // Common Pages
@@ -162,7 +161,6 @@ function App() {
             <Route path="reviews" element={<AdminReviews />} />
             <Route path="availability" element={<AdminAvailability />} />
             <Route path="analytics" element={<AdminAnalytics />} />
-            <Route path="logs" element={<AdminLogs />} />
             <Route path="settings" element={<AdminSettings />} />
           </Route>
 

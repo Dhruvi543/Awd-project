@@ -103,6 +103,9 @@ const register = asyncHandler(async (req, res) => {
   // Remove confirmPassword from userData
   const { confirmPassword, ...userData } = validatedData;
 
+  // Ensure email is normalized (lowercase and trimmed) - double check
+  userData.email = validatedData.email.toLowerCase().trim();
+
   // Set name based on role
   if (isDoctor) {
     userData.name = `${validatedData.firstName} ${validatedData.lastName}`;
@@ -114,9 +117,13 @@ const register = asyncHandler(async (req, res) => {
     userData.isApproved = true;
   }
 
+  // Check if user already exists with normalized email
   const existingUser = await User.findOne({ email: userData.email });
   if (existingUser) {
-    return res.status(400).json({ message: 'User already exists' });
+    return res.status(400).json({ 
+      success: false,
+      message: 'An account with this email already exists. Please try logging in instead.' 
+    });
   }
 
   const user = new User(userData);
@@ -194,20 +201,41 @@ const login = asyncHandler(async (req, res) => {
   
   const { email, password, rememberMe } = validationResult.data;
 
-  const user = await User.findOne({ email });
+  // Normalize email for lookup (lowercase and trim)
+  const normalizedEmail = email.toLowerCase().trim();
+  
+  const user = await User.findOne({ email: normalizedEmail });
   if (!user) {
-    return res.status(401).json({ message: 'Invalid credentials' });
+    return res.status(401).json({ 
+      success: false,
+      message: 'Invalid email or password. Please check your credentials and try again.' 
+    });
   }
 
   const isPasswordValid = await user.comparePassword(password);
   if (!isPasswordValid) {
-    return res.status(401).json({ message: 'Invalid credentials' });
+    return res.status(401).json({ 
+      success: false,
+      message: 'Invalid email or password. Please check your credentials and try again.' 
+    });
   }
 
   // Check if doctor is approved (only for doctors)
   if (user.role === 'doctor' && !user.isApproved) {
+    // Check if doctor was rejected
+    if (user.rejectionReason) {
+      return res.status(403).json({ 
+        success: false,
+        message: 'Your doctor registration has been rejected by the admin.',
+        rejectionReason: user.rejectionReason,
+        isRejected: true
+      });
+    }
+    // Doctor is pending approval
     return res.status(403).json({ 
-      message: 'Your account is pending approval. Please wait for admin approval before logging in.' 
+      success: false,
+      message: 'Your account is pending admin approval. You will be able to login once your account is approved.',
+      isPending: true
     });
   }
 
@@ -226,8 +254,20 @@ const login = asyncHandler(async (req, res) => {
     maxAge: cookieMaxAge,
   });
 
+  // Check if this is a doctor who was just approved (has approvedAt timestamp)
+  let approvalMessage = null;
+  if (user.role === 'doctor' && user.isApproved && user.approvedAt) {
+    const approvalDate = new Date(user.approvedAt);
+    const daysSinceApproval = Math.floor((Date.now() - approvalDate.getTime()) / (1000 * 60 * 60 * 24));
+    
+    // Show approval message if approved within last 7 days (recent approval)
+    if (daysSinceApproval <= 7) {
+      approvalMessage = 'Your doctor account has been approved! You can now access all features of the platform.';
+    }
+  }
+
   res.json({
-    message: 'Login successful',
+    message: approvalMessage || 'Login successful',
     token: token, // Also return token in response body for frontend to store
     user: {
       id: user._id,
@@ -235,6 +275,7 @@ const login = asyncHandler(async (req, res) => {
       email: user.email,
       role: user.role,
     },
+    approvalMessage: approvalMessage, // Include approval message separately for frontend handling
   });
 });
 

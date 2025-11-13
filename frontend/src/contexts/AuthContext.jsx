@@ -58,6 +58,21 @@ const authReducer = (state, action) => {
     
     case 'LOGIN_SUCCESS':
     case 'REGISTER_SUCCESS':
+      // Ensure localStorage is synced with state
+      if (action.payload.token) {
+        try {
+          localStorage.setItem('token', action.payload.token);
+        } catch (e) {
+          console.error('Error saving token to localStorage:', e);
+        }
+      }
+      if (action.payload.user) {
+        try {
+          localStorage.setItem('user', JSON.stringify(action.payload.user));
+        } catch (e) {
+          console.error('Error saving user to localStorage:', e);
+        }
+      }
       return {
         ...state,
         user: action.payload.user,
@@ -76,6 +91,13 @@ const authReducer = (state, action) => {
       };
     
     case 'LOGOUT_SUCCESS':
+      // Clear localStorage when logging out
+      try {
+        localStorage.removeItem('token');
+        localStorage.removeItem('user');
+      } catch (e) {
+        console.error('Error clearing localStorage:', e);
+      }
       return {
         user: null,
         token: null,
@@ -103,9 +125,67 @@ const authReducer = (state, action) => {
 export const AuthProvider = ({ children }) => {
   const [state, dispatch] = useReducer(authReducer, initialState);
 
+  // Restore authentication state from localStorage on mount and when localStorage changes
   useEffect(() => {
-    // Skip fetching profile for now; backend doesn't expose it yet.
-  }, []);
+    const restoreAuthState = () => {
+      try {
+        const storedToken = localStorage.getItem('token');
+        const storedUser = localStorage.getItem('user');
+        
+        if (storedToken && storedUser) {
+          try {
+            const user = JSON.parse(storedUser);
+            const normalizedUser = {
+              ...user,
+              _id: user._id || user.id
+            };
+            
+            // Always restore state from localStorage on mount or storage change
+            // This ensures state is synced with localStorage
+            dispatch({ 
+              type: 'LOGIN_SUCCESS', 
+              payload: { 
+                user: normalizedUser, 
+                token: storedToken 
+              } 
+            });
+          } catch (parseError) {
+            console.error('Error parsing stored user:', parseError);
+            // Clear corrupted data
+            localStorage.removeItem('user');
+            localStorage.removeItem('token');
+            dispatch({ type: 'LOGOUT_SUCCESS' });
+          }
+        } else if (storedUser && !storedToken) {
+          // Clear stale user data if token is missing
+          localStorage.removeItem('user');
+          dispatch({ type: 'LOGOUT_SUCCESS' });
+        } else if (!storedToken && !storedUser) {
+          // If localStorage is cleared, ensure state is also cleared
+          dispatch({ type: 'LOGOUT_SUCCESS' });
+        }
+      } catch (error) {
+        console.error('Error restoring auth state:', error);
+      }
+    };
+
+    // Restore on mount
+    restoreAuthState();
+
+    // Listen for storage changes (e.g., from other tabs)
+    const handleStorageChange = (e) => {
+      if (e.key === 'token' || e.key === 'user' || e.key === null) {
+        // null key means localStorage was cleared
+        restoreAuthState();
+      }
+    };
+
+    window.addEventListener('storage', handleStorageChange);
+
+    return () => {
+      window.removeEventListener('storage', handleStorageChange);
+    };
+  }, []); // Only run on mount - eslint-disable-line react-hooks/exhaustive-deps
 
   const getCurrentUser = async () => {
     try {
@@ -139,23 +219,75 @@ export const AuthProvider = ({ children }) => {
     dispatch({ type: 'LOGIN_START' });
     try {
       const response = await apiService.login(credentials);
-      const { user, token } = response.data;
-      if (user) {
+      const { user, token, approvalMessage, rejectionReason, isRejected, isPending } = response.data;
+      
+      // Handle rejection case
+      if (isRejected) {
+        dispatch({ type: 'LOGIN_FAILURE', payload: response.data.message });
+        return { 
+          success: false, 
+          error: response.data.message,
+          isRejected: true,
+          rejectionReason: rejectionReason
+        };
+      }
+      
+      // Handle pending approval case
+      if (isPending) {
+        dispatch({ type: 'LOGIN_FAILURE', payload: response.data.message });
+        return { 
+          success: false, 
+          error: response.data.message,
+          isPending: true
+        };
+      }
+      
+      if (user && token) {
         // Normalize user object: ensure _id exists (backend returns id, MongoDB uses _id)
         const normalizedUser = {
           ...user,
           _id: user._id || user.id
         };
+        // Store in localStorage first
         localStorage.setItem('user', JSON.stringify(normalizedUser));
-        dispatch({ type: 'LOGIN_SUCCESS', payload: { user: normalizedUser, token: token || null } });
-        return { success: true, user: normalizedUser };
+        localStorage.setItem('token', token);
+        // Then update state
+        dispatch({ type: 'LOGIN_SUCCESS', payload: { user: normalizedUser, token: token } });
+        return { 
+          success: true, 
+          user: normalizedUser,
+          approvalMessage: approvalMessage 
+        };
       }
       if (token) {
         localStorage.setItem('token', token);
+        dispatch({ type: 'LOGIN_SUCCESS', payload: { user: null, token: token } });
+        return { success: true, user: null, approvalMessage: approvalMessage };
       }
-      dispatch({ type: 'LOGIN_SUCCESS', payload: { user: null, token: token || null } });
-      return { success: true, user: null };
+      // If no token, something went wrong
+      dispatch({ type: 'LOGIN_FAILURE', payload: 'Login failed: No token received' });
+      return { success: false, error: 'Login failed: No token received' };
     } catch (error) {
+      // Check if it's a rejection or pending error
+      if (error.response?.data?.isRejected) {
+        const errorMessage = error.response?.data?.message || 'Login failed';
+        dispatch({ type: 'LOGIN_FAILURE', payload: errorMessage });
+        return { 
+          success: false, 
+          error: errorMessage,
+          isRejected: true,
+          rejectionReason: error.response?.data?.rejectionReason
+        };
+      }
+      if (error.response?.data?.isPending) {
+        const errorMessage = error.response?.data?.message || 'Login failed';
+        dispatch({ type: 'LOGIN_FAILURE', payload: errorMessage });
+        return { 
+          success: false, 
+          error: errorMessage,
+          isPending: true
+        };
+      }
       const errorMessage = error.response?.data?.message || 'Login failed';
       dispatch({ type: 'LOGIN_FAILURE', payload: errorMessage });
       return { success: false, error: errorMessage };
@@ -166,7 +298,7 @@ export const AuthProvider = ({ children }) => {
     dispatch({ type: 'REGISTER_START' });
     try {
       const response = await apiService.register(userData);
-      const { user, token } = response.data;
+      const { user, token, message } = response.data;
       let normalizedUser = null;
       if (user) {
         // Normalize user object: ensure _id exists (backend returns id, MongoDB uses _id)
@@ -174,13 +306,23 @@ export const AuthProvider = ({ children }) => {
           ...user,
           _id: user._id || user.id
         };
-        localStorage.setItem('user', JSON.stringify(normalizedUser));
+        // Only store user in localStorage if they have a token (approved)
+        if (token) {
+          localStorage.setItem('user', JSON.stringify(normalizedUser));
+        }
       }
       if (token) {
         localStorage.setItem('token', token);
       }
       dispatch({ type: 'REGISTER_SUCCESS', payload: { user: normalizedUser, token: token || null } });
-      return { success: true };
+      // Return success with additional info for doctor registration
+      return { 
+        success: true, 
+        isDoctor: userData.role === 'doctor',
+        hasToken: !!token,
+        message: message,
+        user: normalizedUser
+      };
     } catch (error) {
       const errorMessage = error.response?.data?.message || 'Registration failed';
       dispatch({ type: 'REGISTER_FAILURE', payload: errorMessage });

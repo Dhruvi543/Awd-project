@@ -36,11 +36,6 @@ import {
   deleteAvailability,
   // Analytics
   getAnalytics,
-  // System Logs
-  getAllLogs,
-  createLog,
-  deleteLog,
-  clearAllLogs,
   // Settings
   getSettings,
   updateSettings,
@@ -108,12 +103,6 @@ router.delete('/availability/:id', deleteAvailability);
 
 // Analytics routes
 router.get('/analytics', getAnalytics);
-
-// System Logs routes
-router.get('/logs', getAllLogs);
-router.post('/logs', createLog);
-router.delete('/logs/:id', deleteLog);
-router.delete('/logs', clearAllLogs);
 
   // Settings routes
   router.get('/settings', getSettings);

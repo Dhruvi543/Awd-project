@@ -77,7 +77,7 @@ const AdminSettings = () => {
     e.preventDefault();
     
     // Validate all required fields
-    const fieldsToValidate = ['siteName', 'siteDescription', 'timezone', 'maxAppointmentsPerDay', 'appointmentDuration', 'minPasswordLength', 'sessionTimeout'];
+    const fieldsToValidate = ['siteName', 'siteDescription', 'maxAppointmentsPerDay', 'appointmentDuration', 'minPasswordLength', 'sessionTimeout'];
     let hasErrors = false;
     
     fieldsToValidate.forEach(field => {
@@ -99,11 +99,6 @@ const AdminSettings = () => {
       hasErrors = true;
     }
     
-    if (!formData.timezone || formData.timezone.trim().length === 0) {
-      setErrors(prev => ({ ...prev, timezone: 'Timezone is required' }));
-      hasErrors = true;
-    }
-    
     if (hasErrors) {
       setError('Please fix validation errors before saving');
       return;
@@ -119,7 +114,6 @@ const AdminSettings = () => {
       const dataToSave = {
         siteName: formData.siteName?.trim() || '',
         siteDescription: formData.siteDescription?.trim() || '',
-        timezone: formData.timezone || 'UTC',
         maintenanceMode: formData.maintenanceMode || false,
         allowRegistration: formData.allowRegistration !== undefined ? formData.allowRegistration : true,
         requireEmailVerification: formData.requireEmailVerification || false,
@@ -187,10 +181,6 @@ const AdminSettings = () => {
     } else if (name === 'siteDescription') {
       if (!value || value.trim().length === 0) {
         error = 'Site description is required';
-      }
-    } else if (name === 'timezone') {
-      if (!value || value.trim().length === 0) {
-        error = 'Timezone is required';
       }
     }
     
@@ -316,41 +306,6 @@ const AdminSettings = () => {
                   )}
                   <p className="text-xs text-gray-500 dark:text-gray-400 mt-1.5">
                     Used in meta tags for SEO, email footers, and system descriptions
-                  </p>
-                </div>
-                <div className="md:col-span-2">
-                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1.5">
-                    Timezone <span className="text-red-500">*</span>
-                  </label>
-                  <select
-                    name="timezone"
-                    value={formData.timezone || 'UTC'}
-                    onChange={handleInputChange}
-                    onBlur={handleBlur}
-                    required
-                    className={`w-full px-3 py-2 border rounded-md bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent ${
-                      errors.timezone 
-                        ? 'border-red-500 dark:border-red-500' 
-                        : 'border-gray-300 dark:border-gray-600'
-                    }`}
-                  >
-                    <option value="UTC">UTC (Coordinated Universal Time)</option>
-                    <option value="America/New_York">Eastern Time (ET) - America/New_York</option>
-                    <option value="America/Chicago">Central Time (CT) - America/Chicago</option>
-                    <option value="America/Denver">Mountain Time (MT) - America/Denver</option>
-                    <option value="America/Los_Angeles">Pacific Time (PT) - America/Los_Angeles</option>
-                    <option value="Europe/London">London (GMT) - Europe/London</option>
-                    <option value="Europe/Paris">Paris (CET) - Europe/Paris</option>
-                    <option value="Asia/Dubai">Dubai (GST) - Asia/Dubai</option>
-                    <option value="Asia/Kolkata">India (IST) - Asia/Kolkata</option>
-                    <option value="Asia/Tokyo">Tokyo (JST) - Asia/Tokyo</option>
-                    <option value="Australia/Sydney">Sydney (AEST) - Australia/Sydney</option>
-                  </select>
-                  {errors.timezone && (
-                    <p className="text-xs text-red-500 dark:text-red-400 mt-1">{errors.timezone}</p>
-                  )}
-                  <p className="text-xs text-gray-500 dark:text-gray-400 mt-1.5">
-                    All dates and times (appointments, logs, notifications) are displayed in this timezone
                   </p>
                 </div>
               </div>
