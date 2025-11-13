@@ -66,16 +66,23 @@ const getPatientAppointments = asyncHandler(async (req, res) => {
     
     let query = { patient: patientId };
     
-    // Filter by status
+    // Filter by status (pending, completed, confirmed, cancelled)
     if (status && status !== 'all') {
       query.status = status;
     }
     
     // Filter by date (upcoming, past)
+    const now = new Date();
+    now.setHours(0, 0, 0, 0);
+    
     if (filter === 'upcoming') {
-      query.appointmentDate = { $gte: new Date() };
+      query.appointmentDate = { $gte: now };
+      // For upcoming, exclude cancelled appointments
+      if (!query.status) {
+        query.status = { $ne: 'cancelled' };
+      }
     } else if (filter === 'past') {
-      query.appointmentDate = { $lt: new Date() };
+      query.appointmentDate = { $lt: now };
     }
     
     const appointments = await Appointment.find(query)

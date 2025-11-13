@@ -639,6 +639,7 @@ const DoctorAvailability = () => {
     });
   };
 
+
   const schedules = availability.filter(item => item.type === 'schedule' && item.isActive);
   const leaves = availability.filter(item => item.type === 'leave');
 

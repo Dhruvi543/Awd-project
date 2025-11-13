@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { useSearchParams, Link } from 'react-router-dom';
 import { apiService } from '../../api/apiService';
+import DoctorAvailabilityCalendar from '../../components/DoctorAvailabilityCalendar';
 
 const PatientAvailability = () => {
   const [searchParams] = useSearchParams();
@@ -9,8 +10,6 @@ const PatientAvailability = () => {
   const [selectedDoctor, setSelectedDoctor] = useState(null);
   const [doctors, setDoctors] = useState([]);
   const [isLoading, setIsLoading] = useState(true);
-  const [selectedMonth, setSelectedMonth] = useState(new Date().getMonth());
-  const [selectedYear, setSelectedYear] = useState(new Date().getFullYear());
   const [viewMode, setViewMode] = useState('calendar'); // 'calendar' or 'list'
 
   useEffect(() => {
@@ -386,13 +385,13 @@ const PatientAvailability = () => {
         {selectedDoctor ? (
           isLoading ? (
             <div className="text-center py-12 text-gray-500 dark:text-gray-400">Loading availability...</div>
-          ) : availability.length > 0 ? (
+          ) : (
             <>
               {/* View Mode Toggle */}
               <div className="bg-white dark:bg-gray-800 rounded-xl shadow-md p-4 mb-6 border border-gray-200 dark:border-gray-700">
                 <div className="flex items-center justify-between">
                   <h2 className="text-xl font-semibold text-gray-900 dark:text-white">
-                    Dr. {selectedDoctor.name}
+                    Dr. {selectedDoctor.name} - {selectedDoctor.specialization}
                   </h2>
                   <div className="flex gap-2">
                     <button
@@ -420,7 +419,15 @@ const PatientAvailability = () => {
               </div>
 
               {/* Calendar or List View */}
-              {viewMode === 'calendar' ? renderCalendar() : renderScheduleList()}
+              {viewMode === 'calendar' ? (
+                <div className="bg-white dark:bg-gray-800 rounded-xl shadow-md p-6 border border-gray-200 dark:border-gray-700">
+                  <DoctorAvailabilityCalendar 
+                    availability={availability}
+                    doctorId={selectedDoctor._id}
+                    readOnly={true}
+                  />
+                </div>
+              ) : renderScheduleList()}
 
               {/* Quick Book Button */}
               <div className="mt-6 text-center">
@@ -430,23 +437,8 @@ const PatientAvailability = () => {
                 >
                   Book Appointment with Dr. {selectedDoctor.name}
                 </Link>
-            </div>
+              </div>
             </>
-          ) : (
-            <div className="bg-white dark:bg-gray-800 rounded-xl shadow-md p-12 border border-gray-200 dark:border-gray-700 text-center">
-              <svg className="w-16 h-16 mx-auto text-gray-400 dark:text-gray-500 mb-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
-              </svg>
-              <p className="text-gray-600 dark:text-gray-400 mb-4">
-                No availability slots found for Dr. {selectedDoctor.name}
-              </p>
-              <Link
-                to="/patient/find-doctor"
-                className="inline-block px-6 py-3 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
-              >
-                Browse Other Doctors
-              </Link>
-            </div>
           )
         ) : (
           <div className="bg-white dark:bg-gray-800 rounded-xl shadow-md p-12 border border-gray-200 dark:border-gray-700 text-center">

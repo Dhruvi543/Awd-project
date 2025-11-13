@@ -1,11 +1,24 @@
 import React, { useState, useEffect } from 'react';
-import { Link } from 'react-router-dom';
+import { Link, useSearchParams, useNavigate } from 'react-router-dom';
 import { apiService } from '../../api/apiService';
 
 const PatientAppointments = () => {
+  const [searchParams] = useSearchParams();
+  const navigate = useNavigate();
+  const statusParam = searchParams.get('status');
+  
+  // Helper function to get filter from URL parameter
+  const getFilterFromParam = (param) => {
+    if (param === 'pending') return 'pending';
+    if (param === 'completed') return 'completed';
+    if (param === 'confirmed') return 'confirmed';
+    if (param === 'upcoming') return 'upcoming';
+    return 'all';
+  };
+
   const [appointments, setAppointments] = useState([]);
   const [isLoading, setIsLoading] = useState(true);
-  const [filter, setFilter] = useState('all');
+  const [filter, setFilter] = useState(() => getFilterFromParam(statusParam));
   const [editingAppointment, setEditingAppointment] = useState(null);
   const [deletingAppointment, setDeletingAppointment] = useState(null);
   const [showEditModal, setShowEditModal] = useState(false);
@@ -23,6 +36,12 @@ const PatientAppointments = () => {
     endTime: '',
     consultationNotes: ''
   });
+
+  useEffect(() => {
+    // Update filter when URL parameter changes
+    const newFilter = getFilterFromParam(statusParam);
+    setFilter(newFilter);
+  }, [statusParam]);
 
   useEffect(() => {
     fetchAppointments();
@@ -48,26 +67,32 @@ const PatientAppointments = () => {
   const fetchAppointments = async () => {
     try {
       setIsLoading(true);
-      const response = await apiService.getAppointments();
+      
+      // Build query parameters based on filter
+      let params = {};
+      if (filter === 'pending') {
+        params.status = 'pending';
+      } else if (filter === 'completed') {
+        params.status = 'completed';
+      } else if (filter === 'upcoming') {
+        params.status = 'confirmed';
+        params.filter = 'upcoming';
+      } else if (filter === 'past') {
+        params.filter = 'past';
+      } else if (filter === 'cancelled') {
+        params.status = 'cancelled';
+      } else if (filter === 'confirmed') {
+        params.status = 'confirmed';
+      }
+      
+      const response = await apiService.getAppointments(params);
       if (response.data.success) {
         let filteredAppointments = response.data.data || [];
         
-        // Apply client-side filtering
+        // Apply additional client-side filtering for complex cases
         if (filter === 'upcoming') {
           filteredAppointments = filteredAppointments.filter(apt => 
-            new Date(apt.appointmentDate) >= new Date() && apt.status !== 'cancelled'
-          );
-        } else if (filter === 'past') {
-          filteredAppointments = filteredAppointments.filter(apt => 
-            new Date(apt.appointmentDate) < new Date()
-          );
-        } else if (filter === 'cancelled') {
-          filteredAppointments = filteredAppointments.filter(apt => 
-            apt.status === 'cancelled'
-          );
-        } else if (filter === 'confirmed') {
-          filteredAppointments = filteredAppointments.filter(apt => 
-            apt.status === 'confirmed'
+            apt.status === 'confirmed' && new Date(apt.appointmentDate) >= new Date()
           );
         }
         
@@ -412,17 +437,33 @@ const PatientAppointments = () => {
         {/* Filters */}
         <div className="bg-white dark:bg-gray-800 rounded-xl shadow-md p-4 mb-6 border border-gray-200 dark:border-gray-700">
           <div className="flex flex-wrap gap-2">
-            {['all', 'upcoming', 'past', 'cancelled', 'confirmed'].map((filterOption) => (
+            {[
+              { value: 'all', label: 'All', bg: 'bg-gray-600', hover: 'hover:bg-gray-700' },
+              { value: 'upcoming', label: 'Upcoming', bg: 'bg-green-600', hover: 'hover:bg-green-700' },
+              { value: 'pending', label: 'Pending', bg: 'bg-yellow-500', hover: 'hover:bg-yellow-600' },
+              { value: 'completed', label: 'Completed', bg: 'bg-teal-600', hover: 'hover:bg-teal-700' },
+              { value: 'confirmed', label: 'Confirmed', bg: 'bg-blue-600', hover: 'hover:bg-blue-700' },
+              { value: 'past', label: 'Past', bg: 'bg-gray-500', hover: 'hover:bg-gray-600' },
+              { value: 'cancelled', label: 'Cancelled', bg: 'bg-red-600', hover: 'hover:bg-red-700' }
+            ].map((filterOption) => (
               <button
-                key={filterOption}
-                onClick={() => setFilter(filterOption)}
+                key={filterOption.value}
+                onClick={() => {
+                  setFilter(filterOption.value);
+                  // Update URL to reflect the filter
+                  if (filterOption.value === 'all') {
+                    navigate('/patient/appointments');
+                  } else {
+                    navigate(`/patient/appointments?status=${filterOption.value}`);
+                  }
+                }}
                 className={`px-4 py-2 rounded-lg font-medium transition-colors ${
-                  filter === filterOption
-                    ? 'bg-blue-600 text-white'
+                  filter === filterOption.value
+                    ? `${filterOption.bg} text-white shadow-md`
                     : 'bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-600'
                 }`}
               >
-                {filterOption.charAt(0).toUpperCase() + filterOption.slice(1)}
+                {filterOption.label}
               </button>
             ))}
           </div>

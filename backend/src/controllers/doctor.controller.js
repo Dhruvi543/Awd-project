@@ -448,6 +448,274 @@ const deleteMyAvailability = asyncHandler(async (req, res) => {
   }
 });
 
+// Generate monthly availability - all days available except Sundays and marked leaves
+const generateMonthlyAvailability = asyncHandler(async (req, res) => {
+  try {
+    const doctorId = req.user._id;
+    const { month, year, startTime, endTime, appointmentDuration, consultationType, maxAppointments } = req.body;
+    
+    if (!month || !year || month < 0 || month > 11 || year < new Date().getFullYear()) {
+      return res.status(400).json({
+        success: false,
+        message: 'Invalid month or year'
+      });
+    }
+    
+    // Default values
+    const defaultStartTime = startTime || '09:00';
+    const defaultEndTime = endTime || '17:00';
+    const defaultDuration = appointmentDuration || 30;
+    const defaultConsultationType = consultationType || 'both';
+    
+    // Get first and last day of the month
+    const firstDay = new Date(year, month, 1);
+    const lastDay = new Date(year, month + 1, 0);
+    const daysInMonth = lastDay.getDate();
+    
+    // Get existing leaves for this month
+    const existingLeaves = await Availability.find({
+      doctor: doctorId,
+      type: 'leave',
+      isActive: true,
+      $or: [
+        {
+          startDate: { $lte: lastDay },
+          endDate: { $gte: firstDay }
+        }
+      ]
+    });
+    
+    // Get existing schedules for this month
+    const existingSchedules = await Availability.find({
+      doctor: doctorId,
+      type: 'schedule',
+      isActive: true,
+      startDate: {
+        $gte: firstDay,
+        $lte: lastDay
+      }
+    });
+    
+    const existingScheduleDates = new Set(
+      existingSchedules.map(s => {
+        const date = new Date(s.startDate);
+        return `${date.getFullYear()}-${date.getMonth()}-${date.getDate()}`;
+      })
+    );
+    
+    // Create a set of leave dates
+    const leaveDates = new Set();
+    existingLeaves.forEach(leave => {
+      const start = new Date(leave.startDate);
+      const end = new Date(leave.endDate);
+      start.setHours(0, 0, 0, 0);
+      end.setHours(23, 59, 59, 999);
+      
+      for (let d = new Date(start); d <= end; d.setDate(d.getDate() + 1)) {
+        const dateKey = `${d.getFullYear()}-${d.getMonth()}-${d.getDate()}`;
+        leaveDates.add(dateKey);
+      }
+    });
+    
+    const createdSchedules = [];
+    const createdLeaves = [];
+    
+    // Generate availability for each day in the month
+    for (let day = 1; day <= daysInMonth; day++) {
+      const currentDate = new Date(year, month, day);
+      const dayOfWeek = currentDate.getDay(); // 0 = Sunday, 6 = Saturday
+      const dateKey = `${year}-${month}-${day}`;
+      
+      // Skip if already has a schedule
+      if (existingScheduleDates.has(dateKey)) {
+        continue;
+      }
+      
+      // Check if this date is in leave dates
+      const isLeaveDate = leaveDates.has(dateKey);
+      
+      // Sunday is always leave
+      if (dayOfWeek === 0 || isLeaveDate) {
+        // Check if leave already exists for this date
+        const existingLeave = existingLeaves.find(leave => {
+          const leaveStart = new Date(leave.startDate);
+          const leaveEnd = new Date(leave.endDate);
+          leaveStart.setHours(0, 0, 0, 0);
+          leaveEnd.setHours(23, 59, 59, 999);
+          return currentDate >= leaveStart && currentDate <= leaveEnd;
+        });
+        
+        if (!existingLeave) {
+          // Create leave entry for Sunday or marked leave date
+          const leave = new Availability({
+            doctor: doctorId,
+            type: 'leave',
+            startDate: new Date(year, month, day),
+            endDate: new Date(year, month, day),
+            reason: dayOfWeek === 0 ? 'Sunday - Weekly off' : 'Leave',
+            isActive: true
+          });
+          await leave.save();
+          createdLeaves.push(leave);
+        }
+      } else {
+        // Create availability schedule for this day
+        const schedule = new Availability({
+          doctor: doctorId,
+          type: 'schedule',
+          startDate: new Date(year, month, day),
+          endDate: new Date(year, month, day),
+          startTime: defaultStartTime,
+          endTime: defaultEndTime,
+          appointmentDuration: defaultDuration,
+          consultationType: defaultConsultationType,
+          maxAppointments: maxAppointments || undefined,
+          isActive: true
+        });
+        await schedule.save();
+        createdSchedules.push(schedule);
+      }
+    }
+    
+    res.json({
+      success: true,
+      message: `Monthly availability generated successfully. ${createdSchedules.length} days available, ${createdLeaves.length} days marked as leave (including Sundays).`,
+      data: {
+        schedules: createdSchedules,
+        leaves: createdLeaves,
+        totalAvailable: createdSchedules.length,
+        totalLeaves: createdLeaves.length
+      }
+    });
+  } catch (error) {
+    res.status(500).json({
+      success: false,
+      message: 'Error generating monthly availability',
+      error: error.message
+    });
+  }
+});
+
+// Toggle date between available and leave
+const toggleDateAvailability = asyncHandler(async (req, res) => {
+  try {
+    const doctorId = req.user._id;
+    const { date, reason } = req.body;
+    
+    if (!date) {
+      return res.status(400).json({
+        success: false,
+        message: 'Date is required'
+      });
+    }
+    
+    const targetDate = new Date(date);
+    targetDate.setHours(0, 0, 0, 0);
+    const dayOfWeek = targetDate.getDay();
+    
+    // Check if it's a Sunday
+    if (dayOfWeek === 0) {
+      return res.status(400).json({
+        success: false,
+        message: 'Sundays are automatically marked as leave and cannot be changed'
+      });
+    }
+    
+    // Check if there's an existing schedule for this date
+    const existingSchedule = await Availability.findOne({
+      doctor: doctorId,
+      type: 'schedule',
+      startDate: {
+        $gte: new Date(targetDate.getFullYear(), targetDate.getMonth(), targetDate.getDate()),
+        $lt: new Date(targetDate.getFullYear(), targetDate.getMonth(), targetDate.getDate() + 1)
+      },
+      isActive: true
+    });
+    
+    // Check if there's an existing leave for this date
+    const existingLeave = await Availability.findOne({
+      doctor: doctorId,
+      type: 'leave',
+      startDate: {
+        $lte: new Date(targetDate.getFullYear(), targetDate.getMonth(), targetDate.getDate(), 23, 59, 59)
+      },
+      endDate: {
+        $gte: new Date(targetDate.getFullYear(), targetDate.getMonth(), targetDate.getDate())
+      },
+      isActive: true
+    });
+    
+    if (existingSchedule) {
+      // Convert schedule to leave
+      await Availability.deleteOne({ _id: existingSchedule._id });
+      
+      const leave = new Availability({
+        doctor: doctorId,
+        type: 'leave',
+        startDate: targetDate,
+        endDate: targetDate,
+        reason: reason || 'Leave',
+        isActive: true
+      });
+      await leave.save();
+      
+      res.json({
+        success: true,
+        message: 'Date marked as leave',
+        data: { type: 'leave', availability: leave }
+      });
+    } else if (existingLeave) {
+      // Convert leave to schedule (available)
+      await Availability.deleteOne({ _id: existingLeave._id });
+      
+      const schedule = new Availability({
+        doctor: doctorId,
+        type: 'schedule',
+        startDate: targetDate,
+        endDate: targetDate,
+        startTime: '09:00',
+        endTime: '17:00',
+        appointmentDuration: 30,
+        consultationType: 'both',
+        isActive: true
+      });
+      await schedule.save();
+      
+      res.json({
+        success: true,
+        message: 'Date marked as available',
+        data: { type: 'schedule', availability: schedule }
+      });
+    } else {
+      // No existing entry, create as available
+      const schedule = new Availability({
+        doctor: doctorId,
+        type: 'schedule',
+        startDate: targetDate,
+        endDate: targetDate,
+        startTime: '09:00',
+        endTime: '17:00',
+        appointmentDuration: 30,
+        consultationType: 'both',
+        isActive: true
+      });
+      await schedule.save();
+      
+      res.json({
+        success: true,
+        message: 'Date marked as available',
+        data: { type: 'schedule', availability: schedule }
+      });
+    }
+  } catch (error) {
+    res.status(500).json({
+      success: false,
+      message: 'Error toggling date availability',
+      error: error.message
+    });
+  }
+});
+
 export {
   getDoctors,
   getDoctor,
@@ -455,6 +723,8 @@ export {
   getMyAvailability,
   createMyAvailability,
   updateMyAvailability,
-  deleteMyAvailability
+  deleteMyAvailability,
+  generateMonthlyAvailability,
+  toggleDateAvailability
 };
 

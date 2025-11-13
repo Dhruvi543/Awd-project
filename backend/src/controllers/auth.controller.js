@@ -56,8 +56,8 @@ const doctorRegisterSchema = z.object({
     .min(2, 'Location must be at least 2 characters')
     .trim(),
   licenseNo: z.string()
-    .optional()
-    .or(z.literal('')),
+    .min(1, 'License number is required')
+    .trim(),
   clinicHospitalType: z.enum(['clinic', 'hospital'], {
     errorMap: () => ({ message: 'Please select clinic or hospital' }),
   }),

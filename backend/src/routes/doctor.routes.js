@@ -6,7 +6,9 @@ import {
   getMyAvailability,
   createMyAvailability,
   updateMyAvailability,
-  deleteMyAvailability
+  deleteMyAvailability,
+  generateMonthlyAvailability,
+  toggleDateAvailability
 } from '../controllers/doctor.controller.js';
 import { requireAuth } from '../middleware/auth.js';
 
@@ -22,6 +24,8 @@ router.get('/availability/me', requireAuth, getMyAvailability);
 router.post('/availability', requireAuth, createMyAvailability);
 router.put('/availability/:id', requireAuth, updateMyAvailability);
 router.delete('/availability/:id', requireAuth, deleteMyAvailability);
+router.post('/availability/generate-monthly', requireAuth, generateMonthlyAvailability);
+router.post('/availability/toggle-date', requireAuth, toggleDateAvailability);
 
 export default router;
 
