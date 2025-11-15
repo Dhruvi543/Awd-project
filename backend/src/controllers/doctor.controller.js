@@ -621,26 +621,29 @@ const toggleDateAvailability = asyncHandler(async (req, res) => {
       });
     }
     
-    // Check if there's an existing schedule for this date
+    // Check if there's an existing schedule for this specific date
+    const targetDateStart = new Date(targetDate.getFullYear(), targetDate.getMonth(), targetDate.getDate());
+    const targetDateEnd = new Date(targetDate.getFullYear(), targetDate.getMonth(), targetDate.getDate(), 23, 59, 59, 999);
+    
     const existingSchedule = await Availability.findOne({
       doctor: doctorId,
       type: 'schedule',
       startDate: {
-        $gte: new Date(targetDate.getFullYear(), targetDate.getMonth(), targetDate.getDate()),
-        $lt: new Date(targetDate.getFullYear(), targetDate.getMonth(), targetDate.getDate() + 1)
+        $gte: targetDateStart,
+        $lte: targetDateEnd
       },
       isActive: true
     });
     
-    // Check if there's an existing leave for this date
+    // Check if there's an existing leave that covers this date
     const existingLeave = await Availability.findOne({
       doctor: doctorId,
       type: 'leave',
       startDate: {
-        $lte: new Date(targetDate.getFullYear(), targetDate.getMonth(), targetDate.getDate(), 23, 59, 59)
+        $lte: targetDateEnd
       },
       endDate: {
-        $gte: new Date(targetDate.getFullYear(), targetDate.getMonth(), targetDate.getDate())
+        $gte: targetDateStart
       },
       isActive: true
     });
@@ -665,8 +668,10 @@ const toggleDateAvailability = asyncHandler(async (req, res) => {
         data: { type: 'leave', availability: leave }
       });
     } else if (existingLeave) {
-      // Convert leave to schedule (available)
-      await Availability.deleteOne({ _id: existingLeave._id });
+      // If there's a leave covering this date, create a schedule entry for this specific date
+      // The schedule entry will override the leave period for this specific date
+      // Note: We don't delete the leave, as it might cover other dates
+      // The frontend will prioritize specific schedule entries over leave periods
       
       const schedule = new Availability({
         doctor: doctorId,
@@ -683,7 +688,7 @@ const toggleDateAvailability = asyncHandler(async (req, res) => {
       
       res.json({
         success: true,
-        message: 'Date marked as available',
+        message: 'Date marked as available (overrides leave period)',
         data: { type: 'schedule', availability: schedule }
       });
     } else {

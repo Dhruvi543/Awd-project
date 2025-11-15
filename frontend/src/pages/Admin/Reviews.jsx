@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { useSearchParams } from 'react-router-dom';
 import { apiService } from '../../api/apiService';
 
 const AdminReviews = () => {
@@ -7,7 +8,8 @@ const AdminReviews = () => {
   const [error, setError] = useState(null);
   const [showViewModal, setShowViewModal] = useState(false);
   const [selectedReview, setSelectedReview] = useState(null);
-  const [searchTerm, setSearchTerm] = useState('');
+  const [searchParams] = useSearchParams();
+  const [searchTerm, setSearchTerm] = useState(searchParams.get('search') || '');
   const [ratingFilter, setRatingFilter] = useState('all');
   const [currentPage, setCurrentPage] = useState(1);
   const [pagination, setPagination] = useState({ page: 1, limit: 10, total: 0, pages: 0 });
@@ -20,6 +22,14 @@ const AdminReviews = () => {
     twoStar: 0,
     oneStar: 0
   });
+
+  // Sync search term from URL
+  useEffect(() => {
+    const urlSearch = searchParams.get('search') || '';
+    if (urlSearch !== searchTerm) {
+      setSearchTerm(urlSearch);
+    }
+  }, [searchParams]);
 
   useEffect(() => {
     fetchReviews();
@@ -248,12 +258,20 @@ const AdminReviews = () => {
                     {reviews.map((review) => (
                       <tr key={review._id} className="hover:bg-gray-50 dark:hover:bg-gray-700">
                         <td className="px-6 py-4 whitespace-nowrap">
-                          <div className="text-sm font-medium text-gray-900 dark:text-white">{review.patient?.name || 'N/A'}</div>
-                          <div className="text-xs text-gray-500 dark:text-gray-400 mt-0.5">{review.patient?.email || ''}</div>
+                          <div className="text-sm font-medium text-gray-900 dark:text-white">
+                            {review.patient?.name || 'This patient is no longer available'}
+                          </div>
+                          {review.patient?.email && (
+                            <div className="text-xs text-gray-500 dark:text-gray-400 mt-0.5">
+                              {review.patient.email}
+                            </div>
+                          )}
                         </td>
                         <td className="px-6 py-4 whitespace-nowrap">
-                          <div className="text-sm font-medium text-gray-900 dark:text-white">{review.doctor?.name || 'N/A'}</div>
-                          <div className="text-xs text-gray-500 dark:text-gray-400 mt-0.5">{review.doctor?.specialization || ''}</div>
+                          <div className="text-sm font-medium text-gray-900 dark:text-white">{review.doctor?.name || 'This doctor is no longer available'}</div>
+                          {review.doctor?.specialization && (
+                            <div className="text-xs text-gray-500 dark:text-gray-400 mt-0.5">{review.doctor.specialization}</div>
+                          )}
                         </td>
                         <td className="px-6 py-4 whitespace-nowrap">
                           <div className="text-lg text-yellow-500 dark:text-yellow-400 font-semibold">{renderStars(review.rating)}</div>
@@ -350,13 +368,14 @@ const AdminReviews = () => {
                 <div className="flex items-center border-b border-gray-200 dark:border-gray-700 pb-3">
                   <div className="w-1/3 font-medium text-gray-700 dark:text-gray-300">Patient:</div>
                   <div className="w-2/3 text-gray-900 dark:text-white">
-                    {selectedReview.patient?.name || 'N/A'} ({selectedReview.patient?.email || 'N/A'})
+                    {selectedReview.patient?.name || 'This patient is no longer available'} 
+                    {selectedReview.patient?.email && ` (${selectedReview.patient.email})`}
                   </div>
                 </div>
                 <div className="flex items-center border-b border-gray-200 dark:border-gray-700 pb-3">
                   <div className="w-1/3 font-medium text-gray-700 dark:text-gray-300">Doctor:</div>
                   <div className="w-2/3 text-gray-900 dark:text-white">
-                    {selectedReview.doctor?.name || 'N/A'} - {selectedReview.doctor?.specialization || 'N/A'}
+                    {selectedReview.doctor?.name || 'This doctor is no longer available'} {selectedReview.doctor?.specialization && `- ${selectedReview.doctor.specialization}`}
                   </div>
                 </div>
                 <div className="flex items-center border-b border-gray-200 dark:border-gray-700 pb-3">

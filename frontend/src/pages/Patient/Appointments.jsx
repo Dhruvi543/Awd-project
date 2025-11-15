@@ -13,6 +13,7 @@ const PatientAppointments = () => {
     if (param === 'completed') return 'completed';
     if (param === 'confirmed') return 'confirmed';
     if (param === 'upcoming') return 'upcoming';
+    if (param === 'cancelled') return 'cancelled';
     return 'all';
   };
 
@@ -70,15 +71,16 @@ const PatientAppointments = () => {
       
       // Build query parameters based on filter
       let params = {};
-      if (filter === 'pending') {
+      if (filter === 'all') {
+        // Don't send any status or filter params - backend will return all appointments
+        params = {};
+      } else if (filter === 'pending') {
         params.status = 'pending';
       } else if (filter === 'completed') {
         params.status = 'completed';
       } else if (filter === 'upcoming') {
         params.status = 'confirmed';
         params.filter = 'upcoming';
-      } else if (filter === 'past') {
-        params.filter = 'past';
       } else if (filter === 'cancelled') {
         params.status = 'cancelled';
       } else if (filter === 'confirmed') {
@@ -443,7 +445,6 @@ const PatientAppointments = () => {
               { value: 'pending', label: 'Pending', bg: 'bg-yellow-500', hover: 'hover:bg-yellow-600' },
               { value: 'completed', label: 'Completed', bg: 'bg-teal-600', hover: 'hover:bg-teal-700' },
               { value: 'confirmed', label: 'Confirmed', bg: 'bg-blue-600', hover: 'hover:bg-blue-700' },
-              { value: 'past', label: 'Past', bg: 'bg-gray-500', hover: 'hover:bg-gray-600' },
               { value: 'cancelled', label: 'Cancelled', bg: 'bg-red-600', hover: 'hover:bg-red-700' }
             ].map((filterOption) => (
               <button
@@ -483,7 +484,7 @@ const PatientAppointments = () => {
                   <div className="flex-1">
                     <div className="flex items-center gap-4 mb-2">
                       <h3 className="text-xl font-semibold text-gray-900 dark:text-white">
-                        Dr. {appointment.doctor?.name || appointment.doctorName || 'Unknown Doctor'}
+                        Dr. {appointment.doctor?.name || appointment.doctorName || 'This doctor is no longer available'}
                       </h3>
                       <span className={`px-3 py-1 rounded-full text-xs font-medium ${getStatusBadge(appointment.status)}`}>
                         {appointment.status}
@@ -709,7 +710,7 @@ const PatientAppointments = () => {
               </p>
               <div className="bg-gray-50 dark:bg-gray-700 rounded-lg p-4 mb-6">
                 <p className="text-sm text-gray-600 dark:text-gray-400">
-                  <strong>Doctor:</strong> Dr. {deletingAppointment.doctor?.name || 'Unknown'}
+                  <strong>Doctor:</strong> Dr. {deletingAppointment.doctor?.name || 'This doctor is no longer available'}
                 </p>
                 <p className="text-sm text-gray-600 dark:text-gray-400">
                   <strong>Date:</strong> {formatDate(deletingAppointment.appointmentDate)}

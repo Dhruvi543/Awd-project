@@ -20,28 +20,16 @@ const DoctorRegisterForm = ({ setDoctorData }) => {
 
   const [errors, setErrors] = useState({});
 
-  // License number options (you can add more as needed)
-  const licenseOptions = [
-    'LIC-001',
-    'LIC-002',
-    'LIC-003',
-    'LIC-004',
-    'LIC-005',
-    'LIC-006',
-    'LIC-007',
-    'LIC-008',
-    'LIC-009',
-    'LIC-010',
-  ];
-
   const validateName = (name) => {
     const nameRegex = /^[a-zA-Z\s]{2,}$/;
     return nameRegex.test(name);
   };
 
   const validateEmail = (email) => {
-    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-    return emailRegex.test(email);
+    // Email validation - only allows .com extension
+    // Pattern: localpart@domain.com
+    const emailRegex = /^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.com$/;
+    return emailRegex.test(email.trim());
   };
 
   const validatePhone = (phone) => {
@@ -59,6 +47,13 @@ const DoctorRegisterForm = ({ setDoctorData }) => {
     return !isNaN(exp) && exp >= 0 && exp <= 50;
   };
 
+  const validateLicenseNo = (licenseNo) => {
+    // Pattern: 2 uppercase letters / 4-digit year (1900-2099) / 5 or 6 digit serial number
+    // Examples: TN/2020/123456, MH/2018/54321
+    const licenseRegex = /^[A-Z]{2}\/(19|20)\d{2}\/\d{5,6}$/;
+    return licenseRegex.test(licenseNo.trim());
+  };
+
   const handleChange = (e) => {
     const { name, value } = e.target;
     let processedValue = value;
@@ -71,8 +66,24 @@ const DoctorRegisterForm = ({ setDoctorData }) => {
       // Only allow numbers, max 10 digits
       processedValue = value.replace(/\D/g, '').slice(0, 10);
     } else if (name === 'experience') {
-      // Only allow numbers
-      processedValue = value.replace(/\D/g, '');
+      // Only allow digits (0-9), remove ALL special characters including minus (-), dot (.), plus (+), etc.
+      processedValue = value.replace(/[^0-9]/g, '');
+      // Limit to 2 digits
+      if (processedValue.length > 2) {
+        processedValue = processedValue.slice(0, 2);
+      }
+      // If value is greater than 50, cap it at 50
+      const numValue = parseInt(processedValue);
+      if (!isNaN(numValue) && numValue > 50) {
+        processedValue = '50';
+      }
+    } else if (name === 'email') {
+      // Trim email but don't restrict characters (let validation handle it)
+      processedValue = value.trim();
+    } else if (name === 'licenseNo') {
+      // Allow uppercase letters, numbers, and slashes only
+      // Auto-format: convert to uppercase, allow only valid characters
+      processedValue = value.toUpperCase().replace(/[^A-Z0-9\/]/g, '');
     }
 
     setFormData(prev => ({
@@ -90,7 +101,7 @@ const DoctorRegisterForm = ({ setDoctorData }) => {
     if ((name === 'firstName' || name === 'lastName') && processedValue && !validateName(processedValue)) {
       error = 'Name must contain only letters and be at least 2 characters';
     } else if (name === 'email' && processedValue && !validateEmail(processedValue)) {
-      error = 'Please enter a valid email address';
+      error = 'Please enter a valid email address ending with .com (e.g., name@example.com)';
     } else if (name === 'phone' && processedValue && !validatePhone(processedValue)) {
       error = 'Phone number must be exactly 10 digits';
     } else if (name === 'password' && processedValue && !validatePassword(processedValue)) {
@@ -102,6 +113,8 @@ const DoctorRegisterForm = ({ setDoctorData }) => {
       error = 'Passwords do not match';
     } else if (name === 'experience' && processedValue && !validateExperience(processedValue)) {
       error = 'Experience must be between 0 and 50 years';
+    } else if (name === 'licenseNo' && processedValue && !validateLicenseNo(processedValue)) {
+      error = 'License number must be in format: XX/YYYY/XXXXX (e.g., TN/2020/123456)';
     }
 
     if (error) {
@@ -114,18 +127,19 @@ const DoctorRegisterForm = ({ setDoctorData }) => {
   const handleBlur = (e) => {
     const { name, value } = e.target;
     let error = '';
+    const trimmedValue = value.trim();
 
     if (name === 'firstName' || name === 'lastName') {
-      if (!value) {
+      if (!trimmedValue) {
         error = `${name === 'firstName' ? 'First' : 'Last'} name is required`;
-      } else if (!validateName(value)) {
+      } else if (!validateName(trimmedValue)) {
         error = 'Name must contain only letters and be at least 2 characters';
       }
     } else if (name === 'email') {
-      if (!value) {
+      if (!trimmedValue) {
         error = 'Email is required';
-      } else if (!validateEmail(value)) {
-        error = 'Please enter a valid email address';
+      } else if (!validateEmail(trimmedValue)) {
+        error = 'Please enter a valid email address ending with .com (e.g., name@example.com)';
       }
     } else if (name === 'phone') {
       if (!value) {
@@ -138,27 +152,40 @@ const DoctorRegisterForm = ({ setDoctorData }) => {
         error = 'Please select a gender';
       }
     } else if (name === 'specialization') {
-      if (!value) {
+      if (!trimmedValue) {
         error = 'Specialization is required';
-      } else if (value.length < 2) {
+      } else if (trimmedValue.length < 2) {
         error = 'Specialization must be at least 2 characters';
       }
     } else if (name === 'experience') {
       if (!value) {
         error = 'Years of experience is required';
-      } else if (!validateExperience(value)) {
-        error = 'Experience must be between 0 and 50 years';
+      } else {
+        // Check for special characters
+        const digitsOnly = value.replace(/[^0-9]/g, '');
+        if (digitsOnly !== value.trim()) {
+          error = 'Experience must be a number only (no special characters or minus signs)';
+        } else if (!validateExperience(value)) {
+          const exp = parseInt(value);
+          if (exp < 0) {
+            error = 'Experience cannot be negative (minimum is 0)';
+          } else if (exp > 50) {
+            error = 'Experience cannot exceed 50 years';
+          } else {
+            error = 'Experience must be between 0 and 50 years';
+          }
+        }
       }
     } else if (name === 'qualification') {
-      if (!value) {
+      if (!trimmedValue) {
         error = 'Qualification is required';
-      } else if (value.length < 2) {
+      } else if (trimmedValue.length < 2) {
         error = 'Qualification must be at least 2 characters';
       }
     } else if (name === 'location') {
-      if (!value) {
+      if (!trimmedValue) {
         error = 'Location is required';
-      } else if (value.length < 2) {
+      } else if (trimmedValue.length < 2) {
         error = 'Location must be at least 2 characters';
       }
     } else if (name === 'clinicHospitalType') {
@@ -166,14 +193,16 @@ const DoctorRegisterForm = ({ setDoctorData }) => {
         error = 'Please select clinic or hospital';
       }
     } else if (name === 'clinicHospitalName') {
-      if (!value) {
+      if (!trimmedValue) {
         error = `${formData.clinicHospitalType === 'clinic' ? 'Clinic' : 'Hospital'} name is required`;
-      } else if (value.length < 2) {
+      } else if (trimmedValue.length < 2) {
         error = 'Name must be at least 2 characters';
       }
     } else if (name === 'licenseNo') {
-      if (!value) {
+      if (!trimmedValue) {
         error = 'License number is required';
+      } else if (!validateLicenseNo(trimmedValue)) {
+        error = 'License number must be in format: XX/YYYY/XXXXX (e.g., TN/2020/123456)';
       }
     } else if (name === 'password') {
       if (!value) {
@@ -336,15 +365,71 @@ const DoctorRegisterForm = ({ setDoctorData }) => {
             Years of Experience <span className="text-red-500">*</span>
           </label>
           <input
-            type="number"
+            type="text"
+            inputMode="numeric"
             id="experience"
             name="experience"
             value={formData.experience}
             onChange={handleChange}
             onBlur={handleBlur}
+            onKeyDown={(e) => {
+              // Allow: backspace, delete, tab, escape, enter
+              if ([8, 9, 27, 13, 46].indexOf(e.keyCode) !== -1 ||
+                // Allow: Ctrl+A, Ctrl+C, Ctrl+V, Ctrl+X
+                (e.keyCode === 65 && e.ctrlKey === true) ||
+                (e.keyCode === 67 && e.ctrlKey === true) ||
+                (e.keyCode === 86 && e.ctrlKey === true) ||
+                (e.keyCode === 88 && e.ctrlKey === true) ||
+                // Allow: home, end, left, right, up, down
+                (e.keyCode >= 35 && e.keyCode <= 40)) {
+                return;
+              }
+              // Explicitly block minus sign (-) - keyCode 189 or 109
+              if (e.keyCode === 189 || e.keyCode === 109 || e.key === '-' || e.key === 'Minus') {
+                e.preventDefault();
+                return;
+              }
+              // Explicitly block dot/period (.) - keyCode 190 or 110
+              if (e.keyCode === 190 || e.keyCode === 110 || e.key === '.' || e.key === 'Period') {
+                e.preventDefault();
+                return;
+              }
+              // Block plus sign (+) - keyCode 187 or 107
+              if (e.keyCode === 187 || e.keyCode === 107 || e.key === '+' || e.key === 'Plus') {
+                e.preventDefault();
+                return;
+              }
+              // Block all other special characters - only allow numbers (0-9) from main keyboard or numpad
+              if ((e.keyCode < 48 || e.keyCode > 57) && (e.keyCode < 96 || e.keyCode > 105)) {
+                e.preventDefault();
+              }
+            }}
+            onPaste={(e) => {
+              // Prevent pasting non-numeric content
+              e.preventDefault();
+              const pastedText = (e.clipboardData || window.clipboardData).getData('text');
+              // Extract only digits from pasted text, remove minus (-), dot (.), and all special characters
+              const digitsOnly = pastedText.replace(/[^0-9]/g, '').slice(0, 2);
+              if (digitsOnly) {
+                const numValue = parseInt(digitsOnly);
+                if (!isNaN(numValue) && numValue <= 50) {
+                  handleChange({ target: { name: 'experience', value: digitsOnly } });
+                } else if (!isNaN(numValue) && numValue > 50) {
+                  handleChange({ target: { name: 'experience', value: '50' } });
+                }
+              }
+            }}
+            onInput={(e) => {
+              // Additional safety: filter out minus and dot on input event
+              const value = e.target.value;
+              const digitsOnly = value.replace(/[^0-9]/g, '');
+              if (value !== digitsOnly) {
+                e.target.value = digitsOnly;
+                handleChange({ target: { name: 'experience', value: digitsOnly } });
+              }
+            }}
             required
-            min="0"
-            max="50"
+            maxLength={2}
             className={`w-full px-3 py-2 text-sm border rounded-md bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent ${
               errors.experience ? 'border-red-500 dark:border-red-500' : 'border-gray-300 dark:border-gray-600'
             }`}
@@ -398,25 +483,26 @@ const DoctorRegisterForm = ({ setDoctorData }) => {
           <label htmlFor="licenseNo" className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
             License Number <span className="text-red-500">*</span>
           </label>
-          <select
+          <input
+            type="text"
             id="licenseNo"
             name="licenseNo"
             value={formData.licenseNo}
             onChange={handleChange}
             onBlur={handleBlur}
             required
+            maxLength={15}
             className={`w-full px-3 py-2 text-sm border rounded-md bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent ${
               errors.licenseNo ? 'border-red-500 dark:border-red-500' : 'border-gray-300 dark:border-gray-600'
             }`}
-          >
-            <option value="">Select license number</option>
-            {licenseOptions.map((license) => (
-              <option key={license} value={license}>
-                {license}
-              </option>
-            ))}
-          </select>
+            placeholder="e.g., TN/2020/123456"
+          />
           {errors.licenseNo && <p className="mt-1 text-xs text-red-500">{errors.licenseNo}</p>}
+          {!errors.licenseNo && formData.licenseNo && (
+            <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">
+              Format: 2 uppercase letters / 4-digit year / 5-6 digit number
+            </p>
+          )}
         </div>
       </div>
 

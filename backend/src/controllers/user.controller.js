@@ -1,6 +1,10 @@
 import { z } from 'zod';
 import asyncHandler from '../utils/asyncHandler.js';
 import User from '../models/User.js';
+import Appointment from '../models/Appointment.js';
+import Review from '../models/Review.js';
+import Notification from '../models/Notification.js';
+import Availability from '../models/Availability.js';
 
 // Validation schema for profile update
 const updateProfileSchema = z.object({
@@ -9,8 +13,18 @@ const updateProfileSchema = z.object({
     .max(100, 'Name must be less than 100 characters')
     .trim()
     .optional(),
+  firstName: z.string()
+    .min(2, 'First name must be at least 2 characters')
+    .max(50, 'First name must be less than 50 characters')
+    .trim()
+    .optional(),
+  lastName: z.string()
+    .min(2, 'Last name must be at least 2 characters')
+    .max(50, 'Last name must be less than 50 characters')
+    .trim()
+    .optional(),
   email: z.string()
-    .email('Invalid email address')
+    .regex(/^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.com$/, 'Email must end with .com (e.g., name@example.com)')
     .toLowerCase()
     .trim()
     .optional(),
@@ -36,6 +50,44 @@ const updateProfileSchema = z.object({
     .trim()
     .optional()
     .or(z.literal('')), // Allow empty string
+  // Doctor-specific fields
+  specialization: z.string()
+    .min(2, 'Specialization must be at least 2 characters')
+    .max(100, 'Specialization must be less than 100 characters')
+    .trim()
+    .optional()
+    .or(z.literal('')),
+  experience: z.string()
+    .refine((val) => {
+      if (!val || val === '') return true; // Allow empty
+      const exp = parseInt(val);
+      return !isNaN(exp) && exp >= 0 && exp <= 50;
+    }, {
+      message: 'Experience must be a number between 0 and 50 years'
+    })
+    .optional()
+    .or(z.literal('')),
+  qualification: z.string()
+    .min(2, 'Qualification must be at least 2 characters')
+    .max(200, 'Qualification must be less than 200 characters')
+    .trim()
+    .optional()
+    .or(z.literal('')),
+  licenseNo: z.string()
+    .regex(/^[A-Z]{2}\/(19|20)\d{2}\/\d{5,6}$/, 'License number must be in format: XX/YYYY/XXXXX (e.g., TN/2020/123456)')
+    .trim()
+    .optional()
+    .or(z.literal('')),
+  clinicHospitalType: z.enum(['clinic', 'hospital'], {
+    errorMap: () => ({ message: 'Type must be clinic or hospital' })
+  }).optional()
+    .or(z.literal('')),
+  clinicHospitalName: z.string()
+    .min(2, 'Clinic/Hospital name must be at least 2 characters')
+    .max(200, 'Clinic/Hospital name must be less than 200 characters')
+    .trim()
+    .optional()
+    .or(z.literal('')),
 });
 
 // Get user profile
@@ -96,6 +148,24 @@ const updateProfile = asyncHandler(async (req, res) => {
       user.name = validatedData.name.trim();
     }
 
+    // Update firstName and lastName for doctors
+    if (user.role === 'doctor') {
+      if (validatedData.firstName !== undefined) {
+        user.firstName = validatedData.firstName.trim() || null;
+      }
+      if (validatedData.lastName !== undefined) {
+        user.lastName = validatedData.lastName.trim() || null;
+      }
+      // Update name from firstName and lastName if provided
+      if (validatedData.firstName !== undefined || validatedData.lastName !== undefined) {
+        const firstName = validatedData.firstName?.trim() || user.firstName || '';
+        const lastName = validatedData.lastName?.trim() || user.lastName || '';
+        if (firstName || lastName) {
+          user.name = `${firstName} ${lastName}`.trim();
+        }
+      }
+    }
+
     // Update email if provided and different
     // Note: Email updates should be handled separately with password verification
     // For now, we'll allow email updates but it's better to have a separate endpoint
@@ -125,6 +195,28 @@ const updateProfile = asyncHandler(async (req, res) => {
     // Update location if provided (allow empty string to clear)
     if (validatedData.location !== undefined) {
       user.location = validatedData.location.trim() || null;
+    }
+
+    // Update doctor-specific fields if user is a doctor
+    if (user.role === 'doctor') {
+      if (validatedData.specialization !== undefined) {
+        user.specialization = validatedData.specialization.trim() || null;
+      }
+      if (validatedData.experience !== undefined) {
+        user.experience = validatedData.experience.trim() || null;
+      }
+      if (validatedData.qualification !== undefined) {
+        user.qualification = validatedData.qualification.trim() || null;
+      }
+      if (validatedData.licenseNo !== undefined) {
+        user.licenseNo = validatedData.licenseNo.trim() || null;
+      }
+      if (validatedData.clinicHospitalType !== undefined) {
+        user.clinicHospitalType = validatedData.clinicHospitalType.trim() || null;
+      }
+      if (validatedData.clinicHospitalName !== undefined) {
+        user.clinicHospitalName = validatedData.clinicHospitalName.trim() || null;
+      }
     }
 
     // Save user - validateBeforeSave ensures schema validation
@@ -236,9 +328,115 @@ const changePassword = asyncHandler(async (req, res) => {
   }
 });
 
+// Delete account
+const deleteAccount = asyncHandler(async (req, res) => {
+  try {
+    const user = await User.findById(req.user._id);
+    
+    if (!user) {
+      return res.status(404).json({
+        success: false,
+        message: 'User not found'
+      });
+    }
+
+    // Handle related data based on user role
+    if (user.role === 'patient') {
+      // Cancel ALL appointments for this patient (pending, confirmed, etc.)
+      // When patient deletes account, all appointments should be cancelled
+      try {
+        const allAppointments = await Appointment.find({ 
+          patient: user._id,
+          status: { $in: ['pending', 'confirmed'] } // Only cancel pending and confirmed, not already completed/cancelled
+        });
+        
+        if (allAppointments.length > 0) {
+          await Appointment.updateMany(
+            { patient: user._id, status: { $in: ['pending', 'confirmed'] } },
+            { 
+              status: 'cancelled',
+              rejectionReason: 'Appointment cancelled: Patient account has been deleted'
+            }
+          );
+          console.log(`Cancelled ${allAppointments.length} appointment(s) for deleted patient`);
+        }
+      } catch (appointmentError) {
+        console.error('Error cancelling appointments:', appointmentError);
+        // Continue with deletion even if appointment cancellation fails
+      }
+
+      // Note: Reviews are NOT deleted when patient account is deleted
+      // Reviews remain with patient name and doctor name for other patients' reference
+    } else if (user.role === 'doctor') {
+      // Cancel ALL appointments for this doctor (pending, confirmed, etc.)
+      // When doctor deletes account, all appointments should be cancelled
+      try {
+        const allAppointments = await Appointment.find({ 
+          doctor: user._id,
+          status: { $in: ['pending', 'confirmed'] } // Only cancel pending and confirmed, not already completed/cancelled
+        });
+        
+        if (allAppointments.length > 0) {
+          await Appointment.updateMany(
+            { doctor: user._id, status: { $in: ['pending', 'confirmed'] } },
+            { 
+              status: 'cancelled',
+              rejectionReason: 'Appointment cancelled: Doctor account has been deleted'
+            }
+          );
+          console.log(`Cancelled ${allAppointments.length} appointment(s) for deleted doctor`);
+        }
+      } catch (appointmentError) {
+        console.error('Error cancelling appointments:', appointmentError);
+        // Continue with deletion even if appointment cancellation fails
+      }
+
+      // Delete all reviews for this doctor
+      try {
+        await Review.deleteMany({ doctor: user._id });
+      } catch (reviewError) {
+        console.error('Error deleting reviews:', reviewError);
+        // Continue with deletion even if review deletion fails
+      }
+
+      // Delete all availability for this doctor
+      try {
+        await Availability.deleteMany({ doctor: user._id });
+      } catch (availabilityError) {
+        console.error('Error deleting availability:', availabilityError);
+        // Continue with deletion even if availability deletion fails
+      }
+    }
+
+    // Delete all notifications for this user
+    try {
+      await Notification.deleteMany({ user: user._id });
+    } catch (notificationError) {
+      console.error('Error deleting notifications:', notificationError);
+      // Continue with deletion even if notification deletion fails
+    }
+
+    // Delete the user account
+    await User.deleteOne({ _id: user._id });
+    
+    res.json({
+      success: true,
+      message: 'Account deleted successfully'
+    });
+  } catch (error) {
+    console.error('Error deleting account:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Error deleting account',
+      error: error.message
+    });
+  }
+});
+
 export {
   getProfile,
   updateProfile,
-  changePassword
+  changePassword,
+  deleteAccount
 };
 

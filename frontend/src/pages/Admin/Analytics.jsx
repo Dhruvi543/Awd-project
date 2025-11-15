@@ -88,7 +88,7 @@ const AdminAnalytics = () => {
           return (
             <div key={index} className="space-y-1">
               <div className="flex items-center justify-between text-sm">
-                <span className="font-medium text-gray-700 dark:text-gray-300 capitalize">{item._id || 'N/A'}</span>
+                <span className="font-medium text-gray-700 dark:text-gray-300 capitalize">{item._id || 'Not available'}</span>
                 <div className="flex items-center gap-2">
                   <span className="text-gray-600 dark:text-gray-400">{item.count || 0}</span>
                   <span className="text-xs text-gray-500 dark:text-gray-500">({percentage}%)</span>
@@ -636,8 +636,10 @@ const AdminAnalytics = () => {
                           {index + 1}
                         </div>
                         <div>
-                          <div className="font-medium text-gray-900 dark:text-white">{doctor.doctorName}</div>
-                          <div className="text-sm text-gray-500 dark:text-gray-400">{doctor.specialization || 'N/A'}</div>
+                          <div className="font-medium text-gray-900 dark:text-white">{doctor.doctorName || 'This doctor is no longer available'}</div>
+                          {doctor.specialization && (
+                            <div className="text-sm text-gray-500 dark:text-gray-400">{doctor.specialization}</div>
+                          )}
                           {doctor.doctorEmail && (
                             <div className="text-xs text-gray-400 dark:text-gray-500">{doctor.doctorEmail}</div>
                           )}

@@ -146,17 +146,6 @@ const AdminLayout = () => {
 
   const isActive = (path) => location.pathname === path;
 
-  const getSearchPlaceholder = () => {
-    const path = location.pathname;
-    if (path.includes('/doctors')) return 'Search doctors by name, specialty, email...';
-    if (path.includes('/patients')) return 'Search patients by name, email, phone...';
-    if (path.includes('/appointments')) return 'Search appointments by date, patient, doctor...';
-    if (path.includes('/reviews')) return 'Search reviews by patient, doctor, rating...';
-    if (path.includes('/availability')) return 'Search availability by doctor, date, time...';
-    if (path.includes('/analytics')) return 'Search analytics data...';
-    return 'Search doctors, patients, appointments...';
-  };
-
   const getIcon = (iconName) => {
     switch (iconName) {
       case 'dashboard':
@@ -309,24 +298,8 @@ const AdminLayout = () => {
             <h2 className="text-lg md:text-xl font-semibold text-gray-900 dark:text-white flex-shrink-0">
               {menuItems.find(item => isActive(item.path))?.label || 'Dashboard'}
             </h2>
-            
-            {/* Search Bar - for searching doctors, patients, appointments, etc. */}
-            <div className="hidden md:flex flex-1 max-w-md mx-4">
-              <div className="relative w-full">
-                <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
-                  <svg className="h-5 w-5 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
-                  </svg>
-                </div>
-                <input
-                  type="text"
-                  placeholder={getSearchPlaceholder()}
-                  className="block w-full pl-10 pr-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-gray-50 dark:bg-gray-700 text-gray-900 dark:text-white placeholder-gray-500 dark:placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent text-sm"
-                />
-              </div>
-            </div>
 
-            <div className="flex items-center space-x-1 md:space-x-2">
+            <div className="flex items-center space-x-1 md:space-x-2 ml-auto">
               {/* Notifications */}
               <div className="relative notification-dropdown">
                 <button

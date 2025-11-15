@@ -3,42 +3,37 @@ import { apiService } from '../../api/apiService';
 import DoctorAvailabilityCalendar from '../../components/DoctorAvailabilityCalendar';
 
 const AdminAvailability = () => {
-  const [availability, setAvailability] = useState([]);
   const [doctors, setDoctors] = useState([]);
-  const [isLoading, setIsLoading] = useState(true);
+  const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState(null);
-  const [showViewModal, setShowViewModal] = useState(false);
-  const [selectedAvailability, setSelectedAvailability] = useState(null);
-  const [doctorFilter, setDoctorFilter] = useState('');
-  const [typeFilter, setTypeFilter] = useState('all');
-  const [currentPage, setCurrentPage] = useState(1);
-  const [pagination, setPagination] = useState({ page: 1, limit: 10, total: 0, pages: 0 });
-  const [viewMode, setViewMode] = useState('table'); // 'table' or 'calendar'
   const [selectedDoctorForCalendar, setSelectedDoctorForCalendar] = useState(null);
   const [doctorAvailability, setDoctorAvailability] = useState([]);
 
-  const daysOfWeek = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
 
   useEffect(() => {
-    fetchAvailability();
     fetchDoctors();
-  }, [doctorFilter, typeFilter, currentPage]);
+  }, []);
 
   useEffect(() => {
-    if (viewMode === 'calendar' && selectedDoctorForCalendar) {
+    if (selectedDoctorForCalendar) {
       fetchDoctorAvailabilityForCalendar(selectedDoctorForCalendar);
     }
-  }, [viewMode, selectedDoctorForCalendar]);
+  }, [selectedDoctorForCalendar]);
 
   const fetchDoctorAvailabilityForCalendar = async (doctorId) => {
     try {
+      setIsLoading(true);
+      setError(null);
       const response = await apiService.getDoctorAvailability(doctorId);
       if (response.data.success) {
         setDoctorAvailability(response.data.data || []);
       }
     } catch (err) {
       console.error('Error fetching doctor availability:', err);
+      setError(err.response?.data?.message || 'Failed to fetch availability');
       setDoctorAvailability([]);
+    } finally {
+      setIsLoading(false);
     }
   };
 
@@ -53,46 +48,6 @@ const AdminAvailability = () => {
     }
   };
 
-  const fetchAvailability = async () => {
-    try {
-      setIsLoading(true);
-      setError(null);
-      const params = {
-        page: currentPage,
-        limit: 10,
-        doctorId: doctorFilter || undefined,
-        type: typeFilter !== 'all' ? typeFilter : undefined,
-      };
-      const response = await apiService.getAllAvailability(params);
-      if (response.data.success) {
-        setAvailability(response.data.data);
-        setPagination(response.data.pagination || { page: 1, limit: 10, total: 0, pages: 0 });
-      }
-    } catch (err) {
-      setError(err.response?.data?.message || 'Failed to fetch availability');
-      console.error('Error fetching availability:', err);
-    } finally {
-      setIsLoading(false);
-    }
-  };
-
-  const handleView = (item) => {
-    setSelectedAvailability(item);
-    setShowViewModal(true);
-  };
-
-  const handleDelete = async (id) => {
-    if (!window.confirm('Are you sure you want to delete this availability? This action cannot be undone.')) {
-      return;
-    }
-    try {
-      await apiService.deleteAvailability(id);
-      fetchAvailability();
-      alert('Availability deleted successfully');
-    } catch (err) {
-      alert(err.response?.data?.message || 'Failed to delete availability');
-    }
-  };
 
   return (
     <div className="w-full">
@@ -100,109 +55,29 @@ const AdminAvailability = () => {
         {/* Header */}
         <div className="mb-6">
           <div className="mb-4">
-          <h1 className="text-3xl font-bold text-gray-900 dark:text-white mb-2">Availability Overview</h1>
+            <h1 className="text-3xl font-bold text-gray-900 dark:text-white mb-2">Availability Overview</h1>
             <p className="text-gray-600 dark:text-gray-400">View doctor availability and leaves. Only doctors can set their availability.</p>
           </div>
         </div>
 
-        {/* View Mode Toggle */}
+        {/* Doctor Selection */}
         <div className="bg-white dark:bg-gray-800 rounded-xl shadow-md p-4 mb-6 border border-gray-200 dark:border-gray-700">
-          <div className="flex items-center justify-between">
-            <h2 className="text-xl font-semibold text-gray-900 dark:text-white">
-              View Mode
-            </h2>
-            <div className="flex gap-2">
-              <button
-                onClick={() => setViewMode('table')}
-                className={`px-4 py-2 rounded-lg font-medium transition-colors ${
-                  viewMode === 'table'
-                    ? 'bg-blue-600 text-white'
-                    : 'bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-600'
-                }`}
-              >
-                Table View
-              </button>
-              <button
-                onClick={() => setViewMode('calendar')}
-                className={`px-4 py-2 rounded-lg font-medium transition-colors ${
-                  viewMode === 'calendar'
-                    ? 'bg-blue-600 text-white'
-                    : 'bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-600'
-                }`}
-              >
-                Calendar View
-              </button>
-            </div>
-          </div>
+          <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+            Select Doctor to View Calendar
+          </label>
+          <select
+            value={selectedDoctorForCalendar || ''}
+            onChange={(e) => setSelectedDoctorForCalendar(e.target.value)}
+            className="w-full px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:ring-2 focus:ring-blue-500"
+          >
+            <option value="">-- Select a doctor --</option>
+            {doctors.map(doctor => (
+              <option key={doctor._id} value={doctor._id}>
+                {doctor.name} - {doctor.specialization}
+              </option>
+            ))}
+          </select>
         </div>
-
-        {/* Doctor Selection for Calendar View */}
-        {viewMode === 'calendar' && (
-          <div className="bg-white dark:bg-gray-800 rounded-xl shadow-md p-4 mb-6 border border-gray-200 dark:border-gray-700">
-            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-              Select Doctor to View Calendar
-            </label>
-            <select
-              value={selectedDoctorForCalendar || ''}
-              onChange={(e) => setSelectedDoctorForCalendar(e.target.value)}
-              className="w-full px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:ring-2 focus:ring-blue-500"
-            >
-              <option value="">-- Select a doctor --</option>
-              {doctors.map(doctor => (
-                <option key={doctor._id} value={doctor._id}>
-                  {doctor.name} - {doctor.specialization}
-                </option>
-              ))}
-            </select>
-          </div>
-        )}
-
-        {/* Filters */}
-        {viewMode === 'table' && (
-        <div className="bg-white dark:bg-gray-800 rounded-xl shadow-md p-4 mb-6 border border-gray-200 dark:border-gray-700">
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-            <div>
-              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">Doctor</label>
-              <select
-                value={doctorFilter}
-                onChange={(e) => {
-                  setDoctorFilter(e.target.value);
-                  setCurrentPage(1);
-                }}
-                className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
-              >
-                <option value="">All Doctors</option>
-                {doctors.map(doctor => (
-                  <option key={doctor._id} value={doctor._id}>{doctor.name}</option>
-                ))}
-              </select>
-            </div>
-            <div>
-              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">Type</label>
-              <select
-                value={typeFilter}
-                onChange={(e) => {
-                  setTypeFilter(e.target.value);
-                  setCurrentPage(1);
-                }}
-                className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
-              >
-                <option value="all">All Types</option>
-                <option value="schedule">Schedule</option>
-                <option value="leave">Leave</option>
-              </select>
-            </div>
-            <div className="flex items-end">
-              <button
-                onClick={fetchAvailability}
-                className="w-full bg-gray-600 hover:bg-gray-700 text-white px-4 py-2 rounded-md"
-              >
-                Refresh
-              </button>
-            </div>
-          </div>
-        </div>
-        )}
 
         {/* Error Message */}
         {error && (
@@ -212,173 +87,29 @@ const AdminAvailability = () => {
         )}
 
         {/* Calendar View */}
-        {viewMode === 'calendar' && selectedDoctorForCalendar && (
-          <div className="bg-white dark:bg-gray-800 rounded-xl shadow-md p-6 mb-6 border border-gray-200 dark:border-gray-700">
-            {selectedDoctorForCalendar && (
+        {selectedDoctorForCalendar ? (
+          isLoading ? (
+            <div className="text-center py-12 text-gray-500 dark:text-gray-400">Loading calendar...</div>
+          ) : (
+            <div className="bg-white dark:bg-gray-800 rounded-xl shadow-md p-6 mb-6 border border-gray-200 dark:border-gray-700">
               <div className="mb-4">
                 <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-2">
                   {doctors.find(d => d._id === selectedDoctorForCalendar)?.name || 'Doctor'} - Availability Calendar
                 </h3>
               </div>
-            )}
-            <DoctorAvailabilityCalendar 
-              availability={doctorAvailability}
-              doctorId={selectedDoctorForCalendar}
-              readOnly={true}
-            />
-          </div>
-        )}
-
-        {/* Availability Table */}
-        {viewMode === 'table' && (
-        <div className="bg-white dark:bg-gray-800 rounded-xl shadow-md border border-gray-200 dark:border-gray-700 overflow-hidden">
-          {isLoading ? (
-            <div className="text-center py-12 text-gray-500 dark:text-gray-400">Loading...</div>
-          ) : availability.length === 0 ? (
-            <div className="text-center py-12 text-gray-500 dark:text-gray-400">No availability found</div>
-          ) : (
-            <>
-              <div className="overflow-x-auto">
-                <table className="w-full">
-                  <thead className="bg-gray-50 dark:bg-gray-700">
-                    <tr>
-                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">Doctor</th>
-                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">Type</th>
-                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">Day/Date</th>
-                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">Time</th>
-                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">Status</th>
-                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">Actions</th>
-                    </tr>
-                  </thead>
-                  <tbody className="bg-white dark:bg-gray-800 divide-y divide-gray-200 dark:divide-gray-700">
-                    {availability.map((item) => (
-                      <tr key={item._id} className="hover:bg-gray-50 dark:hover:bg-gray-700">
-                        <td className="px-6 py-4 whitespace-nowrap">
-                          <div className="text-sm font-medium text-gray-900 dark:text-white">{item.doctor?.name || 'N/A'}</div>
-                          <div className="text-sm text-gray-500 dark:text-gray-400">{item.doctor?.specialization || ''}</div>
-                        </td>
-                        <td className="px-6 py-4 whitespace-nowrap">
-                          <span className={`px-2 py-1 text-xs font-medium rounded-full ${
-                            item.type === 'schedule' 
-                              ? 'bg-blue-100 text-blue-800 dark:bg-blue-900/30 dark:text-blue-400'
-                              : 'bg-orange-100 text-orange-800 dark:bg-orange-900/30 dark:text-orange-400'
-                          }`}>
-                            {item.type}
-                          </span>
-                        </td>
-                        <td className="px-6 py-4 whitespace-nowrap">
-                          <div className="text-sm text-gray-500 dark:text-gray-400">
-                            {item.type === 'schedule' && item.dayOfWeek !== undefined
-                              ? daysOfWeek[item.dayOfWeek]
-                              : item.startDate
-                              ? `${new Date(item.startDate).toLocaleDateString()}${item.endDate ? ` - ${new Date(item.endDate).toLocaleDateString()}` : ''}`
-                              : 'N/A'}
-                          </div>
-                        </td>
-                        <td className="px-6 py-4 whitespace-nowrap">
-                          <div className="text-sm text-gray-500 dark:text-gray-400">
-                            {item.startTime && item.endTime ? `${item.startTime} - ${item.endTime}` : 'N/A'}
-                          </div>
-                        </td>
-                        <td className="px-6 py-4 whitespace-nowrap">
-                          <span className={`px-2 py-1 text-xs font-medium rounded-full ${
-                            item.isActive
-                              ? 'bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-400'
-                              : 'bg-red-100 text-red-800 dark:bg-red-900/30 dark:text-red-400'
-                          }`}>
-                            {item.isActive ? 'Active' : 'Inactive'}
-                          </span>
-                        </td>
-                        <td className="px-6 py-4 whitespace-nowrap text-sm font-medium">
-                          <div className="flex gap-2">
-                            <button
-                              onClick={() => handleView(item)}
-                              className="text-blue-600 hover:text-blue-900 dark:text-blue-400 dark:hover:text-blue-300"
-                              title="View"
-                            >
-                              <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
-                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" />
-                              </svg>
-                            </button>
-                            <button
-                              onClick={() => handleDelete(item._id)}
-                              className="text-red-600 hover:text-red-900 dark:text-red-400 dark:hover:text-red-300"
-                              title="Delete"
-                            >
-                              <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
-                              </svg>
-                            </button>
-                          </div>
-                        </td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
-              {/* Pagination */}
-              {pagination.pages > 1 && (
-                <div className="px-6 py-4 border-t border-gray-200 dark:border-gray-700 flex justify-between items-center">
-                  <div className="text-sm text-gray-700 dark:text-gray-300">
-                    Showing {((currentPage - 1) * pagination.limit) + 1} to {Math.min(currentPage * pagination.limit, pagination.total)} of {pagination.total} availability
-                  </div>
-                  <div className="flex gap-2">
-                    <button
-                      onClick={() => setCurrentPage(prev => Math.max(1, prev - 1))}
-                      disabled={currentPage === 1}
-                      className="px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-md disabled:opacity-50"
-                    >
-                      Previous
-                    </button>
-                    <button
-                      onClick={() => setCurrentPage(prev => Math.min(pagination.pages, prev + 1))}
-                      disabled={currentPage === pagination.pages}
-                      className="px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-md disabled:opacity-50"
-                    >
-                      Next
-                    </button>
-                  </div>
-                </div>
-              )}
-            </>
-          )}
-        </div>
-        )}
-
-
-        {/* View Modal */}
-        {showViewModal && selectedAvailability && (
-          <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-            <div className="bg-white dark:bg-gray-800 rounded-lg p-6 w-full max-w-2xl max-h-[90vh] overflow-y-auto">
-              <h2 className="text-2xl font-bold text-gray-900 dark:text-white mb-4">Availability Details</h2>
-              <div className="space-y-3">
-                <div><strong>Doctor:</strong> {selectedAvailability.doctor?.name} ({selectedAvailability.doctor?.specialization})</div>
-                <div><strong>Type:</strong> {selectedAvailability.type}</div>
-                {selectedAvailability.type === 'schedule' ? (
-                  <>
-                    <div><strong>Day:</strong> {selectedAvailability.dayOfWeek !== undefined ? daysOfWeek[selectedAvailability.dayOfWeek] : 'N/A'}</div>
-                    <div><strong>Time:</strong> {selectedAvailability.startTime && selectedAvailability.endTime ? `${selectedAvailability.startTime} - ${selectedAvailability.endTime}` : 'N/A'}</div>
-                  </>
-                ) : (
-                  <>
-                    <div><strong>Start Date:</strong> {selectedAvailability.startDate ? new Date(selectedAvailability.startDate).toLocaleDateString() : 'N/A'}</div>
-                    <div><strong>End Date:</strong> {selectedAvailability.endDate ? new Date(selectedAvailability.endDate).toLocaleDateString() : 'N/A'}</div>
-                    <div><strong>Reason:</strong> {selectedAvailability.reason || 'N/A'}</div>
-                  </>
-                )}
-                <div><strong>Status:</strong> <span className={selectedAvailability.isActive ? 'text-green-600' : 'text-red-600'}>{selectedAvailability.isActive ? 'Active' : 'Inactive'}</span></div>
-                <div><strong>Created At:</strong> {new Date(selectedAvailability.createdAt).toLocaleString()}</div>
-              </div>
-              <div className="flex justify-end mt-6">
-                <button
-                  onClick={() => setShowViewModal(false)}
-                  className="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700"
-                >
-                  Close
-                </button>
-              </div>
+              <DoctorAvailabilityCalendar 
+                availability={doctorAvailability}
+                doctorId={selectedDoctorForCalendar}
+                readOnly={true}
+              />
             </div>
+          )
+        ) : (
+          <div className="bg-white dark:bg-gray-800 rounded-xl shadow-md p-12 border border-gray-200 dark:border-gray-700 text-center">
+            <svg className="w-16 h-16 mx-auto text-gray-400 dark:text-gray-500 mb-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
+            </svg>
+            <p className="text-gray-600 dark:text-gray-400">Please select a doctor to view their availability calendar</p>
           </div>
         )}
       </div>

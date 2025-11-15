@@ -198,6 +198,15 @@ const bookAppointment = asyncHandler(async (req, res) => {
       });
     }
     
+    // Check if the appointment date is a Sunday (day 0)
+    const appointmentDay = appointmentDateTime.getDay();
+    if (appointmentDay === 0) {
+      return res.status(400).json({
+        success: false,
+        message: 'Appointments cannot be booked on Sundays. Please select another day.'
+      });
+    }
+    
     // Check if doctor is on leave on the requested date
     const leaveCheck = await isDateOnLeave(doctorId, appointmentDate);
     if (leaveCheck.isOnLeave) {
@@ -365,6 +374,15 @@ const updatePatientAppointment = asyncHandler(async (req, res) => {
         return res.status(400).json({
           success: false,
           message: 'Appointments can only be booked up to 30 days in advance'
+        });
+      }
+      
+      // Check if the appointment date is a Sunday (day 0)
+      const appointmentDay = appointmentDateTime.getDay();
+      if (appointmentDay === 0) {
+        return res.status(400).json({
+          success: false,
+          message: 'Appointments cannot be booked on Sundays. Please select another day.'
         });
       }
       

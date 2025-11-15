@@ -49,7 +49,7 @@ const DoctorAvailabilityCalendar = ({
       }
     }
     
-    // Update with actual availability data
+    // First, process leave periods
     availability.forEach(item => {
       if (item.type === 'leave' && item.isActive) {
         const start = new Date(item.startDate);
@@ -67,18 +67,21 @@ const DoctorAvailabilityCalendar = ({
             }
           }
         }
-      } else if (item.type === 'schedule' && item.isActive) {
+      }
+    });
+    
+    // Then, process specific date schedules (these override leave periods)
+    availability.forEach(item => {
+      if (item.type === 'schedule' && item.isActive && item.startDate) {
         const scheduleDate = new Date(item.startDate);
         if (scheduleDate.getMonth() === currentMonth && scheduleDate.getFullYear() === currentYear) {
           const dateKey = `${scheduleDate.getFullYear()}-${scheduleDate.getMonth()}-${scheduleDate.getDate()}`;
-          // Only set as available if not already marked as leave
-          if (!view[dateKey] || view[dateKey].status !== 'leave') {
-            view[dateKey] = { 
-              status: 'available', 
-              startTime: item.startTime,
-              endTime: item.endTime
-            };
-          }
+          // Schedule entries override leave periods
+          view[dateKey] = { 
+            status: 'available', 
+            startTime: item.startTime,
+            endTime: item.endTime
+          };
         }
       }
     });

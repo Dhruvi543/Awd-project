@@ -15,6 +15,7 @@ const DoctorDashboard = () => {
     averageRating: 0,
     thisWeekAppointments: 0,
     thisMonthAppointments: 0,
+    upcomingAppointments: 0,
   });
   const [upcomingAppointments, setUpcomingAppointments] = useState([]);
   const [todayAppointments, setTodayAppointments] = useState([]);
@@ -89,6 +90,18 @@ const DoctorDashboard = () => {
           .slice(0, 5);
         
         setUpcomingAppointments(upcoming);
+        
+        // Calculate upcoming appointments count
+        const upcomingCount = appointments.filter(apt => 
+          new Date(apt.appointmentDate) >= new Date() && 
+          apt.status !== 'cancelled' && 
+          apt.status !== 'completed'
+        ).length;
+        
+        setStats(prev => ({
+          ...prev,
+          upcomingAppointments: upcomingCount
+        }));
         
         // Get today's appointments
         const todayAptsList = appointments
@@ -178,7 +191,7 @@ const DoctorDashboard = () => {
         to={link || '#'}
         className="block bg-white dark:bg-gray-800 rounded-xl shadow-md hover:shadow-lg transition-all duration-200 p-6 border border-gray-200 dark:border-gray-700 hover:border-blue-300 dark:hover:border-blue-600"
       >
-        <div className="flex items-center justify-between">
+        <div className="flex items-center justify-between gap-4">
           <div className="flex-1">
             <p className="text-sm font-medium text-gray-600 dark:text-gray-400 mb-1">{title}</p>
             <p className={valueClassName}>{value}</p>
@@ -186,7 +199,7 @@ const DoctorDashboard = () => {
               <p className="text-xs text-gray-500 dark:text-gray-500 mt-1">{subtitle}</p>
             )}
           </div>
-          <div className={`p-3 rounded-lg ${color}`}>
+          <div className={`p-3 rounded-lg ${color} flex-shrink-0`}>
             <IconComponent className="w-8 h-8 text-white" />
           </div>
         </div>
@@ -326,7 +339,7 @@ const DoctorDashboard = () => {
               </svg>
             )}
             color="bg-orange-500"
-            link="/doctor/appointments?status=pending"
+            link="/doctor/appointments?filter=pending"
           />
         </div>
 
@@ -341,18 +354,18 @@ const DoctorDashboard = () => {
               </svg>
             )}
             color="bg-green-500"
-            link="/doctor/appointments?status=confirmed"
+            link="/doctor/appointments?filter=confirmed"
           />
           <StatCard
-            title="Completed"
-            value={stats.completedAppointments}
+            title="Upcoming"
+            value={stats.upcomingAppointments}
             icon={() => (
               <svg className="w-8 h-8" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 7l5 5m0 0l-5 5m5-5H6" />
               </svg>
             )}
             color="bg-teal-500"
-            link="/doctor/appointments?status=completed"
+            link="/doctor/appointments?filter=upcoming"
           />
           <StatCard
             title="This Month"
@@ -366,6 +379,49 @@ const DoctorDashboard = () => {
             link="/doctor/appointments"
             subtitle={`${stats.thisWeekAppointments} this week`}
           />
+        </div>
+
+        {/* Quick Actions */}
+        <div className="bg-white dark:bg-gray-800 rounded-xl shadow-md p-6 border border-gray-200 dark:border-gray-700 mb-8">
+          <h2 className="text-xl font-bold text-gray-900 dark:text-white mb-4">Quick Actions</h2>
+          <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+            <Link
+              to="/doctor/appointments"
+              className="flex items-center p-4 bg-blue-50 dark:bg-blue-900/20 rounded-lg hover:bg-blue-100 dark:hover:bg-blue-900/30 transition-colors"
+            >
+              <svg className="w-6 h-6 text-blue-600 dark:text-blue-400 mr-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2" />
+              </svg>
+              <span className="font-medium text-blue-700 dark:text-blue-300">View Appointments</span>
+            </Link>
+            <Link
+              to="/doctor/availability"
+              className="flex items-center p-4 bg-green-50 dark:bg-green-900/20 rounded-lg hover:bg-green-100 dark:hover:bg-green-900/30 transition-colors"
+            >
+              <svg className="w-6 h-6 text-green-600 dark:text-green-400 mr-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
+              </svg>
+              <span className="font-medium text-green-700 dark:text-green-300">Manage Availability</span>
+            </Link>
+            <Link
+              to="/doctor/reviews"
+              className="flex items-center p-4 bg-yellow-50 dark:bg-yellow-900/20 rounded-lg hover:bg-yellow-100 dark:hover:bg-yellow-900/30 transition-colors"
+            >
+              <svg className="w-6 h-6 text-yellow-600 dark:text-yellow-400 mr-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11.049 2.927c.3-.921 1.603-.921 1.902 0l1.519 4.674a1 1 0 00.95.69h4.915c.969 0 1.371 1.24.588 1.81l-3.976 2.888a1 1 0 00-.363 1.118l1.518 4.674c.3.922-.755 1.688-1.538 1.118l-3.976-2.888a1 1 0 00-1.176 0l-3.976 2.888c-.783.57-1.838-.197-1.538-1.118l1.518-4.674a1 1 0 00-.363-1.118l-3.976-2.888c-.784-.57-.38-1.81.588-1.81h4.914a1 1 0 00.951-.69l1.519-4.674z" />
+              </svg>
+              <span className="font-medium text-yellow-700 dark:text-yellow-300">View Reviews</span>
+            </Link>
+            <Link
+              to="/doctor/notifications"
+              className="flex items-center p-4 bg-orange-50 dark:bg-orange-900/20 rounded-lg hover:bg-orange-100 dark:hover:bg-orange-900/30 transition-colors"
+            >
+              <svg className="w-6 h-6 text-orange-600 dark:text-orange-400 mr-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 17h5l-1.405-1.405A2.032 2.032 0 0118 14.158V11a6.002 6.002 0 00-4-5.659V5a2 2 0 10-4 0v.341C7.67 6.165 6 8.388 6 11v3.159c0 .538-.214 1.055-.595 1.436L4 17h5m6 0v1a3 3 0 11-6 0v-1m6 0H9" />
+              </svg>
+              <span className="font-medium text-orange-700 dark:text-orange-300">Notifications</span>
+            </Link>
+          </div>
         </div>
 
         {/* Main Content Grid */}
@@ -397,7 +453,7 @@ const DoctorDashboard = () => {
                       </div>
                       <div className="flex-1">
                         <p className="font-semibold text-gray-900 dark:text-white">
-                          {appointment.patient?.name || appointment.patientName || 'Unknown Patient'}
+                          {appointment.patient?.name || appointment.patientName || 'This patient is no longer available'}
                         </p>
                         <p className="text-sm text-gray-600 dark:text-gray-400">
                           {formatTime(appointment.startTime)} - {formatTime(appointment.endTime)}
@@ -418,20 +474,32 @@ const DoctorDashboard = () => {
                         {appointment.status}
                       </span>
                       {appointment.status === 'pending' && (
-                        <button
-                          onClick={() => handleAppointmentAction(appointment._id, 'confirm')}
-                          className="px-3 py-1 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors text-sm"
-                        >
-                          Approve
-                        </button>
+                        appointment.patient ? (
+                          <button
+                            onClick={() => handleAppointmentAction(appointment._id, 'confirm')}
+                            className="px-3 py-1 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors text-sm"
+                          >
+                            Approve
+                          </button>
+                        ) : (
+                          <span className="px-3 py-1 bg-gray-400 text-white rounded-lg cursor-not-allowed text-sm opacity-60">
+                            Patient Deleted
+                          </span>
+                        )
                       )}
                       {appointment.status === 'confirmed' && new Date(appointment.appointmentDate) <= new Date() && (
-                        <button
-                          onClick={() => handleAppointmentAction(appointment._id, 'complete')}
-                          className="px-3 py-1 bg-teal-600 text-white rounded-lg hover:bg-teal-700 transition-colors text-sm"
-                        >
-                          Complete
-                        </button>
+                        appointment.patient ? (
+                          <button
+                            onClick={() => handleAppointmentAction(appointment._id, 'complete')}
+                            className="px-3 py-1 bg-teal-600 text-white rounded-lg hover:bg-teal-700 transition-colors text-sm"
+                          >
+                            Complete
+                          </button>
+                        ) : (
+                          <span className="px-3 py-1 bg-gray-400 text-white rounded-lg cursor-not-allowed text-sm opacity-60">
+                            Patient Deleted
+                          </span>
+                        )
                       )}
                     </div>
                   </div>
@@ -478,7 +546,7 @@ const DoctorDashboard = () => {
                   >
                     <div className="flex-1">
                       <p className="font-medium text-gray-900 dark:text-white">
-                        {appointment.patient?.name || appointment.patientName || 'Unknown Patient'}
+                        {appointment.patient?.name || appointment.patientName || 'This patient is no longer available'}
                       </p>
                       <p className="text-sm text-gray-600 dark:text-gray-400">
                         {formatDate(appointment.appointmentDate)} at {formatTime(appointment.startTime)} - {formatTime(appointment.endTime)}
@@ -493,20 +561,26 @@ const DoctorDashboard = () => {
                         {appointment.status}
                       </span>
                       {appointment.status === 'pending' && (
-                        <div className="flex gap-2">
-                          <button
-                            onClick={() => handleAppointmentAction(appointment._id, 'confirm')}
-                            className="px-3 py-1 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors text-sm"
-                          >
-                            Approve
-                          </button>
-                          <button
-                            onClick={() => handleAppointmentAction(appointment._id, 'reject')}
-                            className="px-3 py-1 bg-red-600 text-white rounded-lg hover:bg-red-700 transition-colors text-sm"
-                          >
-                            Reject
-                          </button>
-                        </div>
+                        appointment.patient ? (
+                          <div className="flex gap-2">
+                            <button
+                              onClick={() => handleAppointmentAction(appointment._id, 'confirm')}
+                              className="px-3 py-1 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors text-sm"
+                            >
+                              Approve
+                            </button>
+                            <button
+                              onClick={() => handleAppointmentAction(appointment._id, 'reject')}
+                              className="px-3 py-1 bg-red-600 text-white rounded-lg hover:bg-red-700 transition-colors text-sm"
+                            >
+                              Reject
+                            </button>
+                          </div>
+                        ) : (
+                          <span className="px-3 py-1 bg-gray-400 text-white rounded-lg cursor-not-allowed text-sm opacity-60">
+                            Patient Deleted
+                          </span>
+                        )
                       )}
                     </div>
                   </div>
@@ -542,7 +616,7 @@ const DoctorDashboard = () => {
                     <div className="flex items-start justify-between mb-2">
                       <div>
                         <p className="font-semibold text-gray-900 dark:text-white">
-                          {review.patient?.name || 'Anonymous Patient'}
+                          {review.patient?.name || 'This patient is no longer available'}
                         </p>
                         <p className="text-xs text-gray-500 dark:text-gray-400">
                           {new Date(review.createdAt).toLocaleDateString('en-US', {
@@ -585,49 +659,6 @@ const DoctorDashboard = () => {
                 <p>No reviews yet</p>
               </div>
             )}
-          </div>
-        </div>
-
-        {/* Quick Actions */}
-        <div className="bg-white dark:bg-gray-800 rounded-xl shadow-md p-6 border border-gray-200 dark:border-gray-700">
-          <h2 className="text-xl font-bold text-gray-900 dark:text-white mb-4">Quick Actions</h2>
-          <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-            <Link
-              to="/doctor/appointments"
-              className="flex items-center p-4 bg-blue-50 dark:bg-blue-900/20 rounded-lg hover:bg-blue-100 dark:hover:bg-blue-900/30 transition-colors"
-            >
-              <svg className="w-6 h-6 text-blue-600 dark:text-blue-400 mr-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2" />
-              </svg>
-              <span className="font-medium text-blue-700 dark:text-blue-300">View Appointments</span>
-            </Link>
-            <Link
-              to="/doctor/availability"
-              className="flex items-center p-4 bg-green-50 dark:bg-green-900/20 rounded-lg hover:bg-green-100 dark:hover:bg-green-900/30 transition-colors"
-            >
-              <svg className="w-6 h-6 text-green-600 dark:text-green-400 mr-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
-              </svg>
-              <span className="font-medium text-green-700 dark:text-green-300">Manage Availability</span>
-            </Link>
-            <Link
-              to="/doctor/reviews"
-              className="flex items-center p-4 bg-yellow-50 dark:bg-yellow-900/20 rounded-lg hover:bg-yellow-100 dark:hover:bg-yellow-900/30 transition-colors"
-            >
-              <svg className="w-6 h-6 text-yellow-600 dark:text-yellow-400 mr-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11.049 2.927c.3-.921 1.603-.921 1.902 0l1.519 4.674a1 1 0 00.95.69h4.915c.969 0 1.371 1.24.588 1.81l-3.976 2.888a1 1 0 00-.363 1.118l1.518 4.674c.3.922-.755 1.688-1.538 1.118l-3.976-2.888a1 1 0 00-1.176 0l-3.976 2.888c-.783.57-1.838-.197-1.538-1.118l1.518-4.674a1 1 0 00-.363-1.118l-3.976-2.888c-.784-.57-.38-1.81.588-1.81h4.914a1 1 0 00.951-.69l1.519-4.674z" />
-              </svg>
-              <span className="font-medium text-yellow-700 dark:text-yellow-300">View Reviews</span>
-            </Link>
-            <Link
-              to="/doctor/notifications"
-              className="flex items-center p-4 bg-orange-50 dark:bg-orange-900/20 rounded-lg hover:bg-orange-100 dark:hover:bg-orange-900/30 transition-colors"
-            >
-              <svg className="w-6 h-6 text-orange-600 dark:text-orange-400 mr-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 17h5l-1.405-1.405A2.032 2.032 0 0118 14.158V11a6.002 6.002 0 00-4-5.659V5a2 2 0 10-4 0v.341C7.67 6.165 6 8.388 6 11v3.159c0 .538-.214 1.055-.595 1.436L4 17h5m6 0v1a3 3 0 11-6 0v-1m6 0H9" />
-              </svg>
-              <span className="font-medium text-orange-700 dark:text-orange-300">Notifications</span>
-            </Link>
           </div>
         </div>
       </div>

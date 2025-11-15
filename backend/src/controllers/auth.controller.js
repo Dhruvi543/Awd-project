@@ -11,7 +11,7 @@ const patientRegisterSchema = z.object({
     .min(2, 'Full name must be at least 2 characters')
     .regex(/^[a-zA-Z\s]+$/, 'Name must contain only letters and spaces'),
   email: z.string()
-    .email('Invalid email address')
+    .regex(/^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.com$/, 'Email must end with .com (e.g., name@example.com)')
     .toLowerCase()
     .trim(),
   password: z.string()
@@ -32,7 +32,7 @@ const doctorRegisterSchema = z.object({
     .min(2, 'Last name must be at least 2 characters')
     .regex(/^[a-zA-Z\s]+$/, 'Last name must contain only letters and spaces'),
   email: z.string()
-    .email('Invalid email address')
+    .regex(/^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.com$/, 'Email must end with .com (e.g., name@example.com)')
     .toLowerCase()
     .trim(),
   phone: z.string()
@@ -56,7 +56,7 @@ const doctorRegisterSchema = z.object({
     .min(2, 'Location must be at least 2 characters')
     .trim(),
   licenseNo: z.string()
-    .min(1, 'License number is required')
+    .regex(/^[A-Z]{2}\/(19|20)\d{2}\/\d{5,6}$/, 'License number must be in format: XX/YYYY/XXXXX (e.g., TN/2020/123456)')
     .trim(),
   clinicHospitalType: z.enum(['clinic', 'hospital'], {
     errorMap: () => ({ message: 'Please select clinic or hospital' }),
@@ -76,7 +76,7 @@ const doctorRegisterSchema = z.object({
 
 const loginSchema = z.object({
   email: z.string()
-    .email('Invalid email address')
+    .regex(/^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.com$/, 'Email must end with .com (e.g., name@example.com)')
     .toLowerCase()
     .trim(),
   password: z.string()

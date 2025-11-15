@@ -66,23 +66,38 @@ const AdminDashboard = () => {
     }
   };
 
-  const StatCard = ({ title, value, icon, color, link }) => {
+  const StatCard = ({ title, value, icon, color, link, subtitle }) => {
     const IconComponent = icon;
-    return (
-      <Link
-        to={link || '#'}
-        className="block bg-white dark:bg-gray-800 rounded-xl shadow-md hover:shadow-lg transition-all duration-200 p-6 border border-gray-200 dark:border-gray-700 hover:border-blue-300 dark:hover:border-blue-600"
-      >
-        <div className="flex items-center justify-between">
-          <div>
-            <p className="text-sm font-medium text-gray-600 dark:text-gray-400 mb-1">{title}</p>
-            <p className="text-3xl font-bold text-gray-900 dark:text-white">{value}</p>
-          </div>
-          <div className={`p-3 rounded-lg ${color}`}>
-            <IconComponent className="w-8 h-8 text-white" />
-          </div>
+    const cardContent = (
+      <div className="flex items-center justify-between gap-4">
+        <div className="flex-1">
+          <p className="text-sm font-medium text-gray-600 dark:text-gray-400 mb-1">{title}</p>
+          <p className="text-3xl font-bold text-gray-900 dark:text-white">{value}</p>
+          {subtitle && (
+            <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">{subtitle}</p>
+          )}
         </div>
-      </Link>
+        <div className={`p-3 rounded-lg ${color} flex-shrink-0`}>
+          <IconComponent className="w-8 h-8 text-white" />
+        </div>
+      </div>
+    );
+    
+    if (link) {
+      return (
+        <Link
+          to={link}
+          className="block bg-white dark:bg-gray-800 rounded-xl shadow-md hover:shadow-lg transition-all duration-200 p-6 border border-gray-200 dark:border-gray-700 hover:border-blue-300 dark:hover:border-blue-600"
+        >
+          {cardContent}
+        </Link>
+      );
+    }
+    
+    return (
+      <div className="bg-white dark:bg-gray-800 rounded-xl shadow-md p-6 border border-gray-200 dark:border-gray-700">
+        {cardContent}
+      </div>
     );
   };
 
@@ -99,7 +114,7 @@ const AdminDashboard = () => {
           </p>
         </div>
 
-        {/* Statistics Cards */}
+        {/* Primary Statistics Cards - First Row */}
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
           <StatCard
             title="Total Users"
@@ -110,11 +125,11 @@ const AdminDashboard = () => {
               </svg>
             )}
             color="bg-blue-500"
-            link="/admin/patients"
+            link={null}
           />
           <StatCard
             title="Total Doctors"
-            value={stats.totalDoctors}
+            value={stats.totalDoctors - stats.pendingDoctors}
             icon={() => (
               <svg className="w-8 h-8" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 13.255A23.931 23.931 0 0112 15c-3.183 0-6.22-.62-9-1.745M16 6V4a2 2 0 00-2-2h-4a2 2 0 00-2 2v2m4 6h.01M5 20h14a2 2 0 002-2V8a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" />
@@ -122,6 +137,17 @@ const AdminDashboard = () => {
             )}
             color="bg-green-500"
             link="/admin/doctors"
+          />
+          <StatCard
+            title="Pending Doctors"
+            value={stats.pendingDoctors || 0}
+            icon={() => (
+              <svg className="w-8 h-8" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
+              </svg>
+            )}
+            color="bg-yellow-500"
+            link="/admin/doctors?status=pending"
           />
           <StatCard
             title="Total Patients"
@@ -134,6 +160,10 @@ const AdminDashboard = () => {
             color="bg-purple-500"
             link="/admin/patients"
           />
+        </div>
+
+        {/* Secondary Statistics Cards - Second Row */}
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
           <StatCard
             title="Total Appointments"
             value={stats.totalAppointments}
@@ -144,21 +174,6 @@ const AdminDashboard = () => {
             )}
             color="bg-orange-500"
             link="/admin/appointments"
-          />
-        </div>
-
-        {/* Secondary Statistics */}
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
-          <StatCard
-            title="Pending Doctors"
-            value={stats.pendingDoctors || 0}
-            icon={() => (
-              <svg className="w-8 h-8" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
-              </svg>
-            )}
-            color="bg-yellow-500"
-            link="/admin/doctors?status=pending"
           />
           <StatCard
             title="Pending Appointments"
@@ -180,7 +195,7 @@ const AdminDashboard = () => {
               </svg>
             )}
             color="bg-indigo-500"
-            link="/admin/appointments?filter=today"
+            link="/admin/appointments?dateFilter=today"
           />
           <StatCard
             title="Total Reviews"
@@ -261,8 +276,8 @@ const AdminDashboard = () => {
                     className="flex items-center justify-between p-3 bg-gray-50 dark:bg-gray-700 rounded-lg"
                   >
                     <div>
-                      <p className="font-medium text-gray-900 dark:text-white">{appointment.patientName}</p>
-                      <p className="text-sm text-gray-600 dark:text-gray-400">{appointment.doctorName}</p>
+                      <p className="font-medium text-gray-900 dark:text-white">{appointment.patientName || 'This patient is no longer available'}</p>
+                      <p className="text-sm text-gray-600 dark:text-gray-400">{appointment.doctorName || 'This doctor is no longer available'}</p>
                     </div>
                     <span className={`px-3 py-1 rounded-full text-xs font-medium ${
                       appointment.status === 'completed' ? 'bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-400' :

@@ -3,7 +3,8 @@ import { requireAuth } from '../middleware/auth.js';
 import {
   getProfile,
   updateProfile,
-  changePassword
+  changePassword,
+  deleteAccount
 } from '../controllers/user.controller.js';
 
 const router = express.Router();
@@ -14,6 +15,7 @@ router.use(requireAuth);
 router.get('/profile', getProfile);
 router.put('/profile', updateProfile);
 router.post('/change-password', changePassword);
+router.delete('/account', deleteAccount);
 
 export default router;
 

@@ -12,10 +12,17 @@ import bcrypt from 'bcryptjs';
 const getDashboardStats = asyncHandler(async (req, res) => {
   try {
     // Count total users by role
-    const totalUsers = await User.countDocuments();
+    // Total users = patients + approved doctors (excluding admins and pending doctors)
     const totalDoctors = await User.countDocuments({ role: 'doctor' });
     const totalPatients = await User.countDocuments({ role: 'patient' });
+    const approvedDoctors = await User.countDocuments({ role: 'doctor', isApproved: true });
+    // Explicitly exclude admin role and only count patients + approved doctors
+    const totalUsers = totalPatients + approvedDoctors; // Only count patients and approved doctors (excludes admins and pending doctors)
     const pendingDoctors = await User.countDocuments({ role: 'doctor', isApproved: false });
+    
+    // Debug: Verify counts (can be removed in production)
+    const adminCount = await User.countDocuments({ role: 'admin' });
+    console.log('User counts - Patients:', totalPatients, 'Approved Doctors:', approvedDoctors, 'Pending Doctors:', pendingDoctors, 'Admins:', adminCount, 'Total Users:', totalUsers);
     
     // Count appointments
     const totalAppointments = await Appointment.countDocuments();
@@ -228,8 +235,30 @@ const createDoctor = asyncHandler(async (req, res) => {
       password
     } = req.body;
     
+    // Validate email format - only .com extension allowed
+    if (email) {
+      const emailRegex = /^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.com$/;
+      if (!emailRegex.test(email.trim().toLowerCase())) {
+        return res.status(400).json({
+          success: false,
+          message: 'Email must end with .com (e.g., name@example.com)'
+        });
+      }
+    }
+    
+    // Validate license number format - Pattern: XX/YYYY/XXXXX
+    if (licenseNo) {
+      const licenseRegex = /^[A-Z]{2}\/(19|20)\d{2}\/\d{5,6}$/;
+      if (!licenseRegex.test(licenseNo.trim())) {
+        return res.status(400).json({
+          success: false,
+          message: 'License number must be in format: XX/YYYY/XXXXX (e.g., TN/2020/123456)'
+        });
+      }
+    }
+    
     // Check if user already exists
-    const existingUser = await User.findOne({ email });
+    const existingUser = await User.findOne({ email: email?.toLowerCase().trim() });
     if (existingUser) {
       return res.status(400).json({
         success: false,
@@ -242,14 +271,14 @@ const createDoctor = asyncHandler(async (req, res) => {
       name: `${firstName} ${lastName}`,
       firstName,
       lastName,
-      email,
+      email: email.toLowerCase().trim(),
       phone,
       gender,
       specialization,
       experience,
       qualification,
       location,
-      licenseNo,
+      licenseNo: licenseNo?.trim() || '',
       clinicHospitalType,
       clinicHospitalName,
       password,
@@ -308,18 +337,49 @@ const updateDoctor = asyncHandler(async (req, res) => {
       clinicHospitalName
     } = req.body;
     
+    // Validate email format - only .com extension allowed
+    if (email && email !== doctor.email) {
+      const emailRegex = /^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.com$/;
+      if (!emailRegex.test(email.trim().toLowerCase())) {
+        return res.status(400).json({
+          success: false,
+          message: 'Email must end with .com (e.g., name@example.com)'
+        });
+      }
+      
+      // Check if new email already exists
+      const existingUser = await User.findOne({ email: email.toLowerCase().trim(), _id: { $ne: doctor._id } });
+      if (existingUser) {
+        return res.status(400).json({
+          success: false,
+          message: 'User with this email already exists'
+        });
+      }
+    }
+    
+    // Validate license number format - Pattern: XX/YYYY/XXXXX
+    if (licenseNo !== undefined && licenseNo !== '') {
+      const licenseRegex = /^[A-Z]{2}\/(19|20)\d{2}\/\d{5,6}$/;
+      if (!licenseRegex.test(licenseNo.trim())) {
+        return res.status(400).json({
+          success: false,
+          message: 'License number must be in format: XX/YYYY/XXXXX (e.g., TN/2020/123456)'
+        });
+      }
+    }
+    
     // Update fields
     if (firstName) doctor.firstName = firstName;
     if (lastName) doctor.lastName = lastName;
     if (firstName || lastName) doctor.name = `${firstName || doctor.firstName} ${lastName || doctor.lastName}`;
-    if (email) doctor.email = email;
+    if (email) doctor.email = email.toLowerCase().trim();
     if (phone) doctor.phone = phone;
     if (gender) doctor.gender = gender;
     if (specialization) doctor.specialization = specialization;
     if (experience) doctor.experience = experience;
     if (qualification) doctor.qualification = qualification;
     if (location) doctor.location = location;
-    if (licenseNo !== undefined) doctor.licenseNo = licenseNo;
+    if (licenseNo !== undefined) doctor.licenseNo = licenseNo.trim() || '';
     if (clinicHospitalType) doctor.clinicHospitalType = clinicHospitalType;
     if (clinicHospitalName) doctor.clinicHospitalName = clinicHospitalName;
     
@@ -354,6 +414,45 @@ const deleteDoctor = asyncHandler(async (req, res) => {
         success: false,
         message: 'Doctor not found'
       });
+    }
+    
+    // Cancel ALL appointments for this doctor (pending, confirmed, etc.)
+    // When doctor is deleted, all appointments should be cancelled
+    try {
+      const allAppointments = await Appointment.find({ 
+        doctor: doctor._id,
+        status: { $in: ['pending', 'confirmed'] } // Only cancel pending and confirmed, not already completed/cancelled
+      });
+      
+      if (allAppointments.length > 0) {
+        await Appointment.updateMany(
+          { doctor: doctor._id, status: { $in: ['pending', 'confirmed'] } },
+          { 
+            status: 'cancelled',
+            rejectionReason: 'Appointment cancelled: Doctor account has been deleted'
+          }
+        );
+        console.log(`Cancelled ${allAppointments.length} appointment(s) for deleted doctor`);
+      }
+    } catch (appointmentError) {
+      console.error('Error cancelling appointments:', appointmentError);
+      // Continue with doctor deletion even if appointment cancellation fails
+    }
+
+    // Delete all reviews for this doctor
+    try {
+      await Review.deleteMany({ doctor: doctor._id });
+    } catch (reviewError) {
+      console.error('Error deleting reviews:', reviewError);
+      // Continue with deletion even if review deletion fails
+    }
+
+    // Delete all availability for this doctor
+    try {
+      await Availability.deleteMany({ doctor: doctor._id });
+    } catch (availabilityError) {
+      console.error('Error deleting availability:', availabilityError);
+      // Continue with deletion even if availability deletion fails
     }
     
     await User.deleteOne({ _id: doctor._id });
@@ -556,8 +655,19 @@ const createPatient = asyncHandler(async (req, res) => {
   try {
     const { name, email, password, phone, gender } = req.body;
     
+    // Validate email format - only .com extension allowed
+    if (email) {
+      const emailRegex = /^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.com$/;
+      if (!emailRegex.test(email.trim().toLowerCase())) {
+        return res.status(400).json({
+          success: false,
+          message: 'Email must end with .com (e.g., name@example.com)'
+        });
+      }
+    }
+    
     // Check if user already exists
-    const existingUser = await User.findOne({ email });
+    const existingUser = await User.findOne({ email: email?.toLowerCase().trim() });
     if (existingUser) {
       return res.status(400).json({
         success: false,
@@ -568,7 +678,7 @@ const createPatient = asyncHandler(async (req, res) => {
     // Create patient user
     const patient = new User({
       name,
-      email,
+      email: email.toLowerCase().trim(),
       password,
       phone,
       gender,
@@ -611,9 +721,29 @@ const updatePatient = asyncHandler(async (req, res) => {
     
     const { name, email, phone, gender } = req.body;
     
+    // Validate email format - only .com extension allowed
+    if (email && email !== patient.email) {
+      const emailRegex = /^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.com$/;
+      if (!emailRegex.test(email.trim().toLowerCase())) {
+        return res.status(400).json({
+          success: false,
+          message: 'Email must end with .com (e.g., name@example.com)'
+        });
+      }
+      
+      // Check if new email already exists
+      const existingUser = await User.findOne({ email: email.toLowerCase().trim(), _id: { $ne: patient._id } });
+      if (existingUser) {
+        return res.status(400).json({
+          success: false,
+          message: 'User with this email already exists'
+        });
+      }
+    }
+    
     // Update fields
     if (name) patient.name = name;
-    if (email) patient.email = email;
+    if (email) patient.email = email.toLowerCase().trim();
     if (phone) patient.phone = phone;
     if (gender) patient.gender = gender;
     
@@ -650,13 +780,47 @@ const deletePatient = asyncHandler(async (req, res) => {
       });
     }
     
-    await User.deleteOne({ _id: patient._id });
+    // Cancel ALL appointments for this patient (pending, confirmed, etc.)
+    // When patient is deleted, all appointments should be cancelled
+    try {
+      const allAppointments = await Appointment.find({ 
+        patient: patient._id,
+        status: { $in: ['pending', 'confirmed'] } // Only cancel pending and confirmed, not already completed/cancelled
+      });
+      
+      if (allAppointments.length > 0) {
+        await Appointment.updateMany(
+          { patient: patient._id, status: { $in: ['pending', 'confirmed'] } },
+          { 
+            status: 'cancelled',
+            rejectionReason: 'Appointment cancelled: Patient account has been deleted'
+          }
+        );
+        console.log(`Cancelled ${allAppointments.length} appointment(s) for deleted patient`);
+      }
+    } catch (appointmentError) {
+      console.error('Error cancelling appointments:', appointmentError);
+      // Continue with patient deletion even if appointment cancellation fails
+    }
+    
+    // Note: Reviews are NOT deleted when patient account is deleted
+    // Reviews remain with patient name and doctor name for other patients' reference
+    
+    const deleteResult = await User.deleteOne({ _id: patient._id });
+    
+    if (deleteResult.deletedCount === 0) {
+      return res.status(500).json({
+        success: false,
+        message: 'Failed to delete patient. No documents were deleted.'
+      });
+    }
     
     res.json({
       success: true,
       message: 'Patient deleted successfully'
     });
   } catch (error) {
+    console.error('Error deleting patient:', error);
     res.status(500).json({
       success: false,
       message: 'Error deleting patient',
@@ -1329,7 +1493,6 @@ const updateSettings = asyncHandler(async (req, res) => {
     // Update all fields from request body
     const allowedFields = [
       'siteName', 'siteDescription',
-      'maintenanceMode', 'allowRegistration', 'requireEmailVerification', 'autoApproveDoctors',
       'maxAppointmentsPerDay', 'appointmentDuration', 'workingHoursStart', 'workingHoursEnd',
       'minPasswordLength', 'sessionTimeout'
     ];
@@ -1451,9 +1614,18 @@ const updateAdminEmail = asyncHandler(async (req, res) => {
       });
     }
     
+    // Validate email format - only .com extension allowed
+    const emailRegex = /^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.com$/;
+    if (!emailRegex.test(email.trim().toLowerCase())) {
+      return res.status(400).json({
+        success: false,
+        message: 'Email must end with .com (e.g., name@example.com)'
+      });
+    }
+    
     // Check if email already exists (only if different from current)
-    if (email !== admin.email) {
-      const existingUser = await User.findOne({ email });
+    if (email.toLowerCase().trim() !== admin.email) {
+      const existingUser = await User.findOne({ email: email.toLowerCase().trim() });
       if (existingUser) {
         return res.status(400).json({
           success: false,

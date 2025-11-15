@@ -1,10 +1,12 @@
 import React, { useState, useEffect } from 'react';
+import { useSearchParams } from 'react-router-dom';
 import { apiService } from '../../api/apiService';
 
 const DoctorAppointments = () => {
+  const [searchParams, setSearchParams] = useSearchParams();
   const [appointments, setAppointments] = useState([]);
   const [isLoading, setIsLoading] = useState(true);
-  const [filter, setFilter] = useState('all');
+  const [filter, setFilter] = useState(searchParams.get('filter') || searchParams.get('status') || 'all');
   const [showRejectModal, setShowRejectModal] = useState(false);
   const [rejectingAppointment, setRejectingAppointment] = useState(null);
   const [rejectionReason, setRejectionReason] = useState('');
@@ -26,9 +28,23 @@ const DoctorAppointments = () => {
     upcoming: 0
   });
 
+  const [searchTerm, setSearchTerm] = useState(searchParams.get('search') || '');
+
+  useEffect(() => {
+    // Read filter from URL params on mount or when URL changes
+    const urlFilter = searchParams.get('filter') || searchParams.get('status');
+    const urlSearch = searchParams.get('search') || '';
+    if (urlFilter && urlFilter !== filter) {
+      setFilter(urlFilter);
+    }
+    if (urlSearch !== searchTerm) {
+      setSearchTerm(urlSearch);
+    }
+  }, [searchParams]);
+
   useEffect(() => {
     fetchAppointments();
-  }, [filter]);
+  }, [filter, searchTerm]);
 
   const fetchAppointments = async () => {
     try {
@@ -42,10 +58,17 @@ const DoctorAppointments = () => {
         params.filter = 'past';
       } else if (filter === 'confirmed' || filter === 'scheduled') {
         params.status = 'confirmed';
+      } else if (filter === 'pending') {
+        params.status = 'pending';
       } else if (filter === 'cancelled') {
         params.status = 'cancelled';
       } else if (filter !== 'all') {
         params.status = filter;
+      }
+      
+      // Add search term if provided
+      if (searchTerm) {
+        params.search = searchTerm;
       }
       
       const response = await apiService.getAppointments(params);
@@ -271,7 +294,11 @@ const DoctorAppointments = () => {
             ].map((filterOption) => (
               <button
                 key={filterOption.value}
-                onClick={() => setFilter(filterOption.value)}
+                onClick={() => {
+                  setFilter(filterOption.value);
+                  // Update URL params
+                  setSearchParams({ filter: filterOption.value });
+                }}
                 className={`px-4 py-2 rounded-lg font-medium transition-colors ${
                   filter === filterOption.value
                     ? 'bg-blue-600 text-white'
@@ -301,7 +328,7 @@ const DoctorAppointments = () => {
                     <div className="flex items-center gap-4 mb-3">
                       <div>
                         <h3 className="text-xl font-semibold text-gray-900 dark:text-white">
-                          {appointment.patient?.name || appointment.patientName || 'Unknown Patient'}
+                          {appointment.patient?.name || appointment.patientName || 'This patient is no longer available'}
                         </h3>
                         {appointment.patient?.email && (
                           <p className="text-sm text-gray-500 dark:text-gray-400">{appointment.patient.email}</p>
@@ -310,17 +337,26 @@ const DoctorAppointments = () => {
                           <p className="text-sm text-gray-500 dark:text-gray-400">{appointment.patient.phone}</p>
                         )}
                       </div>
-                      <span className={`px-3 py-1 rounded-full text-xs font-medium ${getStatusBadge(appointment.status)}`}>
-                        {appointment.status === 'confirmed' ? 'Scheduled' : appointment.status}
-                      </span>
-                      {isToday(appointment.appointmentDate) && (
+                      {/* Show only one status badge - prioritize actual status over time-based labels */}
+                      {appointment.status === 'cancelled' ? (
+                        <span className={`px-3 py-1 rounded-full text-xs font-medium ${getStatusBadge(appointment.status)}`}>
+                          Cancelled
+                        </span>
+                      ) : appointment.status === 'completed' ? (
+                        <span className={`px-3 py-1 rounded-full text-xs font-medium ${getStatusBadge(appointment.status)}`}>
+                          Completed
+                        </span>
+                      ) : isToday(appointment.appointmentDate) && appointment.status !== 'cancelled' ? (
                         <span className="px-3 py-1 rounded-full text-xs font-medium bg-indigo-100 text-indigo-800 dark:bg-indigo-900/30 dark:text-indigo-400">
                           Today
                         </span>
-                      )}
-                      {isUpcoming(appointment.appointmentDate) && !isToday(appointment.appointmentDate) && (
+                      ) : isUpcoming(appointment.appointmentDate) && !isToday(appointment.appointmentDate) && appointment.status === 'confirmed' ? (
                         <span className="px-3 py-1 rounded-full text-xs font-medium bg-purple-100 text-purple-800 dark:bg-purple-900/30 dark:text-purple-400">
                           Upcoming
+                        </span>
+                      ) : (
+                        <span className={`px-3 py-1 rounded-full text-xs font-medium ${getStatusBadge(appointment.status)}`}>
+                          {appointment.status === 'confirmed' ? 'Scheduled' : appointment.status}
                         </span>
                       )}
                     </div>
@@ -369,46 +405,68 @@ const DoctorAppointments = () => {
                     
                     {appointment.status === 'pending' && (
                       <>
-                        <button
-                          onClick={() => handleConfirmAppointment(appointment._id)}
-                          className="px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors flex items-center gap-2"
-                        >
-                          <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
-                          </svg>
-                          Approve
-                        </button>
-                        <button
-                          onClick={() => openRejectModal(appointment)}
-                          className="px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 transition-colors flex items-center gap-2"
-                        >
-                          <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-                          </svg>
-                          Reject
-                        </button>
+                        {appointment.patient ? (
+                          <>
+                            <button
+                              onClick={() => handleConfirmAppointment(appointment._id)}
+                              className="px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors flex items-center gap-2"
+                            >
+                              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+                              </svg>
+                              Approve
+                            </button>
+                            <button
+                              onClick={() => openRejectModal(appointment)}
+                              className="px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 transition-colors flex items-center gap-2"
+                            >
+                              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                              </svg>
+                              Reject
+                            </button>
+                          </>
+                        ) : (
+                          <span className="px-4 py-2 bg-gray-400 text-white rounded-lg cursor-not-allowed flex items-center gap-2 opacity-60">
+                            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M18.364 18.364A9 9 0 005.636 5.636m12.728 12.728A9 9 0 015.636 5.636m12.728 12.728L5.636 5.636" />
+                            </svg>
+                            Patient Deleted
+                          </span>
+                        )}
                       </>
                     )}
                     {appointment.status === 'confirmed' && (
                       <>
-                        <button
-                          onClick={() => openCompleteModal(appointment)}
-                          className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors flex items-center gap-2"
-                        >
-                          <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
-                          </svg>
-                          Mark Complete
-                        </button>
-                        <button
-                          onClick={() => openCancelModal(appointment)}
-                          className="px-4 py-2 bg-orange-600 text-white rounded-lg hover:bg-orange-700 transition-colors flex items-center gap-2"
-                        >
-                          <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-                          </svg>
-                          Cancel
-                        </button>
+                        {appointment.patient ? (
+                          <>
+                            <button
+                              onClick={() => openCompleteModal(appointment)}
+                              className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors flex items-center gap-2"
+                            >
+                              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+                              </svg>
+                              Mark Complete
+                            </button>
+                            <button
+                              onClick={() => openCancelModal(appointment)}
+                              className="px-4 py-2 bg-orange-600 text-white rounded-lg hover:bg-orange-700 transition-colors flex items-center gap-2"
+                            >
+                              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                              </svg>
+                              Cancel
+                            </button>
+                          </>
+                        ) : (
+                          <span className="px-4 py-2 bg-gray-400 text-white rounded-lg cursor-not-allowed flex items-center gap-2 opacity-60">
+                            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M18.364 18.364A9 9 0 005.636 5.636m12.728 12.728A9 9 0 015.636 5.636m12.728 12.728L5.636 5.636" />
+                            </svg>
+                            Patient Deleted
+                          </span>
+                        )}
                       </>
                     )}
                   </div>
@@ -449,7 +507,7 @@ const DoctorAppointments = () => {
               
               <div className="mb-4 bg-gray-50 dark:bg-gray-700 rounded-lg p-4">
                 <p className="text-sm text-gray-600 dark:text-gray-400 mb-2">
-                  <strong>Patient:</strong> {rejectingAppointment.patient?.name || 'Unknown'}
+                  <strong>Patient:</strong> {rejectingAppointment.patient?.name || 'This patient is no longer available'}
                 </p>
                 <p className="text-sm text-gray-600 dark:text-gray-400 mb-2">
                   <strong>Date:</strong> {formatDate(rejectingAppointment.appointmentDate)}
@@ -519,7 +577,7 @@ const DoctorAppointments = () => {
               
               <div className="mb-4 bg-gray-50 dark:bg-gray-700 rounded-lg p-4">
                 <p className="text-sm text-gray-600 dark:text-gray-400 mb-2">
-                  <strong>Patient:</strong> {completingAppointment.patient?.name || 'Unknown'}
+                  <strong>Patient:</strong> {completingAppointment.patient?.name || 'This patient is no longer available'}
                 </p>
                 <p className="text-sm text-gray-600 dark:text-gray-400 mb-2">
                   <strong>Date:</strong> {formatDate(completingAppointment.appointmentDate)}
@@ -591,7 +649,7 @@ const DoctorAppointments = () => {
                   <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-3">Patient Information</h3>
                   <div className="space-y-2">
                     <p className="text-gray-700 dark:text-gray-300">
-                      <strong>Name:</strong> {viewingAppointment.patient?.name || 'Unknown Patient'}
+                      <strong>Name:</strong> {viewingAppointment.patient?.name || 'This patient is no longer available'}
                     </p>
                     {viewingAppointment.patient?.email && (
                       <p className="text-gray-700 dark:text-gray-300">
@@ -702,7 +760,7 @@ const DoctorAppointments = () => {
               
               <div className="mb-4 bg-gray-50 dark:bg-gray-700 rounded-lg p-4">
                 <p className="text-sm text-gray-600 dark:text-gray-400 mb-2">
-                  <strong>Patient:</strong> {cancellingAppointment.patient?.name || 'Unknown'}
+                  <strong>Patient:</strong> {cancellingAppointment.patient?.name || 'This patient is no longer available'}
                 </p>
                 <p className="text-sm text-gray-600 dark:text-gray-400 mb-2">
                   <strong>Date:</strong> {formatDate(cancellingAppointment.appointmentDate)}

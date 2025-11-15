@@ -1,9 +1,14 @@
 import React, { useState, useEffect } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../../contexts/AuthContext';
 import { apiService } from '../../api/apiService';
 
 const PatientSettings = () => {
-  const { user, getCurrentUser } = useAuth();
+  const { user, getCurrentUser, logout } = useAuth();
+  const navigate = useNavigate();
+  const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
+  const [deleteConfirmText, setDeleteConfirmText] = useState('');
+  const [isDeleting, setIsDeleting] = useState(false);
   const [profileData, setProfileData] = useState({
     name: user?.name || '',
     email: user?.email || '',
@@ -64,14 +69,41 @@ const PatientSettings = () => {
     }
   }, [passwordData.newPassword]);
 
+  const validateEmail = (email) => {
+    // Email validation - only allows .com extension
+    const emailRegex = /^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.com$/;
+    return emailRegex.test(email.trim());
+  };
+
+  const validateName = (name) => {
+    // Only letters and spaces, at least 2 characters
+    const nameRegex = /^[a-zA-Z\s]{2,}$/;
+    return nameRegex.test(name.trim());
+  };
+
   const handleProfileUpdate = async (e) => {
     e.preventDefault();
     setError('');
     setSuccess('');
 
     // Frontend validation
-    if (profileData.name && profileData.name.trim().length < 2) {
-      setError('Name must be at least 2 characters long');
+    if (!profileData.name || profileData.name.trim() === '') {
+      setError('Name is required');
+      return;
+    }
+
+    if (!validateName(profileData.name)) {
+      setError('Name must contain only letters and be at least 2 characters');
+      return;
+    }
+
+    if (!profileData.email || profileData.email.trim() === '') {
+      setError('Email is required');
+      return;
+    }
+
+    if (!validateEmail(profileData.email)) {
+      setError('Please enter a valid email address (e.g., name@example.com)');
       return;
     }
 
@@ -85,7 +117,15 @@ const PatientSettings = () => {
     
     try {
       setIsLoading(true);
-      const response = await apiService.updateProfile(profileData);
+      // Normalize email before sending
+      const normalizedData = {
+        ...profileData,
+        email: profileData.email.toLowerCase().trim(),
+        name: profileData.name.trim(),
+        phone: profileData.phone?.trim() || '',
+        location: profileData.location?.trim() || '',
+      };
+      const response = await apiService.updateProfile(normalizedData);
       if (response.data.success) {
         setSuccess('Profile updated successfully!');
         
@@ -200,6 +240,34 @@ const PatientSettings = () => {
     return 'bg-green-500';
   };
 
+  const handleDeleteAccount = async () => {
+    if (deleteConfirmText.toLowerCase() !== 'delete') {
+      setError('Please type "DELETE" to confirm account deletion');
+      return;
+    }
+
+    setIsDeleting(true);
+    setError('');
+    
+    try {
+      const response = await apiService.deleteAccount();
+      if (response.data.success) {
+        // Logout user after successful deletion
+        await logout();
+        // Redirect to home page
+        navigate('/');
+        // Show success message (optional - since we're redirecting)
+        alert('Your account has been deleted successfully.');
+      }
+    } catch (error) {
+      console.error('Error deleting account:', error);
+      setError(error.response?.data?.message || 'Failed to delete account. Please try again.');
+      setIsDeleting(false);
+      setShowDeleteConfirm(false);
+      setDeleteConfirmText('');
+    }
+  };
+
   return (
     <div className="w-full">
       <div className="max-w-5xl mx-auto">
@@ -275,6 +343,23 @@ const PatientSettings = () => {
               </svg>
               Change Password
             </button>
+            <button
+              onClick={() => {
+                setActiveTab('delete');
+                setError('');
+                setSuccess('');
+              }}
+              className={`flex-1 px-6 py-4 font-medium transition-all duration-200 flex items-center justify-center gap-2 ${
+                activeTab === 'delete'
+                  ? 'text-red-600 dark:text-red-400 border-b-2 border-red-600 dark:border-red-400 bg-white dark:bg-gray-800'
+                  : 'text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white hover:bg-gray-100 dark:hover:bg-gray-700'
+              }`}
+            >
+              <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+              </svg>
+              Delete Account
+            </button>
           </div>
 
           <div className="p-8">
@@ -327,7 +412,11 @@ const PatientSettings = () => {
                         <input
                           type="text"
                           value={profileData.name}
-                          onChange={(e) => setProfileData({ ...profileData, name: e.target.value })}
+                          onChange={(e) => {
+                            // Only allow letters and spaces
+                            const value = e.target.value.replace(/[^a-zA-Z\s]/g, '');
+                            setProfileData({ ...profileData, name: value });
+                          }}
                           className="w-full pl-10 pr-4 py-3 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all"
                           placeholder="Enter your full name"
                           required
@@ -348,7 +437,16 @@ const PatientSettings = () => {
                         <input
                           type="email"
                           value={profileData.email}
-                          onChange={(e) => setProfileData({ ...profileData, email: e.target.value })}
+                          onChange={(e) => {
+                            // Trim email but don't restrict characters (let validation handle it)
+                            const value = e.target.value.trim();
+                            setProfileData({ ...profileData, email: value });
+                          }}
+                          onBlur={(e) => {
+                            // Normalize email on blur
+                            const normalized = e.target.value.toLowerCase().trim();
+                            setProfileData({ ...profileData, email: normalized });
+                          }}
                           className="w-full pl-10 pr-4 py-3 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all"
                           placeholder="Enter your email"
                           required
@@ -648,6 +746,113 @@ const PatientSettings = () => {
                   </button>
                 </div>
               </form>
+            )}
+
+            {/* Delete Account Tab */}
+            {activeTab === 'delete' && (
+              <div className="space-y-6">
+                <div>
+                  <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-4 flex items-center gap-2">
+                    <svg className="w-5 h-5 text-red-600 dark:text-red-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                    </svg>
+                    Delete Account
+                  </h3>
+                  <div className="bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-lg p-6 mb-6">
+                    <div className="flex items-start gap-3">
+                      <svg className="w-6 h-6 text-red-600 dark:text-red-400 flex-shrink-0 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
+                      </svg>
+                      <div>
+                        <h4 className="text-lg font-semibold text-red-900 dark:text-red-400 mb-2">Warning: This action cannot be undone</h4>
+                        <p className="text-sm text-red-800 dark:text-red-300 mb-3">
+                          Deleting your account will permanently remove all your data including:
+                        </p>
+                        <ul className="text-sm text-red-800 dark:text-red-300 list-disc list-inside space-y-1 mb-4">
+                          <li>Your profile information</li>
+                          <li>All your appointments (pending appointments will be cancelled)</li>
+                          <li>All notifications</li>
+                        </ul>
+                        <p className="text-sm font-medium text-red-900 dark:text-red-400">
+                          This action is permanent and cannot be reversed. Please make sure you want to proceed.
+                        </p>
+                      </div>
+                    </div>
+                  </div>
+
+                  {!showDeleteConfirm ? (
+                    <div className="flex justify-end">
+                      <button
+                        type="button"
+                        onClick={() => setShowDeleteConfirm(true)}
+                        className="px-6 py-3 bg-red-600 text-white rounded-lg hover:bg-red-700 transition-colors font-medium flex items-center gap-2 shadow-md hover:shadow-lg"
+                      >
+                        <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                        </svg>
+                        I want to delete my account
+                      </button>
+                    </div>
+                  ) : (
+                    <div className="space-y-4">
+                      <div>
+                        <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                          Type <span className="font-bold text-red-600 dark:text-red-400">DELETE</span> to confirm:
+                        </label>
+                        <input
+                          type="text"
+                          value={deleteConfirmText}
+                          onChange={(e) => setDeleteConfirmText(e.target.value)}
+                          className="w-full px-4 py-3 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:ring-2 focus:ring-red-500 focus:border-transparent transition-all"
+                          placeholder="Type DELETE to confirm"
+                        />
+                        {deleteConfirmText && deleteConfirmText.toLowerCase() !== 'delete' && (
+                          <p className="mt-1 text-xs text-red-600 dark:text-red-400">
+                            Please type exactly "DELETE" to confirm
+                          </p>
+                        )}
+                      </div>
+                      <div className="flex justify-end gap-3 pt-4 border-t border-gray-200 dark:border-gray-700">
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setShowDeleteConfirm(false);
+                            setDeleteConfirmText('');
+                            setError('');
+                          }}
+                          disabled={isDeleting}
+                          className="px-6 py-3 border border-gray-300 dark:border-gray-600 rounded-lg text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors font-medium disabled:opacity-50 disabled:cursor-not-allowed"
+                        >
+                          Cancel
+                        </button>
+                        <button
+                          type="button"
+                          onClick={handleDeleteAccount}
+                          disabled={isDeleting || deleteConfirmText.toLowerCase() !== 'delete'}
+                          className="px-6 py-3 bg-red-600 text-white rounded-lg hover:bg-red-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed font-medium flex items-center gap-2 shadow-md hover:shadow-lg"
+                        >
+                          {isDeleting ? (
+                            <>
+                              <svg className="animate-spin h-5 w-5" fill="none" viewBox="0 0 24 24">
+                                <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                                <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                              </svg>
+                              Deleting...
+                            </>
+                          ) : (
+                            <>
+                              <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                              </svg>
+                              Delete My Account
+                            </>
+                          )}
+                        </button>
+                      </div>
+                    </div>
+                  )}
+                </div>
+              </div>
             )}
           </div>
         </div>

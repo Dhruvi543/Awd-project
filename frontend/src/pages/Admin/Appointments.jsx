@@ -1,7 +1,9 @@
 import React, { useState, useEffect } from 'react';
+import { useSearchParams } from 'react-router-dom';
 import { apiService } from '../../api/apiService';
 
 const AdminAppointments = () => {
+  const [searchParams, setSearchParams] = useSearchParams();
   const [appointments, setAppointments] = useState([]);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState(null);
@@ -16,9 +18,9 @@ const AdminAppointments = () => {
     consultationNotes: '',
     prescription: '',
   });
-  const [searchTerm, setSearchTerm] = useState('');
-  const [statusFilter, setStatusFilter] = useState('all');
-  const [dateFilter, setDateFilter] = useState('all'); // all, today, week, month
+  const [searchTerm, setSearchTerm] = useState(searchParams.get('search') || '');
+  const [statusFilter, setStatusFilter] = useState(searchParams.get('status') || 'all');
+  const [dateFilter, setDateFilter] = useState(searchParams.get('dateFilter') || 'all'); // all, today, week, month
   const [currentPage, setCurrentPage] = useState(1);
   const [pagination, setPagination] = useState({ page: 1, limit: 10, total: 0, pages: 0 });
   const [stats, setStats] = useState({
@@ -29,6 +31,22 @@ const AdminAppointments = () => {
     cancelled: 0,
     today: 0
   });
+
+  // Update filters when URL parameters change
+  useEffect(() => {
+    const statusParam = searchParams.get('status');
+    const dateFilterParam = searchParams.get('dateFilter');
+    const searchParam = searchParams.get('search');
+    if (statusParam) {
+      setStatusFilter(statusParam);
+    }
+    if (dateFilterParam) {
+      setDateFilter(dateFilterParam);
+    }
+    if (searchParam !== null && searchParam !== searchTerm) {
+      setSearchTerm(searchParam);
+    }
+  }, [searchParams]);
 
   useEffect(() => {
     fetchAppointments();
@@ -227,8 +245,17 @@ const AdminAppointments = () => {
               <select
                 value={statusFilter}
                 onChange={(e) => {
-                  setStatusFilter(e.target.value);
+                  const newStatus = e.target.value;
+                  setStatusFilter(newStatus);
                   setCurrentPage(1);
+                  // Update URL parameter
+                  const newParams = new URLSearchParams(searchParams);
+                  if (newStatus === 'all') {
+                    newParams.delete('status');
+                  } else {
+                    newParams.set('status', newStatus);
+                  }
+                  setSearchParams(newParams);
                 }}
                 className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-blue-500"
               >
@@ -244,8 +271,17 @@ const AdminAppointments = () => {
               <select
                 value={dateFilter}
                 onChange={(e) => {
-                  setDateFilter(e.target.value);
+                  const newDateFilter = e.target.value;
+                  setDateFilter(newDateFilter);
                   setCurrentPage(1);
+                  // Update URL parameter
+                  const newParams = new URLSearchParams(searchParams);
+                  if (newDateFilter === 'all') {
+                    newParams.delete('dateFilter');
+                  } else {
+                    newParams.set('dateFilter', newDateFilter);
+                  }
+                  setSearchParams(newParams);
                 }}
                 className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-blue-500"
               >
@@ -300,16 +336,20 @@ const AdminAppointments = () => {
                     {appointments.map((appointment) => (
                       <tr key={appointment._id} className="hover:bg-gray-50 dark:hover:bg-gray-700">
                         <td className="px-6 py-4 whitespace-nowrap">
-                          <div className="text-sm font-medium text-gray-900 dark:text-white">{appointment.patient?.name || 'N/A'}</div>
-                          <div className="text-xs text-gray-500 dark:text-gray-400 mt-0.5">{appointment.patient?.email || ''}</div>
+                          <div className="text-sm font-medium text-gray-900 dark:text-white">{appointment.patient?.name || 'This patient is no longer available'}</div>
+                          {appointment.patient?.email && (
+                            <div className="text-xs text-gray-500 dark:text-gray-400 mt-0.5">{appointment.patient.email}</div>
+                          )}
                         </td>
                         <td className="px-6 py-4 whitespace-nowrap">
-                          <div className="text-sm font-medium text-gray-900 dark:text-white">{appointment.doctor?.name || 'N/A'}</div>
-                          <div className="text-xs text-gray-500 dark:text-gray-400 mt-0.5">{appointment.doctor?.email || ''}</div>
+                          <div className="text-sm font-medium text-gray-900 dark:text-white">{appointment.doctor?.name || 'This doctor is no longer available'}</div>
+                          {appointment.doctor?.email && (
+                            <div className="text-xs text-gray-500 dark:text-gray-400 mt-0.5">{appointment.doctor.email}</div>
+                          )}
                         </td>
                         <td className="px-6 py-4 whitespace-nowrap">
                           <div className="text-sm font-medium text-gray-900 dark:text-white">
-                            {appointment.appointmentDate ? new Date(appointment.appointmentDate).toLocaleDateString() : 'N/A'}
+                            {appointment.appointmentDate ? new Date(appointment.appointmentDate).toLocaleDateString() : 'Not specified'}
                           </div>
                           <div className="text-xs text-gray-500 dark:text-gray-400 mt-0.5">
                             {appointment.createdAt ? `Created: ${new Date(appointment.createdAt).toLocaleDateString()}` : ''}
@@ -317,13 +357,13 @@ const AdminAppointments = () => {
                         </td>
                         <td className="px-6 py-4 whitespace-nowrap">
                           <div className="text-sm font-medium text-gray-900 dark:text-white">
-                            {appointment.startTime} - {appointment.endTime}
+                            {appointment.startTime || 'Not specified'} - {appointment.endTime || 'Not specified'}
                           </div>
-                          <div className="text-xs text-gray-500 dark:text-gray-400 mt-0.5">
-                            Duration: {appointment.startTime && appointment.endTime ? 
-                              `${Math.round((new Date(`2000-01-01 ${appointment.endTime}`) - new Date(`2000-01-01 ${appointment.startTime}`)) / (1000 * 60))} min` : 
-                              'N/A'}
-                          </div>
+                          {appointment.startTime && appointment.endTime && (
+                            <div className="text-xs text-gray-500 dark:text-gray-400 mt-0.5">
+                              Duration: {Math.round((new Date(`2000-01-01 ${appointment.endTime}`) - new Date(`2000-01-01 ${appointment.startTime}`)) / (1000 * 60))} min
+                            </div>
+                          )}
                         </td>
                         <td className="px-6 py-4 whitespace-nowrap">
                           <span className={`px-2 py-1 text-xs font-medium rounded-full ${
@@ -410,37 +450,43 @@ const AdminAppointments = () => {
                 <div className="flex items-center border-b border-gray-200 dark:border-gray-700 pb-3">
                   <div className="w-1/3 font-medium text-gray-700 dark:text-gray-300">Patient:</div>
                   <div className="w-2/3 text-gray-900 dark:text-white">
-                    {selectedAppointment.patient?.name || 'N/A'} ({selectedAppointment.patient?.email || 'N/A'})
+                    {selectedAppointment.patient?.name || 'This patient is no longer available'} 
+                    {selectedAppointment.patient?.email && ` (${selectedAppointment.patient.email})`}
                   </div>
                 </div>
                 <div className="flex items-center border-b border-gray-200 dark:border-gray-700 pb-3">
                   <div className="w-1/3 font-medium text-gray-700 dark:text-gray-300">Doctor:</div>
                   <div className="w-2/3 text-gray-900 dark:text-white">
-                    {selectedAppointment.doctor?.name || 'N/A'} ({selectedAppointment.doctor?.email || 'N/A'})
+                    {selectedAppointment.doctor?.name || 'This doctor is no longer available'} 
+                    {selectedAppointment.doctor?.email && ` (${selectedAppointment.doctor.email})`}
                   </div>
                 </div>
                 <div className="flex items-center border-b border-gray-200 dark:border-gray-700 pb-3">
                   <div className="w-1/3 font-medium text-gray-700 dark:text-gray-300">Date:</div>
                   <div className="w-2/3 text-gray-900 dark:text-white">
-                    {selectedAppointment.appointmentDate ? new Date(selectedAppointment.appointmentDate).toLocaleDateString() : 'N/A'}
+                    {selectedAppointment.appointmentDate ? new Date(selectedAppointment.appointmentDate).toLocaleDateString() : 'Not specified'}
                   </div>
                 </div>
                 <div className="flex items-center border-b border-gray-200 dark:border-gray-700 pb-3">
                   <div className="w-1/3 font-medium text-gray-700 dark:text-gray-300">Time:</div>
                   <div className="w-2/3 text-gray-900 dark:text-white">
-                    {selectedAppointment.startTime || 'N/A'} - {selectedAppointment.endTime || 'N/A'}
+                    {selectedAppointment.startTime || 'Not specified'} - {selectedAppointment.endTime || 'Not specified'}
                   </div>
                 </div>
                 <div className="flex items-center border-b border-gray-200 dark:border-gray-700 pb-3">
                   <div className="w-1/3 font-medium text-gray-700 dark:text-gray-300">Status:</div>
                   <div className="w-2/3">
-                    <span className={`px-3 py-1 text-sm font-medium rounded-full inline-block ${
-                      selectedAppointment.status === 'completed' ? 'bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-400' :
-                      selectedAppointment.status === 'pending' ? 'bg-yellow-100 text-yellow-800 dark:bg-yellow-900/30 dark:text-yellow-400' :
-                      'bg-blue-100 text-blue-800 dark:bg-blue-900/30 dark:text-blue-400'
-                    }`}>
-                      {selectedAppointment.status ? selectedAppointment.status.charAt(0).toUpperCase() + selectedAppointment.status.slice(1) : 'N/A'}
-                    </span>
+                    {selectedAppointment.status ? (
+                      <span className={`px-3 py-1 text-sm font-medium rounded-full inline-block ${
+                        selectedAppointment.status === 'completed' ? 'bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-400' :
+                        selectedAppointment.status === 'pending' ? 'bg-yellow-100 text-yellow-800 dark:bg-yellow-900/30 dark:text-yellow-400' :
+                        'bg-blue-100 text-blue-800 dark:bg-blue-900/30 dark:text-blue-400'
+                      }`}>
+                        {selectedAppointment.status.charAt(0).toUpperCase() + selectedAppointment.status.slice(1)}
+                      </span>
+                    ) : (
+                      <span className="text-sm text-gray-400 dark:text-gray-500 italic">Not specified</span>
+                    )}
                   </div>
                 </div>
                 {selectedAppointment.consultationNotes && (

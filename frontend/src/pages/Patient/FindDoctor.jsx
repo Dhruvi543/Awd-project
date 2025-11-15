@@ -1,32 +1,50 @@
 import React, { useState, useEffect } from 'react';
-import { Link } from 'react-router-dom';
+import { Link, useSearchParams } from 'react-router-dom';
 import { apiService } from '../../api/apiService';
 
 const FindDoctor = () => {
+  const [searchParams] = useSearchParams();
   const [doctors, setDoctors] = useState([]);
   const [isLoading, setIsLoading] = useState(true);
+  const [error, setError] = useState('');
   const [specialty, setSpecialty] = useState('');
+  const [searchTerm, setSearchTerm] = useState(searchParams.get('search') || '');
   const [selectedDoctorId, setSelectedDoctorId] = useState('');
   const [selectedDoctor, setSelectedDoctor] = useState(null);
   const [reviews, setReviews] = useState([]);
   const [showReviewsModal, setShowReviewsModal] = useState(false);
   const [isLoadingReviews, setIsLoadingReviews] = useState(false);
 
+  // Sync search term from URL
+  useEffect(() => {
+    const urlSearch = searchParams.get('search') || '';
+    if (urlSearch !== searchTerm) {
+      setSearchTerm(urlSearch);
+    }
+  }, [searchParams]);
+
   useEffect(() => {
     fetchDoctors();
-  }, [specialty]);
+  }, [specialty, searchTerm]);
 
   const fetchDoctors = async () => {
     try {
       setIsLoading(true);
+      setError('');
       const params = {};
       if (specialty) params.specialty = specialty;
+      if (searchTerm) params.search = searchTerm;
       const response = await apiService.getDoctors(params);
       if (response.data.success) {
         setDoctors(response.data.data || []);
+      } else {
+        setError('Failed to load doctors. Please try again.');
+        setDoctors([]);
       }
     } catch (error) {
       console.error('Error fetching doctors:', error);
+      setError('Failed to load doctors. Please try again.');
+      setDoctors([]);
     } finally {
       setIsLoading(false);
     }
@@ -51,13 +69,19 @@ const FindDoctor = () => {
   };
 
   const handleViewReviews = async (doctor) => {
+    if (!doctor || !doctor._id) {
+      console.error('Invalid doctor data');
+      return;
+    }
     setSelectedDoctor(doctor);
     setShowReviewsModal(true);
     setIsLoadingReviews(true);
     try {
       const response = await apiService.getDoctorReviews(doctor._id);
       if (response.data.success) {
-        setReviews(response.data.reviews || []);
+        setReviews(response.data.reviews || response.data.data || []);
+      } else {
+        setReviews([]);
       }
     } catch (error) {
       console.error('Error fetching reviews:', error);
@@ -85,6 +109,13 @@ const FindDoctor = () => {
           <p className="text-gray-600 dark:text-gray-400">Search and book appointments with qualified doctors</p>
         </div>
 
+        {/* Error Message */}
+        {error && (
+          <div className="mb-6 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-lg p-4">
+            <p className="text-red-800 dark:text-red-300">{error}</p>
+          </div>
+        )}
+
         {/* Search and Filter */}
         <div className="bg-white dark:bg-gray-800 rounded-xl shadow-md p-6 mb-6 border border-gray-200 dark:border-gray-700">
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
@@ -101,7 +132,7 @@ const FindDoctor = () => {
                 <option value="">All Doctors</option>
                 {doctors.map((doctor) => (
                   <option key={doctor._id} value={doctor._id}>
-                    Dr. {doctor.name} - {doctor.specialization}
+                    Dr. {doctor.name || 'Unknown'} - {doctor.specialization || 'No specialization'}
                   </option>
                 ))}
               </select>
@@ -142,9 +173,11 @@ const FindDoctor = () => {
                   </div>
                   <div className="flex-1">
                     <h3 className="text-xl font-semibold text-gray-900 dark:text-white mb-1">
-                      Dr. {doctor.name}
+                      Dr. {doctor.name || 'Unknown Doctor'}
                     </h3>
-                    <p className="text-sm text-gray-600 dark:text-gray-400">{doctor.specialization}</p>
+                    {doctor.specialization && (
+                      <p className="text-sm text-gray-600 dark:text-gray-400">{doctor.specialization}</p>
+                    )}
                     {doctor.experience && (
                       <p className="text-xs text-gray-500 dark:text-gray-500 mt-1">
                         {doctor.experience} {doctor.experience === '1' ? 'year' : 'years'} of experience
@@ -161,7 +194,11 @@ const FindDoctor = () => {
                       <svg className="w-5 h-5" fill="currentColor" viewBox="0 0 20 20">
                         <path d="M9.049 2.927c.3-.921 1.603-.921 1.902 0l1.07 3.292a1 1 0 00.95.69h3.462c.969 0 1.371 1.24.588 1.81l-2.8 2.034a1 1 0 00-.364 1.118l1.07 3.292c.3.921-.755 1.688-1.54 1.118l-2.8-2.034a1 1 0 00-1.175 0l-2.8 2.034c-.784.57-1.838-.197-1.539-1.118l1.07-3.292a1 1 0 00-.364-1.118L2.98 8.72c-.783-.57-.38-1.81.588-1.81h3.461a1 1 0 00.951-.69l1.07-3.292z" />
                       </svg>
-                      <span className="text-sm font-medium">{doctor.rating || 'N/A'}</span>
+                      <span className="text-sm font-medium">
+                        {doctor.rating != null && !isNaN(Number(doctor.rating)) 
+                          ? Number(doctor.rating).toFixed(1) 
+                          : 'Not rated yet'}
+                      </span>
                       {doctor.reviewCount > 0 && (
                         <span className="text-xs text-gray-500 dark:text-gray-400 ml-1">
                           ({doctor.reviewCount})
@@ -225,11 +262,13 @@ const FindDoctor = () => {
               <div className="flex items-center justify-between mb-6">
                 <div>
                   <h2 className="text-2xl font-bold text-gray-900 dark:text-white">
-                    Reviews for Dr. {selectedDoctor.name}
+                    Reviews for Dr. {selectedDoctor.name || 'Unknown Doctor'}
                   </h2>
-                  <p className="text-sm text-gray-600 dark:text-gray-400 mt-1">
-                    {selectedDoctor.specialization}
-                  </p>
+                  {selectedDoctor.specialization && (
+                    <p className="text-sm text-gray-600 dark:text-gray-400 mt-1">
+                      {selectedDoctor.specialization}
+                    </p>
+                  )}
                 </div>
                 <button
                   onClick={() => {
@@ -257,11 +296,11 @@ const FindDoctor = () => {
                       <div className="flex items-start justify-between mb-3">
                         <div className="flex items-center gap-4">
                           <div className="w-12 h-12 rounded-full bg-blue-500 flex items-center justify-center text-white font-semibold text-lg flex-shrink-0">
-                            {review.patient?.name?.charAt(0)?.toUpperCase() || 'P'}
+                            {(review.patient?.name || 'This patient is no longer available').charAt(0).toUpperCase()}
                           </div>
                           <div>
                             <p className="font-semibold text-base text-gray-900 dark:text-white">
-                              {review.patient?.name || 'Anonymous'}
+                              {review.patient?.name || 'This patient is no longer available'}
                             </p>
                             <p className="text-sm text-gray-500 dark:text-gray-400">
                               {formatDate(review.createdAt)}

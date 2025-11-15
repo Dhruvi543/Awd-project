@@ -1,7 +1,9 @@
 import React, { useState, useEffect } from 'react';
+import { useSearchParams } from 'react-router-dom';
 import { apiService } from '../../api/apiService';
 
 const AdminDoctors = () => {
+  const [searchParams, setSearchParams] = useSearchParams();
   const [doctors, setDoctors] = useState([]);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState(null);
@@ -25,7 +27,7 @@ const AdminDoctors = () => {
     password: '',
   });
   const [errors, setErrors] = useState({});
-  const [searchTerm, setSearchTerm] = useState('');
+  const [searchTerm, setSearchTerm] = useState(searchParams.get('search') || '');
   const [statusFilter, setStatusFilter] = useState('all');
   const [specializationFilter, setSpecializationFilter] = useState('all');
   const [currentPage, setCurrentPage] = useState(1);
@@ -37,10 +39,46 @@ const AdminDoctors = () => {
     totalAppointments: 0
   });
 
+  // Sync search term from URL
+  useEffect(() => {
+    const urlSearch = searchParams.get('search') || '';
+    if (urlSearch !== searchTerm) {
+      setSearchTerm(urlSearch);
+    }
+  }, [searchParams]);
+
   useEffect(() => {
     fetchDoctors();
     fetchStats();
   }, [statusFilter, currentPage, searchTerm, specializationFilter]);
+
+  // Check for action=add query parameter to auto-open add modal
+  useEffect(() => {
+    const action = searchParams.get('action');
+    if (action === 'add') {
+      // Reset form and open modal
+      setSelectedDoctor(null);
+      setFormData({
+        firstName: '',
+        lastName: '',
+        email: '',
+        phone: '',
+        gender: '',
+        specialization: '',
+        experience: '',
+        qualification: '',
+        location: '',
+        licenseNo: '',
+        clinicHospitalType: '',
+        clinicHospitalName: '',
+        password: '',
+      });
+      setErrors({});
+      setShowModal(true);
+      // Remove the query parameter from URL after opening modal
+      setSearchParams({});
+    }
+  }, [searchParams, setSearchParams]);
   
   const fetchStats = async () => {
     try {
@@ -96,13 +134,20 @@ const AdminDoctors = () => {
   };
 
   const validateEmail = (email) => {
-    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-    return emailRegex.test(email);
+    // Email validation - only allows .com extension
+    const emailRegex = /^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.com$/;
+    return emailRegex.test(email.trim());
   };
 
   const validatePhone = (phone) => {
     const phoneRegex = /^\d{10}$/;
     return phoneRegex.test(phone);
+  };
+
+  const validateLicenseNo = (licenseNo) => {
+    // Pattern: 2 uppercase letters / 4-digit year (1900-2099) / 5 or 6 digit serial number
+    const licenseRegex = /^[A-Z]{2}\/(19|20)\d{2}\/\d{5,6}$/;
+    return licenseRegex.test(licenseNo.trim());
   };
 
   const validateExperience = (experience) => {
@@ -357,6 +402,10 @@ const AdminDoctors = () => {
     } else if (name === 'experience') {
       // Only allow numbers
       processedValue = value.replace(/\D/g, '');
+    } else if (name === 'licenseNo') {
+      // Allow uppercase letters, numbers, and slashes only
+      // Auto-format: convert to uppercase, allow only valid characters
+      processedValue = value.toUpperCase().replace(/[^A-Z0-9\/]/g, '');
     }
     // For text fields (firstName, lastName, qualification, specialization, location, clinicHospitalName)
     // Don't block, but validate and show errors
@@ -434,6 +483,10 @@ const AdminDoctors = () => {
         } else {
           error = 'Name must contain only letters and be at least 2 characters';
         }
+      }
+    } else if (name === 'licenseNo' && processedValue) {
+      if (!validateLicenseNo(processedValue)) {
+        error = 'License number must be in format: XX/YYYY/XXXXX (e.g., TN/2020/123456)';
       }
     }
 
@@ -521,6 +574,10 @@ const AdminDoctors = () => {
         } else {
           error = 'Name must contain only letters and be at least 2 characters';
         }
+      }
+    } else if (name === 'licenseNo' && value) {
+      if (!validateLicenseNo(value)) {
+        error = 'License number must be in format: XX/YYYY/XXXXX (e.g., TN/2020/123456)';
       }
     } else if (name === 'password' && !selectedDoctor) {
       if (!value) {
@@ -713,17 +770,17 @@ const AdminDoctors = () => {
                         <td className="px-6 py-4 whitespace-nowrap">
                           <div className="text-sm text-gray-900 dark:text-white">{doctor.email}</div>
                           <div className="text-xs text-gray-500 dark:text-gray-400 mt-0.5">
-                            Joined: {doctor.createdAt ? new Date(doctor.createdAt).toLocaleDateString() : 'N/A'}
+                            Joined: {doctor.createdAt ? new Date(doctor.createdAt).toLocaleDateString() : 'Not available'}
                           </div>
                         </td>
                         <td className="px-6 py-4 whitespace-nowrap">
-                          <div className="text-sm font-medium text-gray-900 dark:text-white">{doctor.specialization || 'N/A'}</div>
+                          <div className="text-sm font-medium text-gray-900 dark:text-white">{doctor.specialization || 'Not specified'}</div>
                           <div className="text-xs text-gray-500 dark:text-gray-400 mt-0.5">
                             {doctor.location || 'No location'}
                           </div>
                         </td>
                         <td className="px-6 py-4 whitespace-nowrap">
-                          <div className="text-sm text-gray-900 dark:text-white">{doctor.experience ? `${doctor.experience} years` : 'N/A'}</div>
+                          <div className="text-sm text-gray-900 dark:text-white">{doctor.experience ? `${doctor.experience} years` : 'Not specified'}</div>
                           <div className="text-xs text-gray-500 dark:text-gray-400 mt-0.5">
                             {doctor.qualification || 'No qualification'}
                           </div>
@@ -1004,9 +1061,21 @@ const AdminDoctors = () => {
                       name="licenseNo"
                       value={formData.licenseNo}
                       onChange={handleInputChange}
-                      className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-blue-500"
-                      placeholder="License number"
+                      onBlur={handleBlur}
+                      maxLength={15}
+                      className={`w-full px-3 py-2 border rounded-md bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-blue-500 ${
+                        errors.licenseNo ? 'border-red-300 dark:border-red-600' : 'border-gray-300 dark:border-gray-600'
+                      }`}
+                      placeholder="e.g., TN/2020/123456"
                     />
+                    {errors.licenseNo && (
+                      <p className="mt-1 text-xs text-red-600 dark:text-red-400">{errors.licenseNo}</p>
+                    )}
+                    {!errors.licenseNo && formData.licenseNo && (
+                      <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">
+                        Format: 2 uppercase letters / 4-digit year / 5-6 digit number
+                      </p>
+                    )}
                   </div>
                   <div>
                     <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
@@ -1111,58 +1180,62 @@ const AdminDoctors = () => {
                 <div className="flex items-center border-b border-gray-200 dark:border-gray-700 pb-3">
                   <div className="w-1/3 font-medium text-gray-700 dark:text-gray-300">Full Name:</div>
                   <div className="w-2/3 text-gray-900 dark:text-white font-semibold">
-                    {selectedDoctor.name || `${selectedDoctor.firstName || ''} ${selectedDoctor.lastName || ''}`.trim() || 'N/A'}
+                    {selectedDoctor.name || `${selectedDoctor.firstName || ''} ${selectedDoctor.lastName || ''}`.trim() || 'This doctor is no longer available'}
                   </div>
                 </div>
                 <div className="flex items-center border-b border-gray-200 dark:border-gray-700 pb-3">
                   <div className="w-1/3 font-medium text-gray-700 dark:text-gray-300">Email:</div>
-                  <div className="w-2/3 text-gray-900 dark:text-white">{selectedDoctor.email || 'N/A'}</div>
+                  <div className="w-2/3 text-gray-900 dark:text-white">{selectedDoctor.email || 'Not provided'}</div>
                 </div>
                 <div className="flex items-center border-b border-gray-200 dark:border-gray-700 pb-3">
                   <div className="w-1/3 font-medium text-gray-700 dark:text-gray-300">Phone:</div>
-                  <div className="w-2/3 text-gray-900 dark:text-white">{selectedDoctor.phone || 'N/A'}</div>
+                  <div className="w-2/3 text-gray-900 dark:text-white">{selectedDoctor.phone || 'Not provided'}</div>
                 </div>
                 <div className="flex items-center border-b border-gray-200 dark:border-gray-700 pb-3">
                   <div className="w-1/3 font-medium text-gray-700 dark:text-gray-300">Gender:</div>
                   <div className="w-2/3">
-                    <span className={`px-3 py-1 text-sm font-medium rounded-full inline-block ${
-                      selectedDoctor.gender === 'male' ? 'bg-blue-100 text-blue-800 dark:bg-blue-900/30 dark:text-blue-400' :
-                      selectedDoctor.gender === 'female' ? 'bg-pink-100 text-pink-800 dark:bg-pink-900/30 dark:text-pink-400' :
-                      'bg-gray-100 text-gray-800 dark:bg-gray-900/30 dark:text-gray-400'
-                    }`}>
-                      {selectedDoctor.gender ? selectedDoctor.gender.charAt(0).toUpperCase() + selectedDoctor.gender.slice(1) : 'N/A'}
-                    </span>
+                    {selectedDoctor.gender ? (
+                      <span className={`px-3 py-1 text-sm font-medium rounded-full inline-block ${
+                        selectedDoctor.gender === 'male' ? 'bg-blue-100 text-blue-800 dark:bg-blue-900/30 dark:text-blue-400' :
+                        selectedDoctor.gender === 'female' ? 'bg-pink-100 text-pink-800 dark:bg-pink-900/30 dark:text-pink-400' :
+                        'bg-gray-100 text-gray-800 dark:bg-gray-900/30 dark:text-gray-400'
+                      }`}>
+                        {selectedDoctor.gender.charAt(0).toUpperCase() + selectedDoctor.gender.slice(1)}
+                      </span>
+                    ) : (
+                      <span className="text-sm text-gray-400 dark:text-gray-500 italic">Not specified</span>
+                    )}
                   </div>
                 </div>
                 <div className="flex items-center border-b border-gray-200 dark:border-gray-700 pb-3">
                   <div className="w-1/3 font-medium text-gray-700 dark:text-gray-300">Specialization:</div>
-                  <div className="w-2/3 text-gray-900 dark:text-white">{selectedDoctor.specialization || 'N/A'}</div>
+                  <div className="w-2/3 text-gray-900 dark:text-white">{selectedDoctor.specialization || 'Not specified'}</div>
                 </div>
                 <div className="flex items-center border-b border-gray-200 dark:border-gray-700 pb-3">
                   <div className="w-1/3 font-medium text-gray-700 dark:text-gray-300">Experience:</div>
                   <div className="w-2/3 text-gray-900 dark:text-white">
-                    {selectedDoctor.experience ? `${selectedDoctor.experience} years` : 'N/A'}
+                    {selectedDoctor.experience ? `${selectedDoctor.experience} years` : 'Not specified'}
                   </div>
                 </div>
                 <div className="flex items-center border-b border-gray-200 dark:border-gray-700 pb-3">
                   <div className="w-1/3 font-medium text-gray-700 dark:text-gray-300">Qualification:</div>
-                  <div className="w-2/3 text-gray-900 dark:text-white">{selectedDoctor.qualification || 'N/A'}</div>
+                  <div className="w-2/3 text-gray-900 dark:text-white">{selectedDoctor.qualification || 'Not specified'}</div>
                 </div>
                 <div className="flex items-center border-b border-gray-200 dark:border-gray-700 pb-3">
                   <div className="w-1/3 font-medium text-gray-700 dark:text-gray-300">Location:</div>
-                  <div className="w-2/3 text-gray-900 dark:text-white">{selectedDoctor.location || 'N/A'}</div>
+                  <div className="w-2/3 text-gray-900 dark:text-white">{selectedDoctor.location || 'Not specified'}</div>
                 </div>
                 <div className="flex items-center border-b border-gray-200 dark:border-gray-700 pb-3">
                   <div className="w-1/3 font-medium text-gray-700 dark:text-gray-300">License Number:</div>
-                  <div className="w-2/3 text-gray-900 dark:text-white">{selectedDoctor.licenseNo || 'N/A'}</div>
+                  <div className="w-2/3 text-gray-900 dark:text-white">{selectedDoctor.licenseNo || 'Not specified'}</div>
                 </div>
                 <div className="flex items-center border-b border-gray-200 dark:border-gray-700 pb-3">
                   <div className="w-1/3 font-medium text-gray-700 dark:text-gray-300">Clinic/Hospital Type:</div>
-                  <div className="w-2/3 text-gray-900 dark:text-white capitalize">{selectedDoctor.clinicHospitalType || 'N/A'}</div>
+                  <div className="w-2/3 text-gray-900 dark:text-white capitalize">{selectedDoctor.clinicHospitalType || 'Not specified'}</div>
                 </div>
                 <div className="flex items-center border-b border-gray-200 dark:border-gray-700 pb-3">
                   <div className="w-1/3 font-medium text-gray-700 dark:text-gray-300">Clinic/Hospital Name:</div>
-                  <div className="w-2/3 text-gray-900 dark:text-white">{selectedDoctor.clinicHospitalName || 'N/A'}</div>
+                  <div className="w-2/3 text-gray-900 dark:text-white">{selectedDoctor.clinicHospitalName || 'Not specified'}</div>
                 </div>
                 <div className="flex items-center border-b border-gray-200 dark:border-gray-700 pb-3">
                   <div className="w-1/3 font-medium text-gray-700 dark:text-gray-300">Status:</div>

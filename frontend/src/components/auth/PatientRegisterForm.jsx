@@ -17,8 +17,10 @@ const PatientRegisterForm = ({ setPatientData }) => {
   };
 
   const validateEmail = (email) => {
-    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-    return emailRegex.test(email);
+    // Email validation - only allows .com extension
+    // Pattern: localpart@domain.com
+    const emailRegex = /^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.com$/;
+    return emailRegex.test(email.trim());
   };
 
   const validatePassword = (password) => {
@@ -34,6 +36,9 @@ const PatientRegisterForm = ({ setPatientData }) => {
     if (name === 'fullName') {
       // Only allow letters and spaces
       processedValue = value.replace(/[^a-zA-Z\s]/g, '');
+    } else if (name === 'email') {
+      // Trim email but don't restrict characters (let validation handle it)
+      processedValue = value.trim();
     }
 
     setFormData(prev => ({
@@ -51,7 +56,7 @@ const PatientRegisterForm = ({ setPatientData }) => {
     if (name === 'fullName' && processedValue && !validateName(processedValue)) {
       error = 'Name must contain only letters and be at least 2 characters';
     } else if (name === 'email' && processedValue && !validateEmail(processedValue)) {
-      error = 'Please enter a valid email address';
+      error = 'Please enter a valid email address ending with .com (e.g., name@example.com)';
     } else if (name === 'password' && processedValue && !validatePassword(processedValue)) {
       error = 'Password must be at least 6 characters';
     } else if (name === 'password' && formData.confirmPassword && processedValue !== formData.confirmPassword) {
@@ -71,18 +76,19 @@ const PatientRegisterForm = ({ setPatientData }) => {
   const handleBlur = (e) => {
     const { name, value } = e.target;
     let error = '';
+    const trimmedValue = value.trim();
 
     if (name === 'fullName') {
-      if (!value) {
+      if (!trimmedValue) {
         error = 'Full name is required';
-      } else if (!validateName(value)) {
+      } else if (!validateName(trimmedValue)) {
         error = 'Name must contain only letters and be at least 2 characters';
       }
     } else if (name === 'email') {
-      if (!value) {
+      if (!trimmedValue) {
         error = 'Email is required';
-      } else if (!validateEmail(value)) {
-        error = 'Please enter a valid email address';
+      } else if (!validateEmail(trimmedValue)) {
+        error = 'Please enter a valid email address ending with .com (e.g., name@example.com)';
       }
     } else if (name === 'password') {
       if (!value) {

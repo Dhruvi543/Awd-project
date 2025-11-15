@@ -114,10 +114,6 @@ const AdminSettings = () => {
       const dataToSave = {
         siteName: formData.siteName?.trim() || '',
         siteDescription: formData.siteDescription?.trim() || '',
-        maintenanceMode: formData.maintenanceMode || false,
-        allowRegistration: formData.allowRegistration !== undefined ? formData.allowRegistration : true,
-        requireEmailVerification: formData.requireEmailVerification || false,
-        autoApproveDoctors: formData.autoApproveDoctors || false,
         maxAppointmentsPerDay: formData.maxAppointmentsPerDay || 10,
         appointmentDuration: formData.appointmentDuration || 30,
         workingHoursStart: formData.workingHoursStart || '09:00',
@@ -341,65 +337,6 @@ const AdminSettings = () => {
                     </>
                   )}
                 </button>
-              </div>
-            </div>
-
-            {/* System Settings */}
-            <div className="bg-white dark:bg-gray-800 rounded-xl shadow-md p-6 border border-gray-200 dark:border-gray-700">
-              <h2 className="text-xl font-bold text-gray-900 dark:text-white mb-4">System Settings</h2>
-              <div className="space-y-4">
-                <div className="flex items-center justify-between">
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Maintenance Mode</label>
-                    <p className="text-sm text-gray-500 dark:text-gray-400">Enable maintenance mode to restrict access</p>
-                  </div>
-                  <input
-                    type="checkbox"
-                    name="maintenanceMode"
-                    checked={formData.maintenanceMode || false}
-                    onChange={handleInputChange}
-                    className="w-5 h-5 text-blue-600 rounded"
-                  />
-                </div>
-                <div className="flex items-center justify-between">
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Allow Registration</label>
-                    <p className="text-sm text-gray-500 dark:text-gray-400">Allow new users to register</p>
-                  </div>
-                  <input
-                    type="checkbox"
-                    name="allowRegistration"
-                    checked={formData.allowRegistration || false}
-                    onChange={handleInputChange}
-                    className="w-5 h-5 text-blue-600 rounded"
-                  />
-                </div>
-                <div className="flex items-center justify-between">
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Require Email Verification</label>
-                    <p className="text-sm text-gray-500 dark:text-gray-400">Require email verification for new users</p>
-                  </div>
-                  <input
-                    type="checkbox"
-                    name="requireEmailVerification"
-                    checked={formData.requireEmailVerification || false}
-                    onChange={handleInputChange}
-                    className="w-5 h-5 text-blue-600 rounded"
-                  />
-                </div>
-                <div className="flex items-center justify-between">
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Auto Approve Doctors</label>
-                    <p className="text-sm text-gray-500 dark:text-gray-400">Automatically approve doctor registrations</p>
-                  </div>
-                  <input
-                    type="checkbox"
-                    name="autoApproveDoctors"
-                    checked={formData.autoApproveDoctors || false}
-                    onChange={handleInputChange}
-                    className="w-5 h-5 text-blue-600 rounded"
-                  />
-                </div>
               </div>
             </div>
 
@@ -638,9 +575,10 @@ const EmailUpdateForm = () => {
     if (!email || email.trim().length === 0) {
       return { valid: false, message: 'Email is required' };
     }
-    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-    if (!emailRegex.test(email)) {
-      return { valid: false, message: 'Please enter a valid email address' };
+    // Email validation - only allows .com extension
+    const emailRegex = /^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.com$/;
+    if (!emailRegex.test(email.trim())) {
+      return { valid: false, message: 'Please enter a valid email address ending with .com (e.g., name@example.com)' };
     }
     if (email.length > 254) {
       return { valid: false, message: 'Email address is too long (max 254 characters)' };

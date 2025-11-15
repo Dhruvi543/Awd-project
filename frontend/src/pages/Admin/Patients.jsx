@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { useSearchParams } from 'react-router-dom';
 import { apiService } from '../../api/apiService';
 
 const AdminPatients = () => {
@@ -16,7 +17,8 @@ const AdminPatients = () => {
     password: '',
   });
   const [errors, setErrors] = useState({});
-  const [searchTerm, setSearchTerm] = useState('');
+  const [searchParams] = useSearchParams();
+  const [searchTerm, setSearchTerm] = useState(searchParams.get('search') || '');
   const [genderFilter, setGenderFilter] = useState('all');
   const [currentPage, setCurrentPage] = useState(1);
   const [pagination, setPagination] = useState({ page: 1, limit: 10, total: 0, pages: 0 });
@@ -26,6 +28,14 @@ const AdminPatients = () => {
     female: 0,
     totalAppointments: 0
   });
+
+  // Sync search term from URL
+  useEffect(() => {
+    const urlSearch = searchParams.get('search') || '';
+    if (urlSearch !== searchTerm) {
+      setSearchTerm(urlSearch);
+    }
+  }, [searchParams]);
 
   useEffect(() => {
     fetchPatients();
@@ -79,8 +89,9 @@ const AdminPatients = () => {
   };
 
   const validateEmail = (email) => {
-    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-    return emailRegex.test(email);
+    // Email validation - only allows .com extension
+    const emailRegex = /^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.com$/;
+    return emailRegex.test(email.trim());
   };
 
   const validatePhone = (phone) => {
@@ -456,13 +467,13 @@ const AdminPatients = () => {
                         <td className="px-6 py-4 whitespace-nowrap">
                           <div className="text-sm font-medium text-gray-900 dark:text-white">{patient.name}</div>
                           <div className="text-xs text-gray-500 dark:text-gray-400 mt-0.5">
-                            ID: {patient._id?.slice(-6) || 'N/A'}
+                            ID: {patient._id?.slice(-6) || 'Not available'}
                           </div>
                         </td>
                         <td className="px-6 py-4 whitespace-nowrap">
                           <div className="text-sm text-gray-900 dark:text-white">{patient.email}</div>
                           <div className="text-xs text-gray-500 dark:text-gray-400 mt-0.5">
-                            Joined: {patient.createdAt ? new Date(patient.createdAt).toLocaleDateString() : 'N/A'}
+                            Joined: {patient.createdAt ? new Date(patient.createdAt).toLocaleDateString() : 'Not available'}
                           </div>
                         </td>
                         <td className="px-6 py-4 whitespace-nowrap">
@@ -472,13 +483,17 @@ const AdminPatients = () => {
                           </div>
                         </td>
                         <td className="px-6 py-4 whitespace-nowrap">
-                          <span className={`px-2 py-1 text-xs font-medium rounded-full ${
-                            patient.gender === 'male' ? 'bg-blue-100 text-blue-800 dark:bg-blue-900/30 dark:text-blue-400' :
-                            patient.gender === 'female' ? 'bg-pink-100 text-pink-800 dark:bg-pink-900/30 dark:text-pink-400' :
-                            'bg-gray-100 text-gray-800 dark:bg-gray-900/30 dark:text-gray-400'
-                          }`}>
-                            {patient.gender ? patient.gender.charAt(0).toUpperCase() + patient.gender.slice(1) : 'N/A'}
-                          </span>
+                          {patient.gender ? (
+                            <span className={`px-2 py-1 text-xs font-medium rounded-full ${
+                              patient.gender === 'male' ? 'bg-blue-100 text-blue-800 dark:bg-blue-900/30 dark:text-blue-400' :
+                              patient.gender === 'female' ? 'bg-pink-100 text-pink-800 dark:bg-pink-900/30 dark:text-pink-400' :
+                              'bg-gray-100 text-gray-800 dark:bg-gray-900/30 dark:text-gray-400'
+                            }`}>
+                              {patient.gender.charAt(0).toUpperCase() + patient.gender.slice(1)}
+                            </span>
+                          ) : (
+                            <span className="text-sm text-gray-400 dark:text-gray-500 italic">Not specified</span>
+                          )}
                         </td>
                         <td className="px-6 py-4 whitespace-nowrap text-sm font-medium">
                           <div className="flex gap-2">
@@ -689,17 +704,21 @@ const AdminPatients = () => {
                 </div>
                 <div className="border-b border-gray-200 dark:border-gray-700 pb-3">
                   <p className="text-sm text-gray-500 dark:text-gray-400 mb-1">Phone</p>
-                  <p className="text-lg text-gray-900 dark:text-white">{selectedPatient.phone || 'N/A'}</p>
+                  <p className="text-lg text-gray-900 dark:text-white">{selectedPatient.phone || 'Not provided'}</p>
                 </div>
                 <div className="border-b border-gray-200 dark:border-gray-700 pb-3">
                   <p className="text-sm text-gray-500 dark:text-gray-400 mb-1">Gender</p>
-                  <span className={`px-3 py-1 text-sm font-medium rounded-full inline-block ${
-                    selectedPatient.gender === 'male' ? 'bg-blue-100 text-blue-800 dark:bg-blue-900/30 dark:text-blue-400' :
-                    selectedPatient.gender === 'female' ? 'bg-pink-100 text-pink-800 dark:bg-pink-900/30 dark:text-pink-400' :
-                    'bg-gray-100 text-gray-800 dark:bg-gray-900/30 dark:text-gray-400'
-                  }`}>
-                    {selectedPatient.gender ? selectedPatient.gender.charAt(0).toUpperCase() + selectedPatient.gender.slice(1) : 'N/A'}
-                  </span>
+                  {selectedPatient.gender ? (
+                    <span className={`px-3 py-1 text-sm font-medium rounded-full inline-block ${
+                      selectedPatient.gender === 'male' ? 'bg-blue-100 text-blue-800 dark:bg-blue-900/30 dark:text-blue-400' :
+                      selectedPatient.gender === 'female' ? 'bg-pink-100 text-pink-800 dark:bg-pink-900/30 dark:text-pink-400' :
+                      'bg-gray-100 text-gray-800 dark:bg-gray-900/30 dark:text-gray-400'
+                    }`}>
+                      {selectedPatient.gender.charAt(0).toUpperCase() + selectedPatient.gender.slice(1)}
+                    </span>
+                  ) : (
+                    <span className="text-sm text-gray-400 dark:text-gray-500 italic">Not specified</span>
+                  )}
                 </div>
                 <div className="border-b border-gray-200 dark:border-gray-700 pb-3">
                   <p className="text-sm text-gray-500 dark:text-gray-400 mb-1">Role</p>
@@ -708,7 +727,7 @@ const AdminPatients = () => {
                 <div>
                   <p className="text-sm text-gray-500 dark:text-gray-400 mb-1">Registered On</p>
                   <p className="text-lg text-gray-900 dark:text-white">
-                    {selectedPatient.createdAt ? new Date(selectedPatient.createdAt).toLocaleString() : 'N/A'}
+                    {selectedPatient.createdAt ? new Date(selectedPatient.createdAt).toLocaleString() : 'Not available'}
                   </p>
                 </div>
               </div>

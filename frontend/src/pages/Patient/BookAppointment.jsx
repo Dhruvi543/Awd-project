@@ -19,6 +19,8 @@ const BookAppointment = () => {
   const [selectedMonth, setSelectedMonth] = useState(new Date().getMonth());
   const [selectedYear, setSelectedYear] = useState(new Date().getFullYear());
   const [bookedSlots, setBookedSlots] = useState([]);
+  const [doctorAvailability, setDoctorAvailability] = useState([]);
+  const [leaveDates, setLeaveDates] = useState([]);
 
   const [formData, setFormData] = useState({
     patientName: user?.name || '',
@@ -109,6 +111,7 @@ const BookAppointment = () => {
     
     if (doctorId) {
       fetchDoctor();
+      fetchDoctorAvailability();
       if (formData.appointmentDate) {
         fetchBookedSlots(formData.appointmentDate);
       }
@@ -168,6 +171,55 @@ const BookAppointment = () => {
     }
   };
 
+  const fetchDoctorAvailability = async () => {
+    if (!doctorId) return;
+    try {
+      const response = await apiService.getDoctorAvailability(doctorId);
+      if (response.data.success) {
+        const availability = response.data.data || [];
+        setDoctorAvailability(availability);
+        
+        // Extract leave dates
+        const leaves = availability.filter(item => item.type === 'leave' && item.isActive);
+        const leaveDateSet = new Set();
+        
+        leaves.forEach(leave => {
+          if (leave.startDate && leave.endDate) {
+            const start = new Date(leave.startDate);
+            const end = new Date(leave.endDate);
+            start.setHours(0, 0, 0, 0);
+            end.setHours(23, 59, 59, 999);
+            
+            // Check if there's a specific schedule override for any date in this leave period
+            const schedules = availability.filter(item => 
+              item.type === 'schedule' && 
+              item.isActive && 
+              item.startDate
+            );
+            
+            for (let d = new Date(start); d <= end; d.setDate(d.getDate() + 1)) {
+              const dateStr = formatDateLocal(d);
+              // Only add to leave dates if there's no schedule override for this specific date
+              const hasScheduleOverride = schedules.some(schedule => {
+                const scheduleDate = new Date(schedule.startDate);
+                scheduleDate.setHours(0, 0, 0, 0);
+                return formatDateLocal(scheduleDate) === dateStr;
+              });
+              
+              if (!hasScheduleOverride) {
+                leaveDateSet.add(dateStr);
+              }
+            }
+          }
+        });
+        
+        setLeaveDates(Array.from(leaveDateSet));
+      }
+    } catch (error) {
+      console.error('Error fetching doctor availability:', error);
+    }
+  };
+
   const handleChange = (e) => {
     const { name, value } = e.target;
     
@@ -186,6 +238,22 @@ const BookAppointment = () => {
         }));
       }
     } else if (name === 'appointmentDate') {
+      // Validate that the selected date is not a Sunday or on leave
+      if (value) {
+        const selectedDate = new Date(value);
+        const dayOfWeek = selectedDate.getDay();
+        
+        if (dayOfWeek === 0) {
+          setFieldErrors(prev => ({ ...prev, appointmentDate: 'Appointments cannot be booked on Sundays. Please select another day.' }));
+          return;
+        }
+        
+        if (leaveDates.includes(value)) {
+          setFieldErrors(prev => ({ ...prev, appointmentDate: 'Doctor is on leave on this date. Please select another date.' }));
+          return;
+        }
+      }
+      
       setFormData(prev => ({
         ...prev,
         [name]: value,
@@ -225,6 +293,21 @@ const BookAppointment = () => {
       errors.appointmentDate = 'Please select an appointment date';
       isValid = false;
     } else {
+      const selectedDate = new Date(formData.appointmentDate);
+      const dayOfWeek = selectedDate.getDay();
+      
+      // Check if Sunday
+      if (dayOfWeek === 0) {
+        errors.appointmentDate = 'Appointments cannot be booked on Sundays. Please select another day.';
+        isValid = false;
+      }
+      
+      // Check if on leave
+      if (leaveDates.includes(formData.appointmentDate)) {
+        errors.appointmentDate = 'Doctor is on leave on this date. Please select another date.';
+        isValid = false;
+      }
+      
       const appointmentDateTime = new Date(`${formData.appointmentDate}T${formData.startTime || '12:00'}`);
       const now = new Date();
       const hoursDifference = (appointmentDateTime - now) / (1000 * 60 * 60);
@@ -337,13 +420,17 @@ const BookAppointment = () => {
       const isFuture = date > maxDate;
       const isSelected = formData.appointmentDate === dateString;
       const isToday = dateString === formatDateLocal(today);
+      const isSunday = date.getDay() === 0;
+      const isOnLeave = leaveDates.includes(dateString);
       
       days.push({
         day,
         date: dateString,
-        disabled: isPast || isFuture,
+        disabled: isPast || isFuture || isSunday || isOnLeave,
         selected: isSelected,
-        today: isToday
+        today: isToday,
+        isSunday,
+        isOnLeave
       });
     }
     
@@ -416,9 +503,11 @@ const BookAppointment = () => {
                 }}
                 disabled={dayData.disabled}
                 className={`
-                  aspect-square flex items-center justify-center text-sm rounded-lg transition-colors
+                  aspect-square flex items-center justify-center text-sm rounded-lg transition-colors relative
                   ${dayData.disabled 
-                    ? 'text-gray-300 dark:text-gray-600 cursor-not-allowed' 
+                    ? dayData.isSunday || dayData.isOnLeave
+                      ? 'text-gray-400 dark:text-gray-600 bg-red-50 dark:bg-red-900/20 cursor-not-allowed'
+                      : 'text-gray-300 dark:text-gray-600 cursor-not-allowed'
                     : dayData.selected
                     ? 'bg-blue-600 text-white font-semibold'
                     : dayData.today
@@ -426,6 +515,7 @@ const BookAppointment = () => {
                     : 'text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 cursor-pointer'
                   }
                 `}
+                title={dayData.isSunday ? 'Sunday - No appointments available' : dayData.isOnLeave ? 'Doctor is on leave' : ''}
               >
                 {dayData.day}
               </button>

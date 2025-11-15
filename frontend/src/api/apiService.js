@@ -90,6 +90,7 @@ export const apiService = {
   getProfile: () => apiClient.get('/api/users/profile'),
   updateProfile: (userData) => apiClient.put('/api/users/profile', userData),
   changePassword: (passwordData) => apiClient.post('/api/users/change-password', passwordData),
+  deleteAccount: () => apiClient.delete('/api/users/account'),
   
   // Doctor methods
   getDoctors: (params = {}) => apiClient.get('/api/doctors', { params }),

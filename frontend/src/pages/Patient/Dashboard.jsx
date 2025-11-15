@@ -227,7 +227,7 @@ const PatientDashboard = () => {
                 >
                   <div className="flex-1">
                     <p className="font-medium text-gray-900 dark:text-white">
-                      Dr. {appointment.doctor?.name || appointment.doctorName || 'Unknown Doctor'}
+                      Dr. {appointment.doctor?.name || appointment.doctorName || 'This doctor is no longer available'}
                     </p>
                     <p className="text-sm text-gray-600 dark:text-gray-400">
                       {formatDate(appointment.appointmentDate)} at {appointment.startTime} - {appointment.endTime}
