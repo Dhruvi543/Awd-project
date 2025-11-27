@@ -533,16 +533,20 @@ const AdminPatients = () => {
                     <button
                       onClick={() => setCurrentPage(prev => Math.max(1, prev - 1))}
                       disabled={currentPage === 1}
-                      className="px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-md disabled:opacity-50"
+                      className="px-4 py-2 inline-flex items-center gap-2 border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-800 text-sm font-medium text-gray-700 dark:text-gray-200 hover:bg-gray-50 dark:hover:bg-gray-700 disabled:opacity-50 disabled:cursor-not-allowed"
+                      aria-label="Previous page"
                     >
-                      Previous
+                      <span aria-hidden="true">←</span>
+                      <span>Previous</span>
                     </button>
                     <button
                       onClick={() => setCurrentPage(prev => Math.min(pagination.pages, prev + 1))}
                       disabled={currentPage === pagination.pages}
-                      className="px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-md disabled:opacity-50"
+                      className="px-4 py-2 inline-flex items-center gap-2 border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-800 text-sm font-medium text-gray-700 dark:text-gray-200 hover:bg-gray-50 dark:hover:bg-gray-700 disabled:opacity-50 disabled:cursor-not-allowed"
+                      aria-label="Next page"
                     >
-                      Next
+                      <span>Next</span>
+                      <span aria-hidden="true">→</span>
                     </button>
                   </div>
                 </div>

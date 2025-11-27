@@ -45,11 +45,13 @@ import PatientNotifications from './pages/Patient/Notifications';
 import AdminDashboard from './pages/Admin/Dashboard';
 import AdminDoctors from './pages/Admin/Doctors';
 import AdminPatients from './pages/Admin/Patients';
+import AdminUsers from './pages/Admin/Users';
 import AdminAppointments from './pages/Admin/Appointments';
 import AdminReviews from './pages/Admin/Reviews';
 import AdminAvailability from './pages/Admin/Availability';
 import AdminAnalytics from './pages/Admin/Analytics';
 import AdminSettings from './pages/Admin/Settings';
+import AdminNotifications from './pages/Admin/Notifications';
 
 // Common Pages
 import Doctors from './pages/Common/Doctors';
@@ -157,12 +159,14 @@ function App() {
             </ProtectedRoute>
           }>
             <Route path="dashboard" element={<AdminDashboard />} />
+            <Route path="users" element={<AdminUsers />} />
             <Route path="doctors" element={<AdminDoctors />} />
             <Route path="patients" element={<AdminPatients />} />
             <Route path="appointments" element={<AdminAppointments />} />
             <Route path="reviews" element={<AdminReviews />} />
             <Route path="availability" element={<AdminAvailability />} />
             <Route path="analytics" element={<AdminAnalytics />} />
+            <Route path="notifications" element={<AdminNotifications />} />
             <Route path="settings" element={<AdminSettings />} />
           </Route>
 

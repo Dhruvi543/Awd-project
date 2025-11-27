@@ -355,9 +355,22 @@ const DoctorLayout = () => {
                                   }`}>
                                     {notification.message}
                                   </p>
-                                  <p className="text-xs text-gray-400 dark:text-gray-500 mt-1">
-                                    {new Date(notification.createdAt).toLocaleString()}
-                                  </p>
+                                  {notification.relatedAppointment?.appointmentDate ? (
+                                    <p className="text-xs text-blue-600 dark:text-blue-400 mt-1 font-medium">
+                                      Appointment Date: {new Date(notification.relatedAppointment.appointmentDate).toLocaleDateString('en-US', { 
+                                        weekday: 'long', 
+                                        year: 'numeric', 
+                                        month: 'long', 
+                                        day: 'numeric' 
+                                      })} {notification.relatedAppointment.startTime && `at ${notification.relatedAppointment.startTime}`}
+                                      {notification.relatedAppointment.endTime && ` - ${notification.relatedAppointment.endTime}`}
+                                    </p>
+                                  ) : null}
+                                  {notification.relatedAppointment?.prescription && (
+                                    <p className="text-xs text-green-600 dark:text-green-400 mt-1 italic">
+                                      Prescription: {notification.relatedAppointment.prescription}
+                                    </p>
+                                  )}
                                 </div>
                                 <button
                                   onClick={(e) => {
@@ -377,15 +390,15 @@ const DoctorLayout = () => {
                       )}
                     </div>
                     {notifications.length > 0 && (
-                      <div className="p-4 border-t border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-700">
+                      <div className="p-3 border-t border-gray-200 dark:border-gray-700 text-center bg-gray-50 dark:bg-gray-700">
                         <button
                           onClick={() => {
                             setShowNotifications(false);
-                            navigate('/doctor/appointments');
+                            navigate('/doctor/notifications');
                           }}
-                          className="w-full text-center text-sm text-blue-600 dark:text-blue-400 hover:text-blue-800 dark:hover:text-blue-300 font-medium"
+                          className="text-sm text-blue-600 dark:text-blue-400 hover:text-blue-800 dark:hover:text-blue-300 font-medium"
                         >
-                          View all appointments
+                          View all notifications
                         </button>
                       </div>
                     )}

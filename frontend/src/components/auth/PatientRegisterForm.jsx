@@ -24,8 +24,17 @@ const PatientRegisterForm = ({ setPatientData }) => {
   };
 
   const validatePassword = (password) => {
-    // At least 6 characters
-    return password.length >= 6;
+    // Get minPasswordLength from settings, default to 6
+    let minLength = 6;
+    try {
+      const settings = JSON.parse(localStorage.getItem('siteSettings') || '{}');
+      if (settings.minPasswordLength) {
+        minLength = parseInt(settings.minPasswordLength) || 6;
+      }
+    } catch (e) {
+      // Use default if settings not available
+    }
+    return password.length >= minLength;
   };
 
   const handleChange = (e) => {
@@ -58,7 +67,14 @@ const PatientRegisterForm = ({ setPatientData }) => {
     } else if (name === 'email' && processedValue && !validateEmail(processedValue)) {
       error = 'Please enter a valid email address ending with .com (e.g., name@example.com)';
     } else if (name === 'password' && processedValue && !validatePassword(processedValue)) {
-      error = 'Password must be at least 6 characters';
+      let minLength = 6;
+      try {
+        const settings = JSON.parse(localStorage.getItem('siteSettings') || '{}');
+        if (settings.minPasswordLength) {
+          minLength = parseInt(settings.minPasswordLength) || 6;
+        }
+      } catch (e) {}
+      error = `Password must be at least ${minLength} characters`;
     } else if (name === 'password' && formData.confirmPassword && processedValue !== formData.confirmPassword) {
       // If password changes and confirmPassword exists, check if they match
       setErrors(prev => ({ ...prev, confirmPassword: 'Passwords do not match' }));
@@ -94,7 +110,14 @@ const PatientRegisterForm = ({ setPatientData }) => {
       if (!value) {
         error = 'Password is required';
       } else if (!validatePassword(value)) {
-        error = 'Password must be at least 6 characters';
+        let minLength = 6;
+        try {
+          const settings = JSON.parse(localStorage.getItem('siteSettings') || '{}');
+          if (settings.minPasswordLength) {
+            minLength = parseInt(settings.minPasswordLength) || 6;
+          }
+        } catch (e) {}
+        error = `Password must be at least ${minLength} characters`;
       }
     } else if (name === 'confirmPassword') {
       if (!value) {

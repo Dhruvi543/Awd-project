@@ -7,7 +7,7 @@ const FILTERS = [
   { value: 'read', label: 'Read' },
 ];
 
-const PatientNotifications = () => {
+const AdminNotifications = () => {
   const [notifications, setNotifications] = useState([]);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState('');
@@ -16,16 +16,13 @@ const PatientNotifications = () => {
 
   useEffect(() => {
     fetchNotifications();
-    // Poll for new notifications every 30 seconds
-    const interval = setInterval(fetchNotifications, 30000);
-    return () => clearInterval(interval);
   }, []);
 
   const fetchNotifications = async () => {
     try {
       setIsLoading(true);
       setError('');
-      const response = await apiService.getNotifications();
+      const response = await apiService.getNotificationsAdmin({ limit: 200 });
       if (response.data.success) {
         setNotifications(response.data.data || []);
       }
@@ -39,7 +36,7 @@ const PatientNotifications = () => {
   const handleMarkAsRead = async (notificationId) => {
     try {
       setIsUpdating(true);
-      await apiService.markNotificationRead(notificationId);
+      await apiService.markNotificationReadAdmin(notificationId);
       setNotifications((prev) =>
         prev.map((notification) =>
           notification._id === notificationId ? { ...notification, isRead: true } : notification
@@ -55,7 +52,7 @@ const PatientNotifications = () => {
   const handleDelete = async (notificationId) => {
     try {
       setIsUpdating(true);
-      await apiService.deleteNotification(notificationId);
+      await apiService.deleteNotificationAdmin(notificationId);
       setNotifications((prev) => prev.filter((notification) => notification._id !== notificationId));
     } catch (err) {
       console.error('Failed to delete notification', err);
@@ -67,7 +64,7 @@ const PatientNotifications = () => {
   const handleMarkAllAsRead = async () => {
     try {
       setIsUpdating(true);
-      await apiService.markAllNotificationsRead();
+      await apiService.markAllNotificationsReadAdmin();
       setNotifications((prev) => prev.map((notification) => ({ ...notification, isRead: true })));
     } catch (err) {
       console.error('Failed to mark all notifications as read', err);
@@ -89,7 +86,7 @@ const PatientNotifications = () => {
           <div>
             <h1 className="text-3xl font-bold text-gray-900 dark:text-white mb-1">Notifications</h1>
             <p className="text-gray-600 dark:text-gray-400">
-              Review alerts for your appointments and keep your schedule organized.
+              Review alerts generated across the platform and keep your queue organized.
             </p>
           </div>
           <div className="flex items-center gap-3">
@@ -139,20 +136,20 @@ const PatientNotifications = () => {
                 >
                   <div className="flex items-start gap-3">
                     <span className="text-2xl" aria-hidden="true">
-                      {notification.type === 'appointment_request' ? '📅' : 
-                       notification.type === 'appointment_confirmed' ? '✅' : 
-                       notification.type === 'appointment_cancelled' ? '❌' : 
-                       notification.type === 'appointment_rejected' ? '🚫' : 
-                       notification.type === 'appointment_completed' ? '✔️' : '🔔'}
+                      {notification.type === 'doctor_registered'
+                        ? '👨‍⚕️'
+                        : notification.type === 'patient_registered'
+                        ? '👤'
+                        : '🔔'}
                     </span>
                     <div>
                       <div className="flex items-center gap-2">
                         <p className="text-sm font-semibold text-gray-900 dark:text-white">
-                          {notification.type === 'appointment_request' ? 'Appointment Request' : 
-                           notification.type === 'appointment_confirmed' ? 'Appointment Confirmed' : 
-                           notification.type === 'appointment_cancelled' ? 'Appointment Cancelled' : 
-                           notification.type === 'appointment_rejected' ? 'Appointment Rejected' : 
-                           notification.type === 'appointment_completed' ? 'Appointment Completed' : 'Notification'}
+                          {notification.type === 'doctor_registered'
+                            ? 'New Doctor'
+                            : notification.type === 'patient_registered'
+                            ? 'New Patient'
+                            : 'Notification'}
                         </p>
                         {!notification.isRead && (
                           <span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-blue-100 text-blue-800 dark:bg-blue-900/30 dark:text-blue-300">
@@ -164,22 +161,6 @@ const PatientNotifications = () => {
                       {notification.relatedUser && (
                         <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
                           {notification.relatedUser.name} ({notification.relatedUser.email})
-                        </p>
-                      )}
-                      {notification.relatedAppointment?.appointmentDate && (
-                        <p className="text-xs text-blue-600 dark:text-blue-400 mt-1 font-medium">
-                          Appointment Date: {new Date(notification.relatedAppointment.appointmentDate).toLocaleDateString('en-US', { 
-                            weekday: 'long', 
-                            year: 'numeric', 
-                            month: 'long', 
-                            day: 'numeric' 
-                          })} {notification.relatedAppointment.startTime && `at ${notification.relatedAppointment.startTime}`}
-                          {notification.relatedAppointment.endTime && ` - ${notification.relatedAppointment.endTime}`}
-                        </p>
-                      )}
-                      {notification.relatedAppointment?.prescription && (
-                        <p className="text-xs text-green-600 dark:text-green-400 mt-1 italic">
-                          Prescription: {notification.relatedAppointment.prescription}
                         </p>
                       )}
                       <p className="text-xs text-gray-400 dark:text-gray-500 mt-2">
@@ -215,5 +196,5 @@ const PatientNotifications = () => {
   );
 };
 
-export default PatientNotifications;
+export default AdminNotifications;
 

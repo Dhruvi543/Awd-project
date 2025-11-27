@@ -1494,7 +1494,8 @@ const updateSettings = asyncHandler(async (req, res) => {
     const allowedFields = [
       'siteName', 'siteDescription',
       'maxAppointmentsPerDay', 'appointmentDuration', 'workingHoursStart', 'workingHoursEnd',
-      'minPasswordLength', 'sessionTimeout'
+      'minPasswordLength', 'sessionTimeout',
+      'maintenanceMode', 'allowRegistration', 'requireEmailVerification', 'autoApproveDoctors'
     ];
     
     allowedFields.forEach(key => {

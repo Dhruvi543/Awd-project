@@ -529,7 +529,7 @@ const DoctorDashboard = () => {
             <div className="flex items-center justify-between mb-4">
               <h2 className="text-xl font-bold text-gray-900 dark:text-white">Upcoming Appointments</h2>
               <Link
-                to="/doctor/appointments"
+                to="/doctor/appointments?filter=upcoming"
                 className="text-sm text-blue-600 dark:text-blue-400 hover:text-blue-800 dark:hover:text-blue-300 font-medium"
               >
                 View All

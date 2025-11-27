@@ -23,8 +23,13 @@ export const RoutePath = {
   // Admin routes
   ADMIN_DASHBOARD: '/admin/dashboard',
   ADMIN_DOCTORS: '/admin/doctors',
+  ADMIN_USERS: '/admin/users',
   ADMIN_PATIENTS: '/admin/patients',
   ADMIN_APPOINTMENTS: '/admin/appointments',
+  ADMIN_REVIEWS: '/admin/reviews',
+  ADMIN_AVAILABILITY: '/admin/availability',
+  ADMIN_ANALYTICS: '/admin/analytics',
+  ADMIN_NOTIFICATIONS: '/admin/notifications',
   ADMIN_SETTINGS: '/admin/settings',
   
   // Common routes

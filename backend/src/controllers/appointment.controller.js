@@ -4,6 +4,7 @@ import Appointment from '../models/Appointment.js';
 import User from '../models/User.js';
 import Availability from '../models/Availability.js';
 import Notification from '../models/Notification.js';
+import Setting from '../models/Setting.js';
 
 // Helper function to compare ObjectIds reliably
 const compareObjectIds = (id1, id2) => {
@@ -207,6 +208,62 @@ const bookAppointment = asyncHandler(async (req, res) => {
       });
     }
     
+    // Validate appointment time is within working hours
+    const settings = await Setting.getSettings();
+    const workingHoursStart = settings.workingHoursStart || '09:00';
+    const workingHoursEnd = settings.workingHoursEnd || '17:00';
+    
+    // Parse working hours
+    const [startHour, startMinute] = workingHoursStart.split(':').map(Number);
+    const [endHour, endMinute] = workingHoursEnd.split(':').map(Number);
+    const startMinutes = startHour * 60 + startMinute;
+    const endMinutes = endHour * 60 + endMinute;
+    
+    // Parse appointment time
+    const [apptHour, apptMinute] = startTime.split(':').map(Number);
+    const [apptEndHour, apptEndMinute] = endTime.split(':').map(Number);
+    const apptStartMinutes = apptHour * 60 + apptMinute;
+    const apptEndMinutes = apptEndHour * 60 + apptEndMinute;
+    
+    // Check if appointment start time is within working hours
+    if (apptStartMinutes < startMinutes || apptStartMinutes >= endMinutes) {
+      return res.status(400).json({
+        success: false,
+        message: `Appointment start time must be between ${workingHoursStart} and ${workingHoursEnd}`
+      });
+    }
+    
+    // Check if appointment end time is within working hours
+    if (apptEndMinutes <= startMinutes || apptEndMinutes > endMinutes) {
+      return res.status(400).json({
+        success: false,
+        message: `Appointment end time must be between ${workingHoursStart} and ${workingHoursEnd}`
+      });
+    }
+    
+    // Check if appointment doesn't extend beyond working hours
+    if (apptEndMinutes > endMinutes) {
+      return res.status(400).json({
+        success: false,
+        message: `Appointment cannot extend beyond working hours (${workingHoursEnd})`
+      });
+    }
+    
+    // Check max appointments per day for the doctor
+    const maxAppointmentsPerDay = settings.maxAppointmentsPerDay || 10;
+    const appointmentsCount = await Appointment.countDocuments({
+      doctor: doctorId,
+      appointmentDate: new Date(appointmentDate),
+      status: { $in: ['pending', 'confirmed'] }
+    });
+    
+    if (appointmentsCount >= maxAppointmentsPerDay) {
+      return res.status(400).json({
+        success: false,
+        message: `Doctor has reached the maximum appointments per day (${maxAppointmentsPerDay}). Please select another date.`
+      });
+    }
+    
     // Check if doctor is on leave on the requested date
     const leaveCheck = await isDateOnLeave(doctorId, appointmentDate);
     if (leaveCheck.isOnLeave) {
@@ -383,6 +440,70 @@ const updatePatientAppointment = asyncHandler(async (req, res) => {
         return res.status(400).json({
           success: false,
           message: 'Appointments cannot be booked on Sundays. Please select another day.'
+        });
+      }
+      
+      // Validate appointment time is within working hours
+      const settings = await Setting.getSettings();
+      const workingHoursStart = settings.workingHoursStart || '09:00';
+      const workingHoursEnd = settings.workingHoursEnd || '17:00';
+      
+      // Parse working hours
+      const [startHour, startMinute] = workingHoursStart.split(':').map(Number);
+      const [endHour, endMinute] = workingHoursEnd.split(':').map(Number);
+      const startMinutes = startHour * 60 + startMinute;
+      const endMinutes = endHour * 60 + endMinute;
+      
+      // Parse appointment time
+      const [apptHour, apptMinute] = startTime.split(':').map(Number);
+      const [apptEndHour, apptEndMinute] = endTime.split(':').map(Number);
+      const apptStartMinutes = apptHour * 60 + apptMinute;
+      const apptEndMinutes = apptEndHour * 60 + apptEndMinute;
+      
+      // Check if appointment start time is within working hours
+      if (apptStartMinutes < startMinutes || apptStartMinutes >= endMinutes) {
+        return res.status(400).json({
+          success: false,
+          message: `Appointment start time must be between ${workingHoursStart} and ${workingHoursEnd}`
+        });
+      }
+      
+      // Check if appointment end time is within working hours
+      if (apptEndMinutes <= startMinutes || apptEndMinutes > endMinutes) {
+        return res.status(400).json({
+          success: false,
+          message: `Appointment end time must be between ${workingHoursStart} and ${workingHoursEnd}`
+        });
+      }
+      
+      // Check if appointment doesn't extend beyond working hours
+      if (apptEndMinutes > endMinutes) {
+        return res.status(400).json({
+          success: false,
+          message: `Appointment cannot extend beyond working hours (${workingHoursEnd})`
+        });
+      }
+      
+      // Check max appointments per day for the doctor
+      const maxAppointmentsPerDay = settings.maxAppointmentsPerDay || 10;
+      const appointmentsCount = await Appointment.countDocuments({
+        doctor: appointment.doctor,
+        appointmentDate: new Date(appointmentDate),
+        status: { $in: ['pending', 'confirmed'] }
+      });
+      
+      // Don't count the current appointment being updated
+      const currentAppointmentCount = await Appointment.countDocuments({
+        doctor: appointment.doctor,
+        appointmentDate: new Date(appointmentDate),
+        status: { $in: ['pending', 'confirmed'] },
+        _id: { $ne: appointmentId }
+      });
+      
+      if (currentAppointmentCount >= maxAppointmentsPerDay) {
+        return res.status(400).json({
+          success: false,
+          message: `Doctor has reached the maximum appointments per day (${maxAppointmentsPerDay}). Please select another date.`
         });
       }
       
@@ -708,17 +829,10 @@ const confirmAppointment = asyncHandler(async (req, res) => {
     
     // Create notification for patient
     try {
-      const appointmentDate = new Date(appointment.appointmentDate);
-      const formattedDate = appointmentDate.toLocaleDateString('en-US', { 
-        weekday: 'long', 
-        year: 'numeric', 
-        month: 'long', 
-        day: 'numeric' 
-      });
       const patientNotification = new Notification({
         user: appointment.patient._id,
         type: 'appointment_confirmed',
-        message: `Your appointment with Dr. ${appointment.doctor.name} has been confirmed. Scheduled for ${formattedDate} at ${appointment.startTime} - ${appointment.endTime}`,
+        message: `Your appointment with Dr. ${appointment.doctor.name} has been confirmed`,
         link: `/patient/appointments`,
         relatedUser: doctorId,
         relatedAppointment: appointment._id
@@ -793,7 +907,7 @@ const rejectAppointment = asyncHandler(async (req, res) => {
       const patientNotification = new Notification({
         user: appointment.patient._id,
         type: 'appointment_rejected',
-        message: `Your appointment with Dr. ${appointment.doctor.name} on ${new Date(appointment.appointmentDate).toLocaleDateString()} at ${appointment.startTime} has been rejected. Reason: ${rejectionReason}`,
+        message: `Your appointment with Dr. ${appointment.doctor.name} has been rejected. Reason: ${rejectionReason}`,
         link: `/patient/appointments`,
         relatedUser: doctorId,
         relatedAppointment: appointment._id,
@@ -866,17 +980,10 @@ const cancelConfirmedAppointment = asyncHandler(async (req, res) => {
     
     // Create notification for patient
     try {
-      const appointmentDate = new Date(appointment.appointmentDate);
-      const formattedDate = appointmentDate.toLocaleDateString('en-US', { 
-        weekday: 'long', 
-        year: 'numeric', 
-        month: 'long', 
-        day: 'numeric' 
-      });
       const patientNotification = new Notification({
         user: appointment.patient._id,
         type: 'appointment_cancelled',
-        message: `Your confirmed appointment with Dr. ${appointment.doctor.name} scheduled for ${formattedDate} at ${appointment.startTime} - ${appointment.endTime} has been cancelled. Reason: ${cancellationReason}`,
+        message: `Your confirmed appointment with Dr. ${appointment.doctor.name} has been cancelled. Reason: ${cancellationReason}`,
         link: `/patient/appointments`,
         relatedUser: doctorId,
         relatedAppointment: appointment._id,
@@ -944,10 +1051,14 @@ const completeAppointment = asyncHandler(async (req, res) => {
     
     // Create notification for patient
     try {
+      let message = `Your appointment with Dr. ${appointment.doctor.name} has been completed`;
+      if (prescription && prescription.trim()) {
+        message += `. Prescription: ${prescription.trim()}`;
+      }
       const patientNotification = new Notification({
         user: appointment.patient._id,
         type: 'appointment_completed',
-        message: `Your appointment with Dr. ${appointment.doctor.name} on ${new Date(appointment.appointmentDate).toLocaleDateString()} has been completed`,
+        message: message,
         link: `/patient/appointments`,
         relatedUser: doctorId,
         relatedAppointment: appointment._id

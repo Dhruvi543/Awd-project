@@ -3,6 +3,7 @@ import jwt from 'jsonwebtoken';
 import { z } from 'zod';
 import User from '../models/User.js';
 import Notification from '../models/Notification.js';
+import Setting from '../models/Setting.js';
 import { ENV } from '../config/env.js';
 import asyncHandler from '../utils/asyncHandler.js';
 
@@ -85,11 +86,45 @@ const loginSchema = z.object({
 });
 
 const register = asyncHandler(async (req, res) => {
+  // Check if registration is allowed
+  const settings = await Setting.getSettings();
+  if (settings.allowRegistration === false) {
+    return res.status(403).json({
+      success: false,
+      message: 'Registration is currently disabled. Please contact the administrator.'
+    });
+  }
+
   const isDoctor = req.body.role === 'doctor';
   const schema = isDoctor ? doctorRegisterSchema : patientRegisterSchema;
 
+  // Get minPasswordLength from settings
+  const minPasswordLength = settings.minPasswordLength || 6;
+  
+  // Dynamically update password validation based on settings
+  const passwordSchema = z.string().min(minPasswordLength, `Password must be at least ${minPasswordLength} characters`);
+  
+  // Create dynamic schemas with updated password validation
+  const dynamicPatientSchema = patientRegisterSchema.extend({
+    password: passwordSchema,
+    confirmPassword: passwordSchema,
+  }).refine((data) => data.password === data.confirmPassword, {
+    message: "Passwords don't match",
+    path: ["confirmPassword"],
+  });
+
+  const dynamicDoctorSchema = doctorRegisterSchema.extend({
+    password: passwordSchema,
+    confirmPassword: passwordSchema,
+  }).refine((data) => data.password === data.confirmPassword, {
+    message: "Passwords don't match",
+    path: ["confirmPassword"],
+  });
+
+  const finalSchema = isDoctor ? dynamicDoctorSchema : dynamicPatientSchema;
+
   // Validate input data
-  const validationResult = schema.safeParse(req.body);
+  const validationResult = finalSchema.safeParse(req.body);
   
   if (!validationResult.success) {
     return res.status(400).json({
@@ -109,8 +144,8 @@ const register = asyncHandler(async (req, res) => {
   // Set name based on role
   if (isDoctor) {
     userData.name = `${validatedData.firstName} ${validatedData.lastName}`;
-    // Doctors need admin approval - set isApproved to false
-    userData.isApproved = false;
+    // Use autoApproveDoctors setting
+    userData.isApproved = settings.autoApproveDoctors === true;
   } else {
     userData.name = validatedData.fullName;
     // Patients are auto-approved
@@ -152,6 +187,7 @@ const register = asyncHandler(async (req, res) => {
   // For doctors, don't generate token - they need approval first
   if (isDoctor) {
     return res.status(201).json({
+      success: true,
       message: 'Registration successful! Your account is pending admin approval. You will be able to login once approved.',
       user: {
         id: user._id,
@@ -176,6 +212,7 @@ const register = asyncHandler(async (req, res) => {
   });
 
   res.status(201).json({
+    success: true,
     message: 'User registered successfully',
     token: token, // Also return token in response body for frontend to store
     user: {
@@ -267,6 +304,7 @@ const login = asyncHandler(async (req, res) => {
   }
 
   res.json({
+    success: true,
     message: approvalMessage || 'Login successful',
     token: token, // Also return token in response body for frontend to store
     user: {
@@ -289,6 +327,7 @@ const logout = asyncHandler(async (req, res) => {
   });
 
   res.json({
+    success: true,
     message: 'Logout successful',
   });
 });

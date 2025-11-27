@@ -39,7 +39,17 @@ const DoctorRegisterForm = ({ setDoctorData }) => {
   };
 
   const validatePassword = (password) => {
-    return password.length >= 6;
+    // Get minPasswordLength from settings, default to 6
+    let minLength = 6;
+    try {
+      const settings = JSON.parse(localStorage.getItem('siteSettings') || '{}');
+      if (settings.minPasswordLength) {
+        minLength = parseInt(settings.minPasswordLength) || 6;
+      }
+    } catch (e) {
+      // Use default if settings not available
+    }
+    return password.length >= minLength;
   };
 
   const validateExperience = (experience) => {
@@ -105,7 +115,14 @@ const DoctorRegisterForm = ({ setDoctorData }) => {
     } else if (name === 'phone' && processedValue && !validatePhone(processedValue)) {
       error = 'Phone number must be exactly 10 digits';
     } else if (name === 'password' && processedValue && !validatePassword(processedValue)) {
-      error = 'Password must be at least 6 characters';
+      let minLength = 6;
+      try {
+        const settings = JSON.parse(localStorage.getItem('siteSettings') || '{}');
+        if (settings.minPasswordLength) {
+          minLength = parseInt(settings.minPasswordLength) || 6;
+        }
+      } catch (e) {}
+      error = `Password must be at least ${minLength} characters`;
     } else if (name === 'password' && formData.confirmPassword && processedValue !== formData.confirmPassword) {
       // If password changes and confirmPassword exists, check if they match
       setErrors(prev => ({ ...prev, confirmPassword: 'Passwords do not match' }));
@@ -208,7 +225,14 @@ const DoctorRegisterForm = ({ setDoctorData }) => {
       if (!value) {
         error = 'Password is required';
       } else if (!validatePassword(value)) {
-        error = 'Password must be at least 6 characters';
+        let minLength = 6;
+        try {
+          const settings = JSON.parse(localStorage.getItem('siteSettings') || '{}');
+          if (settings.minPasswordLength) {
+            minLength = parseInt(settings.minPasswordLength) || 6;
+          }
+        } catch (e) {}
+        error = `Password must be at least ${minLength} characters`;
       }
     } else if (name === 'confirmPassword') {
       if (!value) {

@@ -14,6 +14,20 @@ const getNotifications = asyncHandler(async (req, res) => {
     
     const notifications = await Notification.find(query)
       .populate('relatedUser', 'name email')
+      .populate({
+        path: 'relatedAppointment',
+        select: 'appointmentDate startTime endTime status prescription consultationNotes',
+        populate: [
+          {
+            path: 'doctor',
+            select: 'name specialization'
+          },
+          {
+            path: 'patient',
+            select: 'name email'
+          }
+        ]
+      })
       .sort({ createdAt: -1 })
       .limit(50);
     

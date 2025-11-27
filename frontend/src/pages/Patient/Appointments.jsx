@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { Link, useSearchParams, useNavigate } from 'react-router-dom';
 import { apiService } from '../../api/apiService';
 
@@ -30,6 +30,11 @@ const PatientAppointments = () => {
   const [bookedSlots, setBookedSlots] = useState([]);
   const [error, setError] = useState('');
   const [success, setSuccess] = useState('');
+  const [workingHours, setWorkingHours] = useState({
+    start: '09:00',
+    end: '17:00',
+    duration: 30
+  });
 
   const [editFormData, setEditFormData] = useState({
     appointmentDate: '',
@@ -37,6 +42,50 @@ const PatientAppointments = () => {
     endTime: '',
     consultationNotes: ''
   });
+
+  // Fetch working hours settings
+  useEffect(() => {
+    const fetchWorkingHours = async () => {
+      try {
+        // Try to get from localStorage first (faster)
+        const cachedSettings = localStorage.getItem('siteSettings');
+        if (cachedSettings) {
+          const settings = JSON.parse(cachedSettings);
+          if (settings.workingHoursStart && settings.workingHoursEnd) {
+            setWorkingHours({
+              start: settings.workingHoursStart,
+              end: settings.workingHoursEnd,
+              duration: settings.appointmentDuration || 30
+            });
+            return;
+          }
+        }
+        
+        // Fetch from API if not in cache
+        const response = await apiService.getSettings();
+        if (response.data.success && response.data.data) {
+          const settings = response.data.data;
+          setWorkingHours({
+            start: settings.workingHoursStart || '09:00',
+            end: settings.workingHoursEnd || '17:00',
+            duration: settings.appointmentDuration || 30
+          });
+          // Cache for future use
+          localStorage.setItem('siteSettings', JSON.stringify(settings));
+        }
+      } catch (error) {
+        console.error('Error fetching working hours:', error);
+        // Use defaults if fetch fails
+        setWorkingHours({
+          start: '09:00',
+          end: '17:00',
+          duration: 30
+        });
+      }
+    };
+    
+    fetchWorkingHours();
+  }, []);
 
   useEffect(() => {
     // Update filter when URL parameter changes
@@ -139,18 +188,33 @@ const PatientAppointments = () => {
     return maxDate.toISOString().split('T')[0];
   };
 
-  // Generate time slots (9:00 AM to 6:00 PM, 30-minute intervals)
+  // Generate time slots based on admin working hours settings
   const generateTimeSlots = () => {
     const slots = [];
-    const startHour = 9;
-    const endHour = 18;
     
-    for (let hour = startHour; hour < endHour; hour++) {
-      for (let minute = 0; minute < 60; minute += 30) {
-        const timeString = `${hour.toString().padStart(2, '0')}:${minute.toString().padStart(2, '0')}`;
-        const endTime = new Date();
-        endTime.setHours(hour, minute + 30, 0);
-        const endTimeString = `${endTime.getHours().toString().padStart(2, '0')}:${endTime.getMinutes().toString().padStart(2, '0')}`;
+    // Parse working hours from settings
+    const [startHour, startMinute] = workingHours.start.split(':').map(Number);
+    const [endHour, endMinute] = workingHours.end.split(':').map(Number);
+    const duration = workingHours.duration || 30;
+    
+    // Convert to minutes for easier calculation
+    const startMinutes = startHour * 60 + startMinute;
+    const endMinutes = endHour * 60 + endMinute;
+    
+    // Generate slots based on duration
+    for (let currentMinutes = startMinutes; currentMinutes + duration <= endMinutes; currentMinutes += duration) {
+      const hour = Math.floor(currentMinutes / 60);
+      const minute = currentMinutes % 60;
+      const timeString = `${hour.toString().padStart(2, '0')}:${minute.toString().padStart(2, '0')}`;
+      
+      // Calculate end time
+      const endTimeMinutes = currentMinutes + duration;
+      const endHourCalc = Math.floor(endTimeMinutes / 60);
+      const endMinuteCalc = endTimeMinutes % 60;
+      const endTimeString = `${endHourCalc.toString().padStart(2, '0')}:${endMinuteCalc.toString().padStart(2, '0')}`;
+      
+      // Only add slot if end time is within working hours
+      if (endTimeMinutes <= endMinutes) {
         slots.push({
           value: timeString,
           label: `${formatTime(timeString)} - ${formatTime(endTimeString)}`,
@@ -159,6 +223,7 @@ const PatientAppointments = () => {
         });
       }
     }
+    
     return slots;
   };
 
@@ -171,7 +236,8 @@ const PatientAppointments = () => {
     return `${hour12}:${minutes} ${ampm}`;
   };
 
-  const timeSlots = generateTimeSlots();
+  // Generate time slots when working hours change
+  const timeSlots = useMemo(() => generateTimeSlots(), [workingHours]);
 
   // Helper function to format date in local timezone (YYYY-MM-DD)
   const formatDateLocal = (date) => {

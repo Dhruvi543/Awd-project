@@ -1,0 +1,134 @@
+DOXI - USE CASE DIAGRAM TEXT REPRESENTATION
+============================================
+
+Use this text as a reference to create your visual Use Case Diagram in Draw.io, Lucidchart, or similar tools.
+
+ACTORS (3):
+-----------
+1. Patient (Stick Figure)
+2. Doctor (Stick Figure)
+3. Administrator (Stick Figure)
+
+PATIENT USE CASES (Ovals):
+---------------------------
+- Register/Login
+- Search Doctors
+- View Doctor Profile
+- Book Appointment
+- View Appointments
+- Cancel Appointment
+- Rate & Review Doctor
+- View Notifications
+- Update Profile
+- Manage Settings
+
+DOCTOR USE CASES (Ovals):
+--------------------------
+- Register/Login
+- Update Profile
+- Set Availability Schedule
+- Set Leave Dates
+- View Appointment Requests
+- Confirm Appointment
+- Reject Appointment
+- Complete Appointment
+- Add Prescription
+- View Reviews
+- View Notifications
+- View Dashboard Statistics
+
+ADMINISTRATOR USE CASES (Ovals):
+---------------------------------
+- Admin Login
+- View Dashboard Analytics
+- Manage Doctors (View, Create, Update, Delete)
+- Approve Doctor Registration
+- Reject Doctor Registration
+- Manage Patients (View, Update, Delete)
+- View All Appointments
+- View All Reviews
+- View System Statistics
+- Manage Settings
+
+SYSTEM USE CASES (Ovals):
+-------------------------
+- Send Notifications
+- Validate Appointments
+- Check Availability
+- Authenticate Users
+- Authorize Access (RBAC)
+
+CONNECTIONS:
+------------
+[Patient] --> (Register/Login)
+[Patient] --> (Search Doctors)
+[Patient] --> (View Doctor Profile)
+[Patient] --> (Book Appointment)
+[Patient] --> (View Appointments)
+[Patient] --> (Cancel Appointment)
+[Patient] --> (Rate & Review Doctor)
+[Patient] --> (View Notifications)
+[Patient] --> (Update Profile)
+[Patient] --> (Manage Settings)
+
+[Doctor] --> (Register/Login)
+[Doctor] --> (Update Profile)
+[Doctor] --> (Set Availability Schedule)
+[Doctor] --> (Set Leave Dates)
+[Doctor] --> (View Appointment Requests)
+[Doctor] --> (Confirm Appointment)
+[Doctor] --> (Reject Appointment)
+[Doctor] --> (Complete Appointment)
+[Doctor] --> (Add Prescription)
+[Doctor] --> (View Reviews)
+[Doctor] --> (View Notifications)
+[Doctor] --> (View Dashboard Statistics)
+
+[Administrator] --> (Admin Login)
+[Administrator] --> (View Dashboard Analytics)
+[Administrator] --> (Manage Doctors)
+[Administrator] --> (Approve Doctor Registration)
+[Administrator] --> (Reject Doctor Registration)
+[Administrator] --> (Manage Patients)
+[Administrator] --> (View All Appointments)
+[Administrator] --> (View All Reviews)
+[Administrator] --> (View System Statistics)
+[Administrator] --> (Manage Settings)
+
+[System] --> (Send Notifications)
+[System] --> (Validate Appointments)
+[System] --> (Check Availability)
+[System] --> (Authenticate Users)
+[System] --> (Authorize Access)
+
+CROSS-ACTOR RELATIONSHIPS:
+--------------------------
+(Book Appointment) --> (View Appointment Requests)
+(Book Appointment) --> (Check Availability)
+(Confirm Appointment) --> (Send Notifications)
+(Reject Appointment) --> (Send Notifications)
+(Complete Appointment) --> (Send Notifications)
+(Rate & Review Doctor) --> (View Reviews)
+(Set Availability Schedule) --> (Check Availability)
+(Set Leave Dates) --> (Check Availability)
+
+NOTES FOR DIAGRAM CREATION:
+---------------------------
+1. Use Draw.io (https://app.diagrams.net/) - Free and easy
+2. Create 3 stick figures for actors (Patient, Doctor, Admin)
+3. Create ovals for use cases
+4. Use arrows to connect actors to use cases
+5. Use dashed arrows for relationships between use cases
+6. Group related use cases together
+7. Use different colors for each actor's use cases
+8. Add a "System" boundary box for system use cases
+
+DIAGRAM STRUCTURE SUGGESTION:
+------------------------------
+Left Side: Patient Actor + Patient Use Cases
+Center: System Use Cases (in a box)
+Right Side: Doctor Actor + Doctor Use Cases
+Top: Administrator Actor + Admin Use Cases
+
+This creates a clear visual separation and makes the diagram easy to understand.
+

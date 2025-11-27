@@ -3,6 +3,7 @@ import { Link } from 'react-router-dom';
 import { useAuth } from '../../contexts/AuthContext';
 import { useTheme } from '../../contexts/ThemeContext';
 import { apiService } from '../../api/apiService';
+import { RoutePath } from '../../common/enums/enumConstant';
 
 const AdminDashboard = () => {
   const { user } = useAuth();
@@ -301,7 +302,7 @@ const AdminDashboard = () => {
             <div className="flex items-center justify-between mb-4">
               <h2 className="text-xl font-bold text-gray-900 dark:text-white">Recent Users</h2>
               <Link
-                to="/admin/patients"
+                to={RoutePath.ADMIN_USERS}
                 className="text-sm text-blue-600 dark:text-blue-400 hover:text-blue-800 dark:hover:text-blue-300 font-medium"
               >
                 View All

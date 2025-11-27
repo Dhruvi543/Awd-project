@@ -242,50 +242,52 @@ const AdminReviews = () => {
             <div className="text-center py-12 text-gray-500 dark:text-gray-400">No reviews found</div>
           ) : (
             <>
-              <div className="overflow-x-auto">
-                <table className="w-full">
+              <div className="overflow-hidden">
+                <table className="w-full table-fixed">
                   <thead className="bg-gray-50 dark:bg-gray-700">
                     <tr>
-                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">Patient</th>
-                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">Doctor</th>
-                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">Rating</th>
-                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">Comment</th>
-                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">Date</th>
-                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">Actions</th>
+                      <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider w-[15%]">Patient</th>
+                      <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider w-[15%]">Doctor</th>
+                      <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider w-[12%]">Rating</th>
+                      <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider w-[28%]">Comment</th>
+                      <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider w-[15%]">Date</th>
+                      <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider w-[15%]">Actions</th>
                     </tr>
                   </thead>
                   <tbody className="bg-white dark:bg-gray-800 divide-y divide-gray-200 dark:divide-gray-700">
                     {reviews.map((review) => (
                       <tr key={review._id} className="hover:bg-gray-50 dark:hover:bg-gray-700">
-                        <td className="px-6 py-4 whitespace-nowrap">
-                          <div className="text-sm font-medium text-gray-900 dark:text-white">
+                        <td className="px-4 py-4">
+                          <div className="text-sm font-medium text-gray-900 dark:text-white truncate">
                             {review.patient?.name || 'This patient is no longer available'}
                           </div>
                           {review.patient?.email && (
-                            <div className="text-xs text-gray-500 dark:text-gray-400 mt-0.5">
+                            <div className="text-xs text-gray-500 dark:text-gray-400 mt-0.5 truncate">
                               {review.patient.email}
                             </div>
                           )}
                         </td>
-                        <td className="px-6 py-4 whitespace-nowrap">
-                          <div className="text-sm font-medium text-gray-900 dark:text-white">{review.doctor?.name || 'This doctor is no longer available'}</div>
+                        <td className="px-4 py-4">
+                          <div className="text-sm font-medium text-gray-900 dark:text-white truncate">{review.doctor?.name || 'This doctor is no longer available'}</div>
                           {review.doctor?.specialization && (
-                            <div className="text-xs text-gray-500 dark:text-gray-400 mt-0.5">{review.doctor.specialization}</div>
+                            <div className="text-xs text-gray-500 dark:text-gray-400 mt-0.5 truncate">{review.doctor.specialization}</div>
                           )}
                         </td>
-                        <td className="px-6 py-4 whitespace-nowrap">
+                        <td className="px-4 py-4">
                           <div className="text-lg text-yellow-500 dark:text-yellow-400 font-semibold">{renderStars(review.rating)}</div>
                           <div className="text-xs text-gray-500 dark:text-gray-400 mt-0.5">({review.rating}/5)</div>
                         </td>
-                        <td className="px-6 py-4">
-                          <div className="text-sm text-gray-900 dark:text-white max-w-xs truncate">
+                        <td className="px-4 py-4">
+                          <div className="text-sm text-gray-900 dark:text-white truncate" title={review.comment || 'No comment'}>
                             {review.comment || 'No comment'}
                           </div>
-                          <div className="text-xs text-gray-500 dark:text-gray-400 mt-0.5">
-                            {review.comment && review.comment.length > 50 ? 'Click to view full' : ''}
-                          </div>
+                          {review.comment && review.comment.length > 50 && (
+                            <div className="text-xs text-gray-500 dark:text-gray-400 mt-0.5">
+                              Click to view full
+                            </div>
+                          )}
                         </td>
-                        <td className="px-6 py-4 whitespace-nowrap">
+                        <td className="px-4 py-4">
                           <div className="text-sm text-gray-900 dark:text-white">
                             {new Date(review.createdAt).toLocaleDateString()}
                           </div>
@@ -293,7 +295,7 @@ const AdminReviews = () => {
                             {new Date(review.createdAt).toLocaleTimeString()}
                           </div>
                         </td>
-                        <td className="px-6 py-4 whitespace-nowrap text-sm font-medium">
+                        <td className="px-4 py-4 text-sm font-medium">
                           <div className="flex gap-2">
                             <button
                               onClick={() => handleView(review)}
@@ -331,16 +333,20 @@ const AdminReviews = () => {
                     <button
                       onClick={() => setCurrentPage(prev => Math.max(1, prev - 1))}
                       disabled={currentPage === 1}
-                      className="px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-md disabled:opacity-50"
+                      className="px-4 py-2 inline-flex items-center gap-2 border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-800 text-sm font-medium text-gray-700 dark:text-gray-200 hover:bg-gray-50 dark:hover:bg-gray-700 disabled:opacity-50 disabled:cursor-not-allowed"
+                      aria-label="Previous page"
                     >
-                      Previous
+                      <span aria-hidden="true">←</span>
+                      <span>Previous</span>
                     </button>
                     <button
                       onClick={() => setCurrentPage(prev => Math.min(pagination.pages, prev + 1))}
                       disabled={currentPage === pagination.pages}
-                      className="px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-md disabled:opacity-50"
+                      className="px-4 py-2 inline-flex items-center gap-2 border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-800 text-sm font-medium text-gray-700 dark:text-gray-200 hover:bg-gray-50 dark:hover:bg-gray-700 disabled:opacity-50 disabled:cursor-not-allowed"
+                      aria-label="Next page"
                     >
-                      Next
+                      <span>Next</span>
+                      <span aria-hidden="true">→</span>
                     </button>
                   </div>
                 </div>

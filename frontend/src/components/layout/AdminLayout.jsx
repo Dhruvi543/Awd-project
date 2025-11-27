@@ -4,6 +4,7 @@ import { useAuth } from '../../contexts/AuthContext';
 import { useTheme } from '../../contexts/ThemeContext';
 import { apiService } from '../../api/apiService';
 import logo from '../../logo.png';
+import { RoutePath } from '../../common/enums/enumConstant';
 
 const AdminLayout = () => {
   const { user, logout } = useAuth();
@@ -112,6 +113,10 @@ const AdminLayout = () => {
       setShowNotifications(false);
     }
   };
+  const handleViewAllNotifications = () => {
+    setShowNotifications(false);
+    navigate(RoutePath.ADMIN_NOTIFICATIONS);
+  };
 
   const handleLogout = async (e) => {
     e?.preventDefault();
@@ -134,14 +139,14 @@ const AdminLayout = () => {
   };
 
   const menuItems = [
-    { path: '/admin/dashboard', label: 'Dashboard', icon: 'dashboard' },
-    { path: '/admin/doctors', label: 'Doctor Management', icon: 'doctors' },
-    { path: '/admin/patients', label: 'Patient Management', icon: 'patients' },
-    { path: '/admin/appointments', label: 'Appointment Management', icon: 'appointments' },
-    { path: '/admin/reviews', label: 'Review Management', icon: 'reviews' },
-    { path: '/admin/availability', label: 'Availability Overview', icon: 'availability' },
-    { path: '/admin/analytics', label: 'Analytics', icon: 'analytics' },
-    { path: '/admin/settings', label: 'Settings', icon: 'settings' },
+    { path: RoutePath.ADMIN_DASHBOARD, label: 'Dashboard', icon: 'dashboard' },
+    { path: RoutePath.ADMIN_DOCTORS, label: 'Doctor Management', icon: 'doctors' },
+    { path: RoutePath.ADMIN_PATIENTS, label: 'Patient Management', icon: 'patients' },
+    { path: RoutePath.ADMIN_APPOINTMENTS, label: 'Appointment Management', icon: 'appointments' },
+    { path: RoutePath.ADMIN_REVIEWS, label: 'Review Management', icon: 'reviews' },
+    { path: RoutePath.ADMIN_AVAILABILITY, label: 'Availability Overview', icon: 'availability' },
+    { path: RoutePath.ADMIN_ANALYTICS, label: 'Analytics', icon: 'analytics' },
+    { path: RoutePath.ADMIN_SETTINGS, label: 'Settings', icon: 'settings' },
   ];
 
   const isActive = (path) => location.pathname === path;
@@ -164,6 +169,12 @@ const AdminLayout = () => {
         return (
           <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4.354a4 4 0 110 5.292M15 21H3v-1a6 6 0 0112 0v1zm0 0h6v-1a6 6 0 00-9-5.197M13 7a4 4 0 11-8 0 4 4 0 018 0z" />
+          </svg>
+        );
+      case 'users':
+        return (
+          <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 20h5v-1a4 4 0 00-4-4h-2M9 20H4v-1a4 4 0 014-4h2m3-3a4 4 0 100-8 4 4 0 000 8zm-6 0a4 4 0 110-8 4 4 0 010 8z" />
           </svg>
         );
       case 'appointments':
@@ -387,9 +398,27 @@ const AdminLayout = () => {
                                       {notification.relatedUser.name} ({notification.relatedUser.email})
                                     </p>
                                   )}
-                                  <p className="text-xs text-gray-400 dark:text-gray-500 mt-1">
-                                    {new Date(notification.createdAt).toLocaleString()}
-                                  </p>
+                                  {notification.relatedAppointment?.appointmentDate ? (
+                                    <p className="text-xs text-blue-600 dark:text-blue-400 mt-1 font-medium">
+                                      Appointment Date: {new Date(notification.relatedAppointment.appointmentDate).toLocaleDateString('en-US', { 
+                                        weekday: 'long', 
+                                        year: 'numeric', 
+                                        month: 'long', 
+                                        day: 'numeric' 
+                                      })} {notification.relatedAppointment.startTime && `at ${notification.relatedAppointment.startTime}`}
+                                      {notification.relatedAppointment.endTime && ` - ${notification.relatedAppointment.endTime}`}
+                                    </p>
+                                  ) : null}
+                                  {notification.relatedAppointment?.prescription && (
+                                    <p className="text-xs text-green-600 dark:text-green-400 mt-1 italic">
+                                      Prescription: {notification.relatedAppointment.prescription}
+                                    </p>
+                                  )}
+                                  {notification.relatedAppointment?.patient && (
+                                    <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
+                                      Patient: {notification.relatedAppointment.patient.name}
+                                    </p>
+                                  )}
                                 </div>
                                 <button
                                   onClick={(e) => {
@@ -412,16 +441,7 @@ const AdminLayout = () => {
                     {notifications.length > 0 && (
                       <div className="p-3 border-t border-gray-200 dark:border-gray-700 text-center bg-gray-50 dark:bg-gray-700">
                         <button
-                          onClick={() => {
-                            setShowNotifications(false);
-                            // Navigate to doctors page if there are pending doctors, otherwise patients
-                            const hasPendingDoctors = notifications.some(n => n.type === 'doctor_registered' && !n.isRead);
-                            if (hasPendingDoctors) {
-                              navigate('/admin/doctors?status=pending');
-                            } else {
-                              navigate('/admin/patients');
-                            }
-                          }}
+                          onClick={handleViewAllNotifications}
                           className="text-sm text-blue-600 dark:text-blue-400 hover:text-blue-800 dark:hover:text-blue-300 font-medium"
                         >
                           View all notifications
@@ -464,7 +484,7 @@ const AdminLayout = () => {
         </header>
 
         {/* Page Content */}
-        <main className="p-6">
+        <main className="p-6 lg:p-8 bg-gray-50 dark:bg-gray-900 min-h-[calc(100vh-4rem)]">
           <Outlet />
         </main>
       </div>

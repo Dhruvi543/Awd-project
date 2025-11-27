@@ -1,9 +1,11 @@
 import React, { useState, useEffect } from 'react';
+import { useSearchParams } from 'react-router-dom';
 import { apiService } from '../../api/apiService';
 import { useAuth } from '../../contexts/AuthContext';
 
 const PatientReviews = () => {
   const { user } = useAuth();
+  const [searchParams] = useSearchParams();
   const [appointments, setAppointments] = useState([]);
   const [doctors, setDoctors] = useState([]);
   const [patientReviews, setPatientReviews] = useState([]);
@@ -31,21 +33,69 @@ const PatientReviews = () => {
     fetchData();
   }, []);
 
+  // Handle doctorId query parameter from appointments page
+  useEffect(() => {
+    const doctorIdParam = searchParams.get('doctorId');
+    if (doctorIdParam && doctors.length > 0) {
+      // Check if this doctor is in the available doctors list
+      const doctorExists = doctors.some(doc => 
+        doc._id?.toString() === doctorIdParam.toString()
+      );
+      if (doctorExists) {
+        setSelectedDoctor(doctorIdParam);
+      } else {
+        setError('You can only review doctors with whom you have completed appointments.');
+      }
+    }
+  }, [searchParams, doctors]);
+
   const fetchData = async () => {
     try {
       setIsLoading(true);
       
-      // Fetch all doctors from the platform
-      const doctorsRes = await apiService.getDoctors();
-      if (doctorsRes.data.success) {
-        setDoctors(doctorsRes.data.data || []);
+      // Fetch completed appointments and patient's reviews in parallel
+      const [appointmentsRes, reviewsRes] = await Promise.all([
+        apiService.getAppointments({ status: 'completed' }),
+        apiService.getPatientReviews()
+      ]);
+      
+      // Get doctors from completed appointments
+      let doctorsArray = [];
+      if (appointmentsRes.data.success) {
+        const completedAppointments = appointmentsRes.data.data || [];
+        
+        // Extract unique doctors from completed appointments
+        const doctorMap = new Map();
+        completedAppointments.forEach(apt => {
+          if (apt.doctor && apt.doctor._id && !doctorMap.has(apt.doctor._id)) {
+            doctorMap.set(apt.doctor._id, {
+              _id: apt.doctor._id,
+              name: apt.doctor.name,
+              specialization: apt.doctor.specialization || 'General Practitioner'
+            });
+          }
+        });
+        
+        doctorsArray = Array.from(doctorMap.values());
       }
       
-      // Fetch patient's reviews
-      const reviewsRes = await apiService.getPatientReviews();
+      // Get already reviewed doctor IDs
+      let reviewedDoctorIds = [];
       if (reviewsRes.data.success) {
         setPatientReviews(reviewsRes.data.data || []);
+        reviewedDoctorIds = (reviewsRes.data.data || []).map(review => 
+          review.doctor?._id || review.doctor
+        );
       }
+      
+      // Filter out doctors that have already been reviewed
+      const availableDoctors = doctorsArray.filter(doctor => 
+        !reviewedDoctorIds.some(reviewedId => 
+          reviewedId?.toString() === doctor._id?.toString()
+        )
+      );
+      
+      setDoctors(availableDoctors);
     } catch (error) {
       console.error('Error fetching data:', error);
     } finally {
@@ -342,7 +392,9 @@ const PatientReviews = () => {
                 ))}
               </select>
               {doctors.length === 0 && (
-                <p className="text-sm text-gray-500 dark:text-gray-400 mt-2">No doctors available</p>
+                <p className="text-sm text-gray-500 dark:text-gray-400 mt-2">
+                  No doctors available. You can only review doctors with whom you have completed appointments.
+                </p>
               )}
             </div>
 

@@ -2,6 +2,7 @@ import { z } from 'zod';
 import mongoose from 'mongoose';
 import Review from '../models/Review.js';
 import User from '../models/User.js';
+import Appointment from '../models/Appointment.js';
 import asyncHandler from '../utils/asyncHandler.js';
 
 // Helper function to compare ObjectIds reliably
@@ -165,16 +166,39 @@ const createReview = asyncHandler(async (req, res) => {
       });
     }
 
-    // Allow multiple reviews per doctor - no restriction
-    // Users can post reviews anytime without limitations
-    // Reviews are based on experience, not tied to specific appointments
+    // Check if patient has a completed appointment with this doctor
+    const completedAppointment = await Appointment.findOne({
+      patient: patientId,
+      doctor: doctorObjectId,
+      status: 'completed'
+    }).sort({ appointmentDate: -1 }); // Get the most recent completed appointment
+
+    if (!completedAppointment) {
+      return res.status(400).json({
+        success: false,
+        message: 'You can only review doctors with whom you have completed an appointment',
+      });
+    }
+
+    // Check if patient has already reviewed this doctor
+    const existingReview = await Review.findOne({
+      patient: patientId,
+      doctor: doctorObjectId
+    });
+
+    if (existingReview) {
+      return res.status(400).json({
+        success: false,
+        message: 'You have already reviewed this doctor. You can only write one review per doctor.',
+      });
+    }
 
     const review = new Review({
-      doctor: doctorObjectId, // Use converted ObjectId
+      doctor: doctorObjectId,
       rating: reviewData.rating,
       comment: reviewData.comment && reviewData.comment.trim() !== '' ? reviewData.comment.trim() : undefined,
       patient: patientId,
-      // No appointment linking - reviews are based on overall experience
+      appointment: completedAppointment._id, // Link to the most recent completed appointment
     });
 
     await review.save();

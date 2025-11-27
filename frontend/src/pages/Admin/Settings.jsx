@@ -120,6 +120,10 @@ const AdminSettings = () => {
         workingHoursEnd: formData.workingHoursEnd || '17:00',
         minPasswordLength: formData.minPasswordLength || 6,
         sessionTimeout: formData.sessionTimeout || 30,
+        allowRegistration: formData.allowRegistration !== undefined ? formData.allowRegistration : true,
+        autoApproveDoctors: formData.autoApproveDoctors !== undefined ? formData.autoApproveDoctors : false,
+        requireEmailVerification: formData.requireEmailVerification !== undefined ? formData.requireEmailVerification : false,
+        maintenanceMode: formData.maintenanceMode !== undefined ? formData.maintenanceMode : false,
       };
       
       console.log('Saving settings:', dataToSave); // Debug log
@@ -413,6 +417,67 @@ const AdminSettings = () => {
                   />
                 </div>
               </div>
+            </div>
+
+            {/* System Settings */}
+            <div className="bg-white dark:bg-gray-800 rounded-xl shadow-md p-6 border border-gray-200 dark:border-gray-700">
+              <h2 className="text-xl font-bold text-gray-900 dark:text-white mb-4">System Settings</h2>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div className="flex items-center">
+                  <input
+                    type="checkbox"
+                    name="allowRegistration"
+                    checked={formData.allowRegistration || false}
+                    onChange={handleInputChange}
+                    className="w-4 h-4 text-blue-600 bg-gray-100 border-gray-300 rounded focus:ring-blue-500 dark:focus:ring-blue-600 dark:ring-offset-gray-800 focus:ring-2 dark:bg-gray-700 dark:border-gray-600"
+                  />
+                  <label className="ml-2 text-sm font-medium text-gray-700 dark:text-gray-300">
+                    Allow User Registration
+                  </label>
+                </div>
+                <div className="flex items-center">
+                  <input
+                    type="checkbox"
+                    name="autoApproveDoctors"
+                    checked={formData.autoApproveDoctors || false}
+                    onChange={handleInputChange}
+                    className="w-4 h-4 text-blue-600 bg-gray-100 border-gray-300 rounded focus:ring-blue-500 dark:focus:ring-blue-600 dark:ring-offset-gray-800 focus:ring-2 dark:bg-gray-700 dark:border-gray-600"
+                  />
+                  <label className="ml-2 text-sm font-medium text-gray-700 dark:text-gray-300">
+                    Auto-Approve New Doctors
+                  </label>
+                </div>
+                <div className="flex items-center">
+                  <input
+                    type="checkbox"
+                    name="requireEmailVerification"
+                    checked={formData.requireEmailVerification || false}
+                    onChange={handleInputChange}
+                    className="w-4 h-4 text-blue-600 bg-gray-100 border-gray-300 rounded focus:ring-blue-500 dark:focus:ring-blue-600 dark:ring-offset-gray-800 focus:ring-2 dark:bg-gray-700 dark:border-gray-600"
+                  />
+                  <label className="ml-2 text-sm font-medium text-gray-700 dark:text-gray-300">
+                    Require Email Verification
+                  </label>
+                </div>
+                <div className="flex items-center">
+                  <input
+                    type="checkbox"
+                    name="maintenanceMode"
+                    checked={formData.maintenanceMode || false}
+                    onChange={handleInputChange}
+                    className="w-4 h-4 text-blue-600 bg-gray-100 border-gray-300 rounded focus:ring-blue-500 dark:focus:ring-blue-600 dark:ring-offset-gray-800 focus:ring-2 dark:bg-gray-700 dark:border-gray-600"
+                  />
+                  <label className="ml-2 text-sm font-medium text-gray-700 dark:text-gray-300">
+                    Maintenance Mode
+                  </label>
+                </div>
+              </div>
+              <p className="text-xs text-gray-500 dark:text-gray-400 mt-4">
+                <strong>Allow Registration:</strong> Enable/disable new user registrations<br/>
+                <strong>Auto-Approve Doctors:</strong> Automatically approve new doctor registrations<br/>
+                <strong>Require Email Verification:</strong> Require email verification before account activation<br/>
+                <strong>Maintenance Mode:</strong> Put the system in maintenance mode (blocks all access)
+              </p>
             </div>
 
             {/* Security Settings */}
