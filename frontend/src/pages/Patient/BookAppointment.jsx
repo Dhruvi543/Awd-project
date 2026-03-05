@@ -3,6 +3,7 @@ import { useNavigate, useSearchParams } from 'react-router-dom';
 import { apiService } from '../../api/apiService';
 import { useAuth } from '../../contexts/AuthContext';
 import Toast from '../../components/feedback/Toast';
+import useRazorpay from 'react-razorpay';
 
 const BookAppointment = () => {
   const navigate = useNavigate();
@@ -26,6 +27,8 @@ const BookAppointment = () => {
     end: '17:00',
     duration: 30
   });
+  const [bookingFee, setBookingFee] = useState(100);
+  const [Razorpay] = useRazorpay();
 
   const [formData, setFormData] = useState({
     patientName: user?.name || '',
@@ -138,6 +141,7 @@ const BookAppointment = () => {
             end: settings.workingHoursEnd || '17:00',
             duration: settings.appointmentDuration || 30
           });
+          setBookingFee(settings.bookingFee || 100);
           // Cache for future use
           localStorage.setItem('siteSettings', JSON.stringify(settings));
         }
@@ -430,20 +434,75 @@ const BookAppointment = () => {
 
     try {
       setIsSubmitting(true);
-      const response = await apiService.bookAppointment({
-        doctorId,
-        appointmentDate: formData.appointmentDate,
-        startTime: formData.startTime,
-        endTime: formData.endTime,
-        consultationNotes: formData.consultationNotes || formData.reason
+      
+      // 1. Create Razorpay order for booking fee
+      const orderResponse = await apiService.createPaymentOrder();
+      
+      if (!orderResponse.data.success) {
+        throw new Error('Failed to initiate payment. Please try again.');
+      }
+      
+      const orderData = orderResponse.data.data;
+      
+      // 2. Initialize Razorpay Checkout
+      const options = {
+        key: orderData.keyId,
+        amount: orderData.amount,
+        currency: orderData.currency,
+        name: 'DOXI Healthcare',
+        description: `Booking Fee for Dr. ${doctor?.name}`,
+        order_id: orderData.orderId,
+        handler: async (response) => {
+          try {
+            // 3. Complete booking logic on successful payment
+            const bookingResponse = await apiService.bookAppointment({
+              doctorId,
+              appointmentDate: formData.appointmentDate,
+              startTime: formData.startTime,
+              endTime: formData.endTime,
+              consultationNotes: formData.consultationNotes || formData.reason,
+              razorpay_order_id: response.razorpay_order_id,
+              razorpay_payment_id: response.razorpay_payment_id,
+              razorpay_signature: response.razorpay_signature
+            });
+
+            if (bookingResponse.data.success) {
+              setToast({ message: 'Payment successful! Appointment booked.', type: 'success' });
+              setTimeout(() => {
+                navigate('/patient/appointments');
+              }, 2000);
+            }
+          } catch (bookingError) {
+             console.error('Error finalizing appointment:', bookingError);
+             setToast({ message: 'Payment captured, but failed to book appointment. Please contact support.', type: 'error' });
+             setIsSubmitting(false);
+          }
+        },
+        prefill: {
+          name: formData.patientName,
+          email: user?.email,
+          contact: formData.phone
+        },
+        theme: {
+          color: '#2563EB' // blue-600
+        },
+        modal: {
+          ondismiss: () => {
+            setToast({ message: 'Payment cancelled.', type: 'info' });
+            setIsSubmitting(false);
+          }
+        }
+      };
+
+      const rzp = new Razorpay(options);
+      
+      rzp.on('payment.failed', function (response){
+        console.error('Payment Failed:', response.error);
+        setToast({ message: `Payment failed: ${response.error.description}`, type: 'error' });
+        setIsSubmitting(false);
       });
 
-      if (response.data.success) {
-        setToast({ message: 'Appointment booked successfully! Redirecting...', type: 'success' });
-        setTimeout(() => {
-          navigate('/patient/appointments');
-        }, 2000);
-      }
+      rzp.open();
     } catch (error) {
       console.error('Error booking appointment:', error);
       let errorMessage = 'Failed to book appointment. Please try again.';
@@ -637,6 +696,32 @@ const BookAppointment = () => {
                 )}
               </div>
             </div>
+          </div>
+        )}
+
+        {/* Cost Breakdown */}
+        {doctor && (
+          <div className="bg-white dark:bg-gray-800 rounded-xl shadow-md p-6 mb-6 border border-gray-200 dark:border-gray-700">
+             <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-4 flex items-center gap-2">
+               <svg className="w-5 h-5 text-gray-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1M21 12a9 9 0 11-18 0 9 9 0 0118 0z"></path>
+               </svg>
+               Payment Details
+             </h3>
+             <div className="space-y-3">
+               <div className="flex justify-between items-center text-gray-600 dark:text-gray-400">
+                 <span>Doctor Consultation Fee</span>
+                 <span className="font-medium text-gray-900 dark:text-white">₹{doctor.consultationFee || 500}</span>
+               </div>
+               <div className="flex justify-between items-center text-gray-600 dark:text-gray-400">
+                 <span>Fixed Booking Fee <span className="text-sm font-medium bg-blue-100 text-blue-800 px-2 py-0.5 rounded-full ml-2">Pay Now</span></span>
+                 <span className="font-medium text-gray-900 dark:text-white">₹{bookingFee}</span>
+               </div>
+               <div className="border-t border-gray-200 dark:border-gray-700 pt-3 flex justify-between items-center">
+                 <span className="font-semibold text-gray-900 dark:text-white">Balance to Pay at Clinic</span>
+                 <span className="font-semibold text-xl text-green-600 dark:text-green-500">₹{Math.max(0, (doctor.consultationFee || 500) - bookingFee)}</span>
+               </div>
+             </div>
           </div>
         )}
 
@@ -909,9 +994,9 @@ const BookAppointment = () => {
                   className="flex-1 px-6 py-3 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors text-base font-medium disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2 shadow-md hover:shadow-lg"
                 >
                   <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M17 9V7a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2m2 4h10a2 2 0 002-2v-6a2 2 0 00-2-2H9a2 2 0 00-2 2v6a2 2 0 002 2zm7-5a2 2 0 11-4 0 2 2 0 014 0z"></path>
                   </svg>
-                  {isSubmitting ? 'Booking Appointment...' : 'Book Appointment'}
+                  {isSubmitting ? 'Processing Payment...' : `Pay ₹${bookingFee} & Book`}
                 </button>
                 <button
                   type="button"

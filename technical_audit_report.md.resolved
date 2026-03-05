@@ -1,0 +1,99 @@
+# DOXI Project Technical Audit Report
+
+## 1. Executive Summary
+This report provides a comprehensive technical audit of the DOXI healthcare platform, encompassing the frontend (React), backend (Node.js/Express), database (MongoDB), and security architecture. The system provides role-based functionality (Admin, Doctor, Patient) for appointment scheduling and management. While the core features are functional, several critical areas require refactoring, particularly around data schema normalization, atomic operations, and token management security.
+
+---
+
+## 2. Business Logic & Requirements
+
+### Current Implementation:
+- **Roles:** The system supports three roles: Patient, Doctor, Admin.
+- **Workflow:** Doctors register and must be approved by Admins before logging in. Patients can register and immediately log in. Appointments are requested by patients and confirmed by doctors.
+- **Availability:** Doctors map out their working hours and specific leave days.
+
+### Identified Issues:
+- **Schema Redundancy:** Doctor-specific fields (`specialization`, `experience`, `licenseNo`) are duplicated in both the [User](file:///c:/Users/laljee/WebstormProjects/DOXI/DOXI/frontend/src/contexts/AuthContext.jsx#190-217) schema and a standalone [Doctor](file:///c:/Users/laljee/WebstormProjects/DOXI/DOXI/frontend/src/api/apiService.js#97-98) schema. This creates multiple sources of truth.
+- **Strict Email Validation:** The system strictly enforces `.com` domains in [register](file:///c:/Users/laljee/WebstormProjects/DOXI/DOXI/frontend/src/api/apiService.js#85-86) validation, preventing valid users (e.g., `.org`, `.edu`, country subdomains) from signing up.
+- **Doctor Unavailability Handling:** When a doctor is deleted, their existing appointments and reviews are cascade-deleted immediately, which negatively affects the appointment history of patients who saw that doctor.
+
+### Recommendations:
+- Consolidate all user-specific profile data. Either rely completely on the [User](file:///c:/Users/laljee/WebstormProjects/DOXI/DOXI/frontend/src/contexts/AuthContext.jsx#190-217) schema or move doctor metadata purely to the [Doctor](file:///c:/Users/laljee/WebstormProjects/DOXI/DOXI/frontend/src/api/apiService.js#97-98) schema (using a ref link).
+- Relax email validation to a standard RFC 5322 regex.
+- Implement "soft deletes" for doctors and patients to preserve historical appointment records for auditing and legal reasons.
+
+---
+
+## 3. Frontend Architecture (React)
+
+### Current Implementation:
+- React 18 using Vite, React Router v6, and Tailwind CSS.
+- Context API (`AuthContext`, `ThemeContext`) is used for state management.
+- `axios` interceptors handle API requests, injecting headers and catching 401s.
+
+### Identified Issues:
+- **Unused Dependencies/Bloat:** Redux (`react-redux`, `redux`, `redux-saga`) is installed and directories (`actions`, `reducers`, `sagas`) exist, but the application entirely relies on Context API, adding unnecessary bundle size and structural confusion.
+- **State Management Bug - Notifications:** [PatientLayout.jsx](file:///c:/Users/laljee/WebstormProjects/DOXI/DOXI/frontend/src/components/layout/PatientLayout.jsx) and `DoctorLayout.jsx` poll the backend for notifications every 30 seconds unconditionally via `setInterval`. If the tab is idle or the user logs out elsewhere, this throws unhandled background 401 errors.
+- **Form Time Validation:** The frontend appointment form allows selecting `startTime` strictly based on available slots, but doesn't validate if that exact time on the current date is > 24h away relative to the exact hour (e.g., booking tomorrow at 9 AM when it's currently 10 AM today). The backend catches this, but the frontend UX could be improved.
+
+### Recommendations:
+- Remove Redux dependencies and unused folder structures to clean up the architecture.
+- Clear the notification polling `setInterval` gracefully on unmount or authentication loss to prevent memory leaks and infinite 401 loops.
+
+---
+
+## 4. Backend & API Controllers (Node/Express)
+
+### Current Implementation:
+- MVC pattern with Express.js routing to controllers.
+- Extensively uses `asyncHandler` over try/catch blocks.
+- Uses `zod` for input schema validation.
+
+### Identified Issues:
+- **Inefficient Search Logic:** In [doctor.controller.js](file:///c:/Users/laljee/WebstormProjects/DOXI/DOXI/backend/src/controllers/doctor.controller.js), the [getDoctors](file:///c:/Users/laljee/WebstormProjects/DOXI/DOXI/frontend/src/api/apiService.js#95-97) function fetches *all* approved doctors from MongoDB and *then* applies an in-memory `.filter()` for search terms. For a production system with thousands of doctors, this is highly inefficient and breaks pagination.
+- **Lack of Transactions / Race Conditions:** [bookAppointment](file:///c:/Users/laljee/WebstormProjects/DOXI/DOXI/frontend/src/api/apiService.js#110-111) validates if a doctor is busy and then saves the appointment. Under heavy load, two users booking the identical slot millisecond-apart could bypass the validation.
+- **Error Swallowing:** The helper function [isDateOnLeave](file:///c:/Users/laljee/WebstormProjects/DOXI/DOXI/backend/src/controllers/appointment.controller.js#23-61) handles errors by logging them to the console and returning `false`, bypassing failure propagation.
+
+### Recommendations:
+- Push all search filtering down to the MongoDB query level (e.g., using `$regex` or text indexes on `name` and `specialization`).
+- Wrap [bookAppointment](file:///c:/Users/laljee/WebstormProjects/DOXI/DOXI/frontend/src/api/apiService.js#110-111) creation inside a Mongoose Transaction session or use `findOneAndUpdate` with concurrent conditions.
+- Propagate errors correctly in utility functions to prevent false positives.
+
+---
+
+## 5. Authentication & Security
+
+### Current Implementation:
+- JWT tokens are issued with a 7-day expiration by default.
+- Passwords are hashed using `bcryptjs` with 12 salt rounds.
+- Tokens are sent as an `HttpOnly` cookie AND in the JSON response payload.
+
+### Identified Issues:
+- **XSS Vulnerability via LocalStorage:** The frontend explicitly saves the JWT to `localStorage` and `apiService` manually injects it into the `Authorization` header. This entirely defeats the purpose of the backend deploying it as a secure `HttpOnly` cookie, exposing the token to Cross-Site Scripting (XSS) attacks.
+- **Inadequate Logout Cleanup:** Logging out relies merely on a frontend `localStorage.removeItem`. The backend simply clears the cookie but doesn't blacklist or invalidate the JWT, meaning the token remains valid until expiry if intercepted.
+- **Brute Force Risk:** No rate-limiting is explicitly applied directly to the `/login` route, although `express-rate-limit` is globally available.
+
+### Recommendations:
+- Remove token delivery from the JSON login payload. Rely strictly on `HttpOnly`, `Secure`, `SameSite` cookies for API requests. The frontend should not need to access the raw token.
+- Implement a token blacklist (e.g., Redis) or rotate tokens to handle server-side invalidation upon logout.
+- Apply strict route-specific rate limits to `/api/auth/login`.
+
+---
+
+## 6. Performance & Scalability
+
+### Identified Issues:
+- **Sequential API Loading:** In [Dashboard.jsx](file:///c:/Users/laljee/WebstormProjects/DOXI/DOXI/frontend/src/pages/Admin/Dashboard.jsx), API calls are awaited sequentially (`statsResponse`, then `appointmentsResponse`, then `usersResponse`). This cascades network latency and increases Time-to-Interactive (TTI).
+- **Missing Database Indexes:** Important query fields like `doctor` and `patient` in the [Appointment](file:///c:/Users/laljee/WebstormProjects/DOXI/DOXI/frontend/src/api/apiService.js#155-156) model, or `role` and `isApproved` in the [User](file:///c:/Users/laljee/WebstormProjects/DOXI/DOXI/frontend/src/contexts/AuthContext.jsx#190-217) model, lack explicit indexing definitions in the Mongoose schema, which will lead to slow full-collection scans.
+
+### Recommendations:
+- Refactor dashboard controllers and frontend data fetching to use `Promise.all()` to fetch disjoint data in parallel.
+- Define explicit compound indexes in Mongoose schemas for fields heavily utilized in filtering and lookups.
+
+---
+
+## 7. Next Steps & Execution Plan
+1. **Security Patch:** Strip JWT from LocalStorage, configure `axios` to strictly use credentials via cookies.
+2. **Concurrency Fix:** Introduce Mongoose transactions to the Appointment Booking logic.
+3. **Performance Tune:** Refactor sequential API endpoints on the dashboard to use parallel execution and push search logic down to the DB level.
+4. **Maintenance:** Remove unused Redux boilerplate from the frontend.

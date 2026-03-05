@@ -5,6 +5,9 @@ import Appointment from '../models/Appointment.js';
 import Review from '../models/Review.js';
 import Notification from '../models/Notification.js';
 import Availability from '../models/Availability.js';
+import crypto from 'crypto';
+import { logLifecycleEvent } from '../utils/auditLogger.js';
+import mongoose from 'mongoose';
 
 // Validation schema for profile update
 const updateProfileSchema = z.object({
@@ -330,100 +333,143 @@ const changePassword = asyncHandler(async (req, res) => {
 
 // Delete account
 const deleteAccount = asyncHandler(async (req, res) => {
+  const session = await mongoose.startSession();
+  session.startTransaction();
+
   try {
-    const user = await User.findById(req.user._id);
+    const user = await User.findOne({ _id: req.user._id, isDeleted: { $ne: true } }).session(session);
     
     if (!user) {
+      await session.abortTransaction();
+      session.endSession();
       return res.status(404).json({
         success: false,
         message: 'User not found'
       });
     }
 
-    // Handle related data based on user role
     if (user.role === 'patient') {
-      // Cancel ALL appointments for this patient (pending, confirmed, etc.)
-      // When patient deletes account, all appointments should be cancelled
-      try {
-        const allAppointments = await Appointment.find({ 
-          patient: user._id,
-          status: { $in: ['pending', 'confirmed'] } // Only cancel pending and confirmed, not already completed/cancelled
-        });
-        
-        if (allAppointments.length > 0) {
-          await Appointment.updateMany(
-            { patient: user._id, status: { $in: ['pending', 'confirmed'] } },
-            { 
-              status: 'cancelled',
-              rejectionReason: 'Appointment cancelled: Patient account has been deleted'
+      const allAppointments = await Appointment.find({ 
+        patient: user._id,
+        status: { $in: ['pending', 'confirmed'] }
+      }).session(session);
+      
+      if (allAppointments.length > 0) {
+        const bulkOps = allAppointments.map(apt => ({
+          updateOne: {
+            filter: { _id: apt._id },
+            update: {
+              $set: { 
+                status: 'cancelled',
+                rejectionReason: 'Appointment cancelled: Patient account deactivated.',
+                cancellationSource: 'system_cascade',
+                previousStatus: apt.status
+              }
             }
-          );
-          console.log(`Cancelled ${allAppointments.length} appointment(s) for deleted patient`);
-        }
-      } catch (appointmentError) {
-        console.error('Error cancelling appointments:', appointmentError);
-        // Continue with deletion even if appointment cancellation fails
+          }
+        }));
+        await Appointment.bulkWrite(bulkOps, { session });
+        console.log(`Cancelled ${allAppointments.length} appointment(s) for deleted patient`);
       }
-
-      // Note: Reviews are NOT deleted when patient account is deleted
-      // Reviews remain with patient name and doctor name for other patients' reference
     } else if (user.role === 'doctor') {
-      // Cancel ALL appointments for this doctor (pending, confirmed, etc.)
-      // When doctor deletes account, all appointments should be cancelled
-      try {
-        const allAppointments = await Appointment.find({ 
-          doctor: user._id,
-          status: { $in: ['pending', 'confirmed'] } // Only cancel pending and confirmed, not already completed/cancelled
-        });
-        
-        if (allAppointments.length > 0) {
-          await Appointment.updateMany(
-            { doctor: user._id, status: { $in: ['pending', 'confirmed'] } },
-            { 
-              status: 'cancelled',
-              rejectionReason: 'Appointment cancelled: Doctor account has been deleted'
+      const allAppointments = await Appointment.find({ 
+        doctor: user._id,
+        status: { $in: ['pending', 'confirmed'] }
+      }).session(session);
+      
+      if (allAppointments.length > 0) {
+         const bulkOps = allAppointments.map(apt => ({
+          updateOne: {
+            filter: { _id: apt._id },
+            update: {
+              $set: { 
+                status: 'cancelled',
+                rejectionReason: 'Appointment cancelled: Doctor account deactivated.',
+                cancellationSource: 'system_cascade',
+                previousStatus: apt.status
+              }
             }
-          );
-          console.log(`Cancelled ${allAppointments.length} appointment(s) for deleted doctor`);
-        }
-      } catch (appointmentError) {
-        console.error('Error cancelling appointments:', appointmentError);
-        // Continue with deletion even if appointment cancellation fails
+          }
+        }));
+        await Appointment.bulkWrite(bulkOps, { session });
+        console.log(`Cancelled ${allAppointments.length} appointment(s) for deleted doctor`);
       }
 
-      // Delete all reviews for this doctor
-      try {
-        await Review.deleteMany({ doctor: user._id });
-      } catch (reviewError) {
-        console.error('Error deleting reviews:', reviewError);
-        // Continue with deletion even if review deletion fails
-      }
+      await Review.updateMany(
+        { doctor: user._id, isDeleted: { $ne: true } },
+        { $set: { isDeleted: true, deletedAt: new Date(), deletedBy: 'system_cascade' } },
+        { session }
+      );
 
-      // Delete all availability for this doctor
-      try {
-        await Availability.deleteMany({ doctor: user._id });
-      } catch (availabilityError) {
-        console.error('Error deleting availability:', availabilityError);
-        // Continue with deletion even if availability deletion fails
-      }
+      await Availability.updateMany(
+        { doctor: user._id, isDeleted: { $ne: true } },
+        { $set: { isDeleted: true, deletedAt: new Date(), deletedBy: 'system_cascade' } },
+        { session }
+      );
     }
 
     // Delete all notifications for this user
     try {
-      await Notification.deleteMany({ user: user._id });
+      await Notification.deleteMany({ user: user._id }).session(session);
     } catch (notificationError) {
       console.error('Error deleting notifications:', notificationError);
       // Continue with deletion even if notification deletion fails
     }
 
-    // Delete the user account
-    await User.deleteOne({ _id: user._id });
+    user.isDeleted = true;
+    user.deletedAt = new Date();
+    await user.save({ session });
+    
+    // Post-Delete Operational Assertion
+    const verifyUserHidden = await User.findOne({ _id: user._id }).session(session);
+    if (verifyUserHidden) {
+      throw new Error("Integrity Failure: User remains visible to standard queries.");
+    }
+
+    // Role-specific cascade verification
+    let activeAppointments = 0;
+    if (user.role === 'patient') {
+      activeAppointments = await Appointment.countDocuments({ patient: user._id, status: { $in: ['pending', 'confirmed'] } }).session(session);
+    } else if (user.role === 'doctor') {
+      activeAppointments = await Appointment.countDocuments({ doctor: user._id, status: { $in: ['pending', 'confirmed'] } }).session(session);
+    }
+
+    if (activeAppointments > 0) {
+      throw new Error(`Integrity Failure: ${activeAppointments} appointments escaped the cascade.`);
+    }
+
+    // Calculate approx cascades
+    let appointmentsCount = 0;
+    if (user.role === 'patient') {
+        const checkApts = await Appointment.countDocuments({ patient: user._id, cancellationSource: 'system_cascade' }).session(session);
+        appointmentsCount = checkApts;
+    } else if (user.role === 'doctor') {
+        const checkApts = await Appointment.countDocuments({ doctor: user._id, cancellationSource: 'system_cascade' }).session(session);
+        appointmentsCount = checkApts;
+    }
+
+    logLifecycleEvent({
+      event: "system.user.deleted",
+      userId: user._id,
+      userRole: user.role,
+      actorId: user._id,
+      source: "user_self_delete",
+      transactionId: crypto.randomUUID(),
+      cascadeCounts: {
+        appointmentsCancelled: appointmentsCount
+      }
+    });
+    
+    await session.commitTransaction();
+    session.endSession();
     
     res.json({
       success: true,
       message: 'Account deleted successfully'
     });
   } catch (error) {
+    await session.abortTransaction();
+    session.endSession();
     console.error('Error deleting account:', error);
     res.status(500).json({
       success: false,

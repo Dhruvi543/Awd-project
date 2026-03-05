@@ -29,6 +29,7 @@ import DoctorCalendar from './pages/Doctor/Calendar';
 import DoctorProfile from './pages/Doctor/Profile';
 import DoctorSettings from './pages/Doctor/Settings';
 import DoctorNotifications from './pages/Doctor/Notifications';
+import DoctorEarnings from './pages/Doctor/Earnings';
 
 // Patient Pages
 import PatientDashboard from './pages/Patient/Dashboard';
@@ -40,6 +41,7 @@ import PatientSettings from './pages/Patient/Settings';
 import BookAppointment from './pages/Patient/BookAppointment';
 import PatientProfile from './pages/Patient/Profile';
 import PatientNotifications from './pages/Patient/Notifications';
+import PaymentHistory from './pages/Patient/PaymentHistory';
 
 // Admin Pages
 import AdminDashboard from './pages/Admin/Dashboard';
@@ -52,6 +54,7 @@ import AdminAvailability from './pages/Admin/Availability';
 import AdminAnalytics from './pages/Admin/Analytics';
 import AdminSettings from './pages/Admin/Settings';
 import AdminNotifications from './pages/Admin/Notifications';
+import AdminPayments from './pages/Admin/Payments';
 
 // Common Pages
 import Doctors from './pages/Common/Doctors';
@@ -129,6 +132,7 @@ function App() {
             <Route path="dashboard" element={<PatientDashboard />} />
             <Route path="appointments" element={<PatientAppointments />} />
             <Route path="book-appointment" element={<BookAppointment />} />
+            <Route path="payment-history" element={<PaymentHistory />} />
             <Route path="find-doctor" element={<FindDoctor />} />
             <Route path="reviews" element={<PatientReviews />} />
             <Route path="availability" element={<PatientAvailability />} />
@@ -144,6 +148,7 @@ function App() {
           }>
             <Route path="dashboard" element={<DoctorDashboard />} />
             <Route path="appointments" element={<DoctorAppointments />} />
+            <Route path="earnings" element={<DoctorEarnings />} />
             <Route path="reviews" element={<DoctorReviews />} />
             <Route path="availability" element={<DoctorAvailability />} />
             <Route path="calendar" element={<DoctorCalendar />} />
@@ -167,6 +172,7 @@ function App() {
             <Route path="availability" element={<AdminAvailability />} />
             <Route path="analytics" element={<AdminAnalytics />} />
             <Route path="notifications" element={<AdminNotifications />} />
+            <Route path="payments" element={<AdminPayments />} />
             <Route path="settings" element={<AdminSettings />} />
           </Route>
 

@@ -8,7 +8,7 @@ const notificationSchema = new mongoose.Schema({
   },
   type: {
     type: String,
-    enum: ['patient_registered', 'doctor_registered', 'appointment_booked', 'appointment_request', 'appointment_cancelled', 'appointment_confirmed', 'appointment_rejected', 'appointment_updated', 'appointment_deleted', 'appointment_completed', 'doctor_approved', 'doctor_rejected', 'system'],
+    enum: ['patient_registered', 'doctor_registered', 'appointment_booked', 'appointment_request', 'appointment_cancelled', 'appointment_confirmed', 'appointment_rejected', 'appointment_updated', 'appointment_deleted', 'appointment_completed', 'doctor_approved', 'doctor_rejected', 'payment_received', 'payment_refund', 'system'],
     default: 'system'
   },
   message: {

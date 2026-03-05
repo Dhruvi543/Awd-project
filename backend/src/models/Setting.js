@@ -31,6 +31,13 @@ const settingSchema = new mongoose.Schema({
     default: false
   },
   
+  // Payment Settings
+  bookingFee: {
+    type: Number,
+    default: 100,
+    min: 0
+  },
+  
   // Appointment Settings
   maxAppointmentsPerDay: {
     type: Number,

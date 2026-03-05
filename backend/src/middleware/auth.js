@@ -43,13 +43,16 @@ const requireAuth = async (req, res, next) => {
       throw jwtError;
     }
 
-    // Find user
-    const user = await User.findById(decoded.userId).select('-password');
+    // Find user and explicitly ensure they are not soft-deleted
+    const user = await User.findOne({ 
+      _id: decoded.userId, 
+      isDeleted: { $ne: true } 
+    }).select('-password');
     
     if (!user) {
       return res.status(401).json({ 
         success: false,
-        message: 'Invalid token. User not found.' 
+        message: 'Invalid token or account has been deactivated.' 
       });
     }
 

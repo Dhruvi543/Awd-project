@@ -12,18 +12,6 @@ const apiClient = axios.create({
   },
 });
 
-// Request interceptor - add token to Authorization header if available
-apiClient.interceptors.request.use(
-  (config) => {
-    // Get token from localStorage
-    const token = localStorage.getItem('token');
-    if (token) {
-      config.headers.Authorization = `Bearer ${token}`;
-    }
-    return config;
-  },
-  (error) => Promise.reject(error)
-);
 
 // Response interceptor
 apiClient.interceptors.response.use(
@@ -37,11 +25,12 @@ apiClient.interceptors.response.use(
       // 2. The error is actually an authentication error (not a network error)
       // 3. We have a token stored (meaning we were authenticated)
       const currentPath = window.location.pathname;
-      const hasToken = localStorage.getItem('token');
+      // We no longer store the token in localStorage, we rely on the user object to indicate authenticated state
+      const hasUserSession = localStorage.getItem('user');
       
-      // Only clear if we have a token and we're not on auth pages
+      // Only clear if we have a user session and we're not on auth pages
       // This prevents clearing on initial page load or network errors
-      if (hasToken && 
+      if (hasUserSession && 
           !currentPath.includes('/login') && 
           !currentPath.includes('/register') && 
           !currentPath.includes('/admin-login') &&
@@ -55,7 +44,6 @@ apiClient.interceptors.response.use(
                            errorMessage.includes('expired');
         
         if (isAuthError) {
-          localStorage.removeItem('token');
           localStorage.removeItem('user');
           // Use a small delay to prevent race conditions
           setTimeout(() => {
@@ -115,6 +103,11 @@ export const apiService = {
   rejectAppointment: (id, rejectionReason) => apiClient.patch(`/api/appointments/${id}/reject`, { rejectionReason }),
   cancelConfirmedAppointment: (id, cancellationReason) => apiClient.patch(`/api/appointments/${id}/cancel-confirmed`, { cancellationReason }),
   completeAppointment: (id, prescription) => apiClient.patch(`/api/appointments/${id}/complete`, { prescription }),
+
+  // Payment methods
+  createPaymentOrder: () => apiClient.post('/api/payment/create-order'),
+  getPaymentHistory: () => apiClient.get('/api/payment/history'),
+  getDoctorEarnings: () => apiClient.get('/api/payment/doctor-earnings'),
   
   // Notification methods
   getNotifications: () => apiClient.get('/api/notifications'),
@@ -170,6 +163,10 @@ export const apiService = {
   
   // Admin methods - Analytics
   getAnalytics: (params = {}) => apiClient.get('/api/admin/analytics', { params }),
+  
+  // Admin methods - Payments
+  getAdminPayments: (params = {}) => apiClient.get('/api/admin/payments', { params }),
+  getAdminPaymentStats: () => apiClient.get('/api/admin/payments/stats'),
   
   // Admin methods - Settings
   getSettings: () => apiClient.get('/api/admin/settings'),

@@ -25,9 +25,41 @@ const reviewSchema = new mongoose.Schema({
   comment: {
     type: String,
     maxlength: 500
+  },
+  isDeleted: {
+    type: Boolean,
+    default: false
+  },
+  deletedAt: {
+    type: Date
+  },
+  deletedBy: {
+    type: String,
+    enum: ['user', 'admin', 'system_cascade']
   }
 }, {
   timestamps: true
+});
+const filterDeleted = function(next) {
+  if (this.options && this.options.skipSoftDeleteFilter) return next();
+  
+  if (this.getQuery().isDeleted === undefined) {
+    this.where({ isDeleted: { $ne: true } });
+  }
+  next();
+};
+
+reviewSchema.pre('find', filterDeleted);
+reviewSchema.pre('findOne', filterDeleted);
+reviewSchema.pre('countDocuments', filterDeleted);
+reviewSchema.pre('count', filterDeleted);
+
+reviewSchema.pre('aggregate', function(next) {
+  const options = this.options || {};
+  if (options.skipSoftDeleteFilter) return next();
+  
+  this.pipeline().unshift({ $match: { isDeleted: { $ne: true } } });
+  next();
 });
 
 export default mongoose.model('Review', reviewSchema);

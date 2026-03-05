@@ -22,6 +22,7 @@ const DoctorSettings = () => {
     licenseNo: user?.licenseNo || '',
     clinicHospitalType: user?.clinicHospitalType || '',
     clinicHospitalName: user?.clinicHospitalName || '',
+    consultationFee: user?.consultationFee || 500,
   });
   const [passwordData, setPasswordData] = useState({
     currentPassword: '',
@@ -50,6 +51,7 @@ const DoctorSettings = () => {
         licenseNo: user?.licenseNo || '',
         clinicHospitalType: user?.clinicHospitalType || '',
         clinicHospitalName: user?.clinicHospitalName || '',
+        consultationFee: user?.consultationFee || 500,
       });
     }
   }, [user]);
@@ -150,6 +152,11 @@ const DoctorSettings = () => {
           error = 'License number must be in format: XX/YYYY/XXXXX (e.g., TN/2020/123456)';
         }
       }
+    } else if (name === 'consultationFee') {
+      const num = parseInt(value);
+      if (isNaN(num) || num < 0) {
+        error = 'Consultation fee must be a positive number';
+      }
     }
 
     if (error) {
@@ -191,6 +198,8 @@ const DoctorSettings = () => {
       // Allow uppercase letters, numbers, and slashes only
       // Auto-format: convert to uppercase, allow only valid characters
       processedValue = value.toUpperCase().replace(/[^A-Z0-9\/]/g, '');
+    } else if (name === 'consultationFee') {
+      processedValue = parseInt(value) || 0;
     }
 
     setProfileData(prev => ({ ...prev, [name]: processedValue }));
@@ -267,6 +276,7 @@ const DoctorSettings = () => {
         location: profileData.location?.trim() || '',
         licenseNo: profileData.licenseNo?.trim() || '',
         clinicHospitalName: profileData.clinicHospitalName?.trim() || '',
+        consultationFee: profileData.consultationFee !== undefined ? profileData.consultationFee : 500,
       };
       const response = await apiService.updateProfile(normalizedData);
       if (response.data.success) {
@@ -288,6 +298,7 @@ const DoctorSettings = () => {
             licenseNo: updatedUser.licenseNo || '',
             clinicHospitalType: updatedUser.clinicHospitalType || '',
             clinicHospitalName: updatedUser.clinicHospitalName || '',
+            consultationFee: updatedUser.consultationFee !== undefined ? updatedUser.consultationFee : 500,
           });
           
           // Update localStorage
@@ -856,6 +867,32 @@ const DoctorSettings = () => {
                         <p className="mt-1 text-xs text-red-600 dark:text-red-400">{fieldErrors.clinicHospitalName}</p>
                       )}
                     </div>
+                    
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                        Consultation Fee (₹) <span className="text-red-500">*</span>
+                      </label>
+                      <input
+                        type="number"
+                        value={profileData.consultationFee === 0 ? '' : profileData.consultationFee}
+                        onChange={(e) => handleFieldChange('consultationFee', e.target.value)}
+                        onBlur={(e) => validateField('consultationFee', e.target.value)}
+                        className={`w-full px-4 py-3 border rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all ${
+                          fieldErrors.consultationFee ? 'border-red-300 dark:border-red-600' : 'border-gray-300 dark:border-gray-600'
+                        }`}
+                        placeholder="e.g., 500"
+                        min="0"
+                        required
+                      />
+                      {fieldErrors.consultationFee && (
+                        <p className="mt-1 text-xs text-red-600 dark:text-red-400">{fieldErrors.consultationFee}</p>
+                      )}
+                      {!fieldErrors.consultationFee && (
+                        <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">
+                          Total fee charged to patients.
+                        </p>
+                      )}
+                    </div>
                   </div>
                 </div>
 
@@ -877,6 +914,7 @@ const DoctorSettings = () => {
                         licenseNo: user?.licenseNo || '',
                         clinicHospitalType: user?.clinicHospitalType || '',
                         clinicHospitalName: user?.clinicHospitalName || '',
+                        consultationFee: user?.consultationFee || 500,
                       });
                       setFieldErrors({});
                       setError('');

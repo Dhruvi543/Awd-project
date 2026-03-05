@@ -43,6 +43,10 @@ const userSchema = new mongoose.Schema({
     trim: true 
   },
   clinicHospitalName: { type: String, trim: true },
+  consultationFee: {
+    type: Number,
+    default: 500,
+  },
   passwordResetToken: String,
   passwordResetExpires: Date,
   // Doctor approval status - only for doctors
@@ -59,6 +63,12 @@ const userSchema = new mongoose.Schema({
     ref: 'User'
   },
   rejectionReason: String,
+  // Soft delete capabilities
+  isDeleted: {
+    type: Boolean,
+    default: false
+  },
+  deletedAt: Date
 }, {
   timestamps: true
 });
@@ -73,5 +83,34 @@ userSchema.pre('save', async function(next) {
 userSchema.methods.comparePassword = async function(candidatePassword) {
   return await bcrypt.compare(candidatePassword, this.password);
 };
+
+// Indexes for optimized querying
+userSchema.index({ role: 1, isApproved: 1, isDeleted: 1 });
+userSchema.index({ name: 1 });
+userSchema.index({ specialization: 1 });
+
+// Soft delete global filter hook
+const filterDeleted = function(next) {
+  if (this.options && this.options.skipSoftDeleteFilter) return next();
+  
+  // Always exclude soft-deleted records unless explicitly asked for them
+  if (this.getQuery().isDeleted === undefined) {
+    this.where({ isDeleted: { $ne: true } });
+  }
+  next();
+};
+
+userSchema.pre('find', filterDeleted);
+userSchema.pre('findOne', filterDeleted);
+userSchema.pre('countDocuments', filterDeleted);
+userSchema.pre('count', filterDeleted);
+
+userSchema.pre('aggregate', function(next) {
+  const options = this.options || {};
+  if (options.skipSoftDeleteFilter) return next();
+  
+  this.pipeline().unshift({ $match: { isDeleted: { $ne: true } } });
+  next();
+});
 
 export default mongoose.model('User', userSchema);

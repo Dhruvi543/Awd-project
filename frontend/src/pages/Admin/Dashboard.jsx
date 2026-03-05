@@ -31,22 +31,23 @@ const AdminDashboard = () => {
     try {
       setIsLoading(true);
       
-      // Fetch statistics
-      const statsResponse = await apiService.getAdminStats();
-      if (statsResponse.data.success) {
-        setStats(statsResponse.data.data);
+      // Fetch all data in parallel
+      const [statsRes, appointmentsRes, usersRes] = await Promise.allSettled([
+        apiService.getAdminStats(),
+        apiService.getRecentAppointments(5),
+        apiService.getRecentUsers(5)
+      ]);
+      
+      if (statsRes.status === 'fulfilled' && statsRes.value.data.success) {
+        setStats(statsRes.value.data.data);
       }
       
-      // Fetch recent appointments
-      const appointmentsResponse = await apiService.getRecentAppointments(5);
-      if (appointmentsResponse.data.success) {
-        setRecentAppointments(appointmentsResponse.data.data);
+      if (appointmentsRes.status === 'fulfilled' && appointmentsRes.value.data.success) {
+        setRecentAppointments(appointmentsRes.value.data.data);
       }
       
-      // Fetch recent users
-      const usersResponse = await apiService.getRecentUsers(5);
-      if (usersResponse.data.success) {
-        setRecentUsers(usersResponse.data.data);
+      if (usersRes.status === 'fulfilled' && usersRes.value.data.success) {
+        setRecentUsers(usersRes.value.data.data);
       }
     } catch (error) {
       console.error('Error fetching dashboard data:', error);

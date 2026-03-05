@@ -1,0 +1,27 @@
+--- STARTING SOFT DELETE LIFECYCLE VERIFICATION ---
+[SUCCESS] Connected to MongoDB
+
+[STEP 1] Generating Dummy Doctor, Patient, and Appointment...
+Created Doctor: 699853d7f63388a17459cfd5
+Created Patient: 699853d8f63388a17459cfdd
+Created Appointment: 699853d8f63388a17459cfdf
+
+[STEP 2] Executing deleteDoctor Controller...
+deleteDoctor Response Status: 500
+deleteDoctor Response Data: {"success":false,"message":"Error deleting doctor","error":"Transaction numbers are only allowed on a replica set member or mongos"}
+
+[STEP 3] Validating Observability Context and Global Rules...
+Standard Query visibility: FAILED_HIDING
+Admin skipSoftDeleteFilter visibility: FAILED
+Appointment Status: pending
+Appointment Cancellation Source: undefined
+
+[STEP 4] Executing restoreAccount Controller...
+restoreAccount Response Status: 500
+restoreAccount Response Data: {"success":false,"message":"Error restoring account","error":"Transaction numbers are only allowed on a replica set member or mongos"}
+Doctor Post-Restore Standard Visibility: SUCCESS
+Appointment Post-Restore Status: pending (Should be pending)
+
+[CLEANUP] Removing mock validation entities...
+
+--- LIFECYCLE VERIFICATION COMPLETE ---

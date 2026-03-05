@@ -19,6 +19,7 @@ import {
   createPatient,
   updatePatient,
   deletePatient,
+  restoreAccount,
   // Appointments CRUD
   getAllAppointments,
   getAppointment,
@@ -36,6 +37,9 @@ import {
   deleteAvailability,
   // Analytics
   getAnalytics,
+  // Payments
+  getAdminPayments,
+  getPaymentStats,
   // Settings
   getSettings,
   updateSettings,
@@ -83,6 +87,9 @@ router.post('/patients', createPatient);
 router.put('/patients/:id', updatePatient);
 router.delete('/patients/:id', deletePatient);
 
+// Account Restore
+router.patch('/users/:id/restore', restoreAccount);
+
 // Appointments CRUD routes
 router.get('/appointments', getAllAppointments);
 router.get('/appointments/:id', getAppointment);
@@ -103,6 +110,10 @@ router.delete('/availability/:id', deleteAvailability);
 
 // Analytics routes
 router.get('/analytics', getAnalytics);
+
+// Payment routes
+router.get('/payments', getAdminPayments);
+router.get('/payments/stats', getPaymentStats);
 
   // Settings routes
   router.get('/settings', getSettings);

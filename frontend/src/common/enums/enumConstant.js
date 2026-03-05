@@ -29,6 +29,7 @@ export const RoutePath = {
   ADMIN_REVIEWS: '/admin/reviews',
   ADMIN_AVAILABILITY: '/admin/availability',
   ADMIN_ANALYTICS: '/admin/analytics',
+  ADMIN_PAYMENTS: '/admin/payments',
   ADMIN_NOTIFICATIONS: '/admin/notifications',
   ADMIN_SETTINGS: '/admin/settings',
   

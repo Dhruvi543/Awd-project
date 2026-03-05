@@ -5,6 +5,7 @@ import User from '../models/User.js';
 import Availability from '../models/Availability.js';
 import Notification from '../models/Notification.js';
 import Setting from '../models/Setting.js';
+import { verifyPaymentSignature, processRefund } from './payment.controller.js';
 
 // Helper function to compare ObjectIds reliably
 const compareObjectIds = (id1, id2) => {
@@ -54,8 +55,7 @@ const isDateOnLeave = async (doctorId, checkDate) => {
     return { isOnLeave: false };
   } catch (error) {
     console.error('Error checking leave status:', error);
-    // If there's an error, don't block the appointment
-    return { isOnLeave: false };
+    throw new Error('Failed to verify doctor leave status');
   }
 };
 
@@ -125,13 +125,43 @@ const bookAppointment = asyncHandler(async (req, res) => {
     }
 
     const patientId = req.user._id;
-    const { doctorId, appointmentDate, startTime, endTime, consultationNotes } = req.body;
+    const { 
+      doctorId, 
+      appointmentDate, 
+      startTime, 
+      endTime, 
+      consultationNotes,
+      razorpay_order_id,
+      razorpay_payment_id,
+      razorpay_signature 
+    } = req.body;
     
     // Validate required fields
     if (!doctorId || !appointmentDate || !startTime || !endTime) {
       return res.status(400).json({
         success: false,
         message: 'Doctor ID, appointment date, start time, and end time are required'
+      });
+    }
+
+    // Verify payment signature
+    if (!razorpay_order_id || !razorpay_payment_id || !razorpay_signature) {
+      return res.status(400).json({
+        success: false,
+        message: 'Payment verification failed. Missing Razorpay parameters.'
+      });
+    }
+
+    const isSignatureValid = verifyPaymentSignature(
+      razorpay_order_id, 
+      razorpay_payment_id, 
+      razorpay_signature
+    );
+
+    if (!isSignatureValid) {
+      return res.status(400).json({
+        success: false,
+        message: 'Payment verification failed. Invalid signature.'
       });
     }
     
@@ -249,101 +279,167 @@ const bookAppointment = asyncHandler(async (req, res) => {
       });
     }
     
-    // Check max appointments per day for the doctor
-    const maxAppointmentsPerDay = settings.maxAppointmentsPerDay || 10;
-    const appointmentsCount = await Appointment.countDocuments({
-      doctor: doctorId,
-      appointmentDate: new Date(appointmentDate),
-      status: { $in: ['pending', 'confirmed'] }
-    });
+    // Transaction for creation to avoid race conditions
+    const session = await mongoose.startSession();
+    session.startTransaction();
     
-    if (appointmentsCount >= maxAppointmentsPerDay) {
-      return res.status(400).json({
-        success: false,
-        message: `Doctor has reached the maximum appointments per day (${maxAppointmentsPerDay}). Please select another date.`
-      });
-    }
-    
-    // Check if doctor is on leave on the requested date
-    const leaveCheck = await isDateOnLeave(doctorId, appointmentDate);
-    if (leaveCheck.isOnLeave) {
-      const leaveStart = new Date(leaveCheck.leave.startDate).toLocaleDateString();
-      const leaveEnd = new Date(leaveCheck.leave.endDate).toLocaleDateString();
-      return res.status(400).json({
-        success: false,
-        message: `Doctor is on leave from ${leaveStart} to ${leaveEnd}. Please select another date.`
-      });
-    }
-    
-    // Check for conflicting appointments - prevent duplicate time slots
-    // Check if same doctor, same date, same start time already exists
-    const conflictingAppointment = await Appointment.findOne({
-      doctor: doctorId,
-      appointmentDate: new Date(appointmentDate),
-      startTime: startTime,
-      status: { $in: ['pending', 'confirmed'] }
-    });
-    
-    if (conflictingAppointment) {
-      return res.status(400).json({
-        success: false,
-        message: `This time slot (${startTime} - ${endTime}) is already booked. Please select another time.`
-      });
-    }
-    
-    // Also check if patient already has an appointment at this time
-    const patientConflict = await Appointment.findOne({
-      patient: patientId,
-      appointmentDate: new Date(appointmentDate),
-      startTime: startTime,
-      status: { $in: ['pending', 'confirmed'] }
-    });
-    
-    if (patientConflict) {
-      return res.status(400).json({
-        success: false,
-        message: 'You already have an appointment at this time. Please select another time slot.'
-      });
-    }
-    
-    // Create appointment
-    const appointment = new Appointment({
-      patient: patientId,
-      doctor: doctorId,
-      appointmentDate: new Date(appointmentDate),
-      startTime,
-      endTime,
-      consultationNotes,
-      status: 'pending'
-    });
-    
-    await appointment.save();
-    await appointment.populate('doctor', 'name email specialization');
-    await appointment.populate('patient', 'name email');
-    
-    // Create notification for doctor
     try {
-      const doctorNotification = new Notification({
-        user: doctorId,
-        type: 'appointment_request',
-        message: `New appointment request from ${req.user.name}`,
-        link: `/doctor/appointments`,
-        relatedUser: patientId,
-        relatedAppointment: appointment._id
+      // Check max appointments per day for the doctor
+      const maxAppointmentsPerDay = settings.maxAppointmentsPerDay || 10;
+      const appointmentsCount = await Appointment.countDocuments({
+        doctor: doctorId,
+        appointmentDate: new Date(appointmentDate),
+        status: { $in: ['pending', 'confirmed'] }
+      }).session(session);
+      
+      if (appointmentsCount >= maxAppointmentsPerDay) {
+        await session.abortTransaction();
+        session.endSession();
+        return res.status(400).json({
+          success: false,
+          message: `Doctor has reached the maximum appointments per day (${maxAppointmentsPerDay}). Please select another date.`
+        });
+      }
+      
+      // Check if doctor is on leave on the requested date
+      const leaveCheck = await isDateOnLeave(doctorId, appointmentDate);
+      if (leaveCheck.isOnLeave) {
+        await session.abortTransaction();
+        session.endSession();
+        const leaveStart = new Date(leaveCheck.leave.startDate).toLocaleDateString();
+        const leaveEnd = new Date(leaveCheck.leave.endDate).toLocaleDateString();
+        return res.status(400).json({
+          success: false,
+          message: `Doctor is on leave from ${leaveStart} to ${leaveEnd}. Please select another date.`
+        });
+      }
+      
+      // Check for conflicting appointments - prevent duplicate time slots
+      const conflictingAppointment = await Appointment.findOne({
+        doctor: doctorId,
+        appointmentDate: new Date(appointmentDate),
+        startTime: startTime,
+        status: { $in: ['pending', 'confirmed'] }
+      }).session(session);
+      
+      if (conflictingAppointment) {
+        await session.abortTransaction();
+        session.endSession();
+        return res.status(400).json({
+          success: false,
+          message: `This time slot (${startTime} - ${endTime}) is already booked. Please select another time.`
+        });
+      }
+      
+      // Also check if patient already has an appointment at this time
+      const patientConflict = await Appointment.findOne({
+        patient: patientId,
+        appointmentDate: new Date(appointmentDate),
+        startTime: startTime,
+        status: { $in: ['pending', 'confirmed'] }
+      }).session(session);
+      
+      if (patientConflict) {
+        await session.abortTransaction();
+        session.endSession();
+        return res.status(400).json({
+          success: false,
+          message: 'You already have an appointment at this time. Please select another time slot.'
+        });
+      }
+      
+      // Calculate fees
+      const doctorConsultationFee = doctor.consultationFee || 500;
+      const bookingFee = settings.bookingFee || 100;
+      const amountPending = Math.max(0, doctorConsultationFee - bookingFee);
+
+      // Create appointment
+      const appointment = new Appointment({
+        patient: patientId,
+        doctor: doctorId,
+        appointmentDate: new Date(appointmentDate),
+        startTime,
+        endTime,
+        consultationNotes,
+        status: 'pending',
+        paymentStatus: 'completed', // Booking fee paid
+        razorpayOrderId: razorpay_order_id,
+        razorpayPaymentId: razorpay_payment_id,
+        totalAmount: doctorConsultationFee,
+        amountPaid: bookingFee,
+        amountPending: amountPending
       });
-      await doctorNotification.save();
-    } catch (notifError) {
-      console.error('Error creating notification:', notifError);
-      // Don't fail the appointment if notification fails
+      
+      await appointment.save({ session });
+      await session.commitTransaction();
+      session.endSession();
+      
+      // Populate fields after commit
+      await appointment.populate('doctor', 'name email specialization');
+      await appointment.populate('patient', 'name email');
+      
+      // Create notification for doctor - appointment request
+      try {
+        const doctorNotification = new Notification({
+          user: doctorId,
+          type: 'appointment_request',
+          message: `New appointment request from ${req.user.name}`,
+          link: `/doctor/appointments`,
+          relatedUser: patientId,
+          relatedAppointment: appointment._id
+        });
+        await doctorNotification.save();
+      } catch (notifError) {
+        console.error('Error creating notification:', notifError);
+        // Don't fail the appointment if notification fails
+      }
+
+      // Payment notification for patient
+      try {
+        const patientPaymentNotif = new Notification({
+          user: patientId,
+          type: 'payment_received',
+          message: `Payment of ₹${bookingFee} received. Your appointment with Dr. ${doctor.name} is awaiting confirmation.`,
+          link: `/patient/appointments`,
+          relatedAppointment: appointment._id
+        });
+        await patientPaymentNotif.save();
+      } catch (notifError) {
+        console.error('Error creating patient payment notification:', notifError);
+      }
+
+      // Payment notification for doctor
+      try {
+        const appointmentDateFormatted = new Date(appointmentDate).toLocaleDateString('en-IN', {
+          day: 'numeric', month: 'short', year: 'numeric'
+        });
+        const doctorPaymentNotif = new Notification({
+          user: doctorId,
+          type: 'payment_received',
+          message: `New paid appointment request from ${req.user.name} for ${appointmentDateFormatted}.`,
+          link: `/doctor/appointments`,
+          relatedUser: patientId,
+          relatedAppointment: appointment._id
+        });
+        await doctorPaymentNotif.save();
+      } catch (notifError) {
+        console.error('Error creating doctor payment notification:', notifError);
+      }
+      
+      console.log('Appointment created successfully:', appointment._id);
+      
+      res.status(201).json({
+        success: true,
+        message: 'Appointment booked successfully',
+        data: appointment
+      });
+      
+    } catch (transactionError) {
+        await session.abortTransaction();
+        session.endSession();
+        throw transactionError;
     }
     
-    console.log('Appointment created successfully:', appointment._id);
-    
-    res.status(201).json({
-      success: true,
-      message: 'Appointment booked successfully',
-      data: appointment
-    });
   } catch (error) {
     console.error('Error booking appointment:', error);
     res.status(500).json({
@@ -683,8 +779,24 @@ const cancelAppointment = asyncHandler(async (req, res) => {
       });
     }
     
-    appointment.status = 'cancelled';
-    await appointment.save();
+    // Process refund based on patient cancellation timing policy
+    let refundResult = { success: false, refundAmount: 0, reason: 'No payment to refund' };
+    if (appointment.paymentStatus === 'completed' && appointment.amountPaid > 0) {
+      try {
+        refundResult = await processRefund(appointment._id, 'patient');
+        console.log('Patient cancel refund result:', refundResult);
+      } catch (refundError) {
+        console.error('Refund processing error during patient cancel:', refundError);
+        // Continue with cancellation even if refund fails
+      }
+    }
+
+    // If refund didn't already set status to cancelled, do it now
+    if (appointment.status !== 'cancelled') {
+      appointment.status = 'cancelled';
+      appointment.cancellationSource = 'patient';
+      await appointment.save();
+    }
     
     // Create notification for doctor
     const doctorNotification = new Notification({
@@ -697,10 +809,17 @@ const cancelAppointment = asyncHandler(async (req, res) => {
     });
     await doctorNotification.save();
     
+    // Reload to get updated payment fields
+    const updatedAppointment = await Appointment.findById(appointment._id)
+      .populate('doctor', 'name email specialization')
+      .populate('patient', 'name email');
+
     res.json({
       success: true,
-      message: 'Appointment cancelled successfully',
-      data: appointment
+      message: refundResult.refundAmount > 0
+        ? `Appointment cancelled. Refund of ₹${refundResult.refundAmount} initiated. ${refundResult.reason}`
+        : `Appointment cancelled. ${refundResult.reason}`,
+      data: updatedAppointment
     });
   } catch (error) {
     res.status(500).json({
@@ -901,6 +1020,17 @@ const rejectAppointment = asyncHandler(async (req, res) => {
     await appointment.save();
     await appointment.populate('patient', 'name email');
     await appointment.populate('doctor', 'name email specialization');
+
+    // Auto-refund: doctor rejected → 100% refund
+    let refundResult = { refundAmount: 0 };
+    if (appointment.paymentStatus === 'completed' && appointment.amountPaid > 0) {
+      try {
+        refundResult = await processRefund(appointment._id, 'doctor');
+        console.log('Doctor reject auto-refund result:', refundResult);
+      } catch (refundError) {
+        console.error('Refund error during doctor reject:', refundError);
+      }
+    }
     
     // Create notification for patient
     try {
@@ -917,11 +1047,17 @@ const rejectAppointment = asyncHandler(async (req, res) => {
     } catch (notifError) {
       console.error('Error creating notification:', notifError);
     }
+
+    const updatedAppointment = await Appointment.findById(appointment._id)
+      .populate('doctor', 'name email specialization')
+      .populate('patient', 'name email');
     
     res.json({
       success: true,
-      message: 'Appointment rejected successfully',
-      data: appointment
+      message: refundResult.refundAmount > 0
+        ? `Appointment rejected. Refund of ₹${refundResult.refundAmount} initiated.`
+        : 'Appointment rejected successfully',
+      data: updatedAppointment
     });
   } catch (error) {
     console.error('Error rejecting appointment:', error);
@@ -977,6 +1113,17 @@ const cancelConfirmedAppointment = asyncHandler(async (req, res) => {
     await appointment.save();
     await appointment.populate('patient', 'name email');
     await appointment.populate('doctor', 'name email specialization');
+
+    // Auto-refund: doctor cancelled confirmed appointment → 100% refund
+    let refundResult = { refundAmount: 0 };
+    if (appointment.paymentStatus === 'completed' && appointment.amountPaid > 0) {
+      try {
+        refundResult = await processRefund(appointment._id, 'doctor');
+        console.log('Doctor cancel auto-refund result:', refundResult);
+      } catch (refundError) {
+        console.error('Refund error during doctor cancel:', refundError);
+      }
+    }
     
     // Create notification for patient
     try {
@@ -993,11 +1140,17 @@ const cancelConfirmedAppointment = asyncHandler(async (req, res) => {
     } catch (notifError) {
       console.error('Error creating notification:', notifError);
     }
+
+    const updatedAppointment = await Appointment.findById(appointment._id)
+      .populate('doctor', 'name email specialization')
+      .populate('patient', 'name email');
     
     res.json({
       success: true,
-      message: 'Appointment cancelled successfully',
-      data: appointment
+      message: refundResult.refundAmount > 0
+        ? `Appointment cancelled. Refund of ₹${refundResult.refundAmount} initiated.`
+        : 'Appointment cancelled successfully',
+      data: updatedAppointment
     });
   } catch (error) {
     console.error('Error cancelling appointment:', error);

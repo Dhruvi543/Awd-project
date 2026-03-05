@@ -6,6 +6,9 @@ import Availability from '../models/Availability.js';
 import Notification from '../models/Notification.js';
 import Setting from '../models/Setting.js';
 import bcrypt from 'bcryptjs';
+import crypto from 'crypto';
+import { logLifecycleEvent } from '../utils/auditLogger.js';
+import mongoose from 'mongoose';
 
 // ==================== DASHBOARD ====================
 // Get dashboard statistics
@@ -406,62 +409,96 @@ const updateDoctor = asyncHandler(async (req, res) => {
 
 // Delete doctor (DELETE)
 const deleteDoctor = asyncHandler(async (req, res) => {
+  const session = await mongoose.startSession();
+  session.startTransaction();
+
   try {
-    const doctor = await User.findOne({ _id: req.params.id, role: 'doctor' });
+    const doctor = await User.findOne({ _id: req.params.id, role: 'doctor', isDeleted: { $ne: true } }).session(session);
     
     if (!doctor) {
+      await session.abortTransaction();
+      session.endSession();
       return res.status(404).json({
         success: false,
         message: 'Doctor not found'
       });
     }
     
-    // Cancel ALL appointments for this doctor (pending, confirmed, etc.)
-    // When doctor is deleted, all appointments should be cancelled
-    try {
-      const allAppointments = await Appointment.find({ 
-        doctor: doctor._id,
-        status: { $in: ['pending', 'confirmed'] } // Only cancel pending and confirmed, not already completed/cancelled
-      });
-      
-      if (allAppointments.length > 0) {
-        await Appointment.updateMany(
-          { doctor: doctor._id, status: { $in: ['pending', 'confirmed'] } },
-          { 
-            status: 'cancelled',
-            rejectionReason: 'Appointment cancelled: Doctor account has been deleted'
+    const allAppointments = await Appointment.find({ 
+      doctor: doctor._id,
+      status: { $in: ['pending', 'confirmed'] } 
+    }).session(session);
+    
+    if (allAppointments.length > 0) {
+      const bulkOps = allAppointments.map(apt => ({
+        updateOne: {
+          filter: { _id: apt._id },
+          update: {
+            $set: { 
+              status: 'cancelled',
+              rejectionReason: 'Appointment cancelled: Doctor account has been deactivated.',
+              cancellationSource: 'system_cascade',
+              previousStatus: apt.status
+            }
           }
-        );
-        console.log(`Cancelled ${allAppointments.length} appointment(s) for deleted doctor`);
-      }
-    } catch (appointmentError) {
-      console.error('Error cancelling appointments:', appointmentError);
-      // Continue with doctor deletion even if appointment cancellation fails
+        }
+      }));
+      await Appointment.bulkWrite(bulkOps, { session });
+      console.log(`Cancelled ${allAppointments.length} appointment(s) for deleted doctor`);
     }
 
-    // Delete all reviews for this doctor
-    try {
-      await Review.deleteMany({ doctor: doctor._id });
-    } catch (reviewError) {
-      console.error('Error deleting reviews:', reviewError);
-      // Continue with deletion even if review deletion fails
-    }
+    await Review.updateMany(
+      { doctor: doctor._id, isDeleted: { $ne: true } },
+      { $set: { isDeleted: true, deletedAt: new Date(), deletedBy: 'system_cascade' } },
+      { session }
+    );
 
-    // Delete all availability for this doctor
-    try {
-      await Availability.deleteMany({ doctor: doctor._id });
-    } catch (availabilityError) {
-      console.error('Error deleting availability:', availabilityError);
-      // Continue with deletion even if availability deletion fails
+    await Availability.updateMany(
+      { doctor: doctor._id, isDeleted: { $ne: true } },
+      { $set: { isDeleted: true, deletedAt: new Date(), deletedBy: 'system_cascade' } },
+      { session }
+    );
+
+    doctor.isDeleted = true;
+    doctor.deletedAt = new Date();
+    await doctor.save({ session });
+    
+    // Post-Delete Operational Assertion
+    const verifyUserHidden = await User.findOne({ _id: doctor._id }).session(session);
+    if (verifyUserHidden) {
+      throw new Error("Integrity Failure: User remains visible to standard queries.");
     }
     
-    await User.deleteOne({ _id: doctor._id });
+    const activeAppointments = await Appointment.countDocuments({
+      doctor: doctor._id,
+      status: { $in: ['pending', 'confirmed'] } 
+    }).session(session);
+    if (activeAppointments > 0) {
+      throw new Error(`Integrity Failure: ${activeAppointments} appointments escaped the cascade.`);
+    }
+
+    logLifecycleEvent({
+      event: "system.user.deleted",
+      userId: doctor._id,
+      userRole: "doctor",
+      actorId: req.user._id,
+      source: "admin_panel",
+      transactionId: crypto.randomUUID(),
+      cascadeCounts: {
+        appointmentsCancelled: allAppointments.length
+      }
+    });
+
+    await session.commitTransaction();
+    session.endSession();
     
     res.json({
       success: true,
       message: 'Doctor deleted successfully'
     });
   } catch (error) {
+    await session.abortTransaction();
+    session.endSession();
     res.status(500).json({
       success: false,
       message: 'Error deleting doctor',
@@ -770,61 +807,184 @@ const updatePatient = asyncHandler(async (req, res) => {
 
 // Delete patient (DELETE)
 const deletePatient = asyncHandler(async (req, res) => {
+  const session = await mongoose.startSession();
+  session.startTransaction();
+
   try {
-    const patient = await User.findOne({ _id: req.params.id, role: 'patient' });
+    const patient = await User.findOne({ _id: req.params.id, role: 'patient', isDeleted: { $ne: true } }).session(session);
     
     if (!patient) {
+      await session.abortTransaction();
+      session.endSession();
       return res.status(404).json({
         success: false,
         message: 'Patient not found'
       });
     }
     
-    // Cancel ALL appointments for this patient (pending, confirmed, etc.)
-    // When patient is deleted, all appointments should be cancelled
-    try {
-      const allAppointments = await Appointment.find({ 
-        patient: patient._id,
-        status: { $in: ['pending', 'confirmed'] } // Only cancel pending and confirmed, not already completed/cancelled
-      });
-      
-      if (allAppointments.length > 0) {
-        await Appointment.updateMany(
-          { patient: patient._id, status: { $in: ['pending', 'confirmed'] } },
-          { 
-            status: 'cancelled',
-            rejectionReason: 'Appointment cancelled: Patient account has been deleted'
+    const allAppointments = await Appointment.find({ 
+      patient: patient._id,
+      status: { $in: ['pending', 'confirmed'] }
+    }).session(session);
+    
+    if (allAppointments.length > 0) {
+      const bulkOps = allAppointments.map(apt => ({
+        updateOne: {
+          filter: { _id: apt._id },
+          update: {
+            $set: { 
+              status: 'cancelled',
+              rejectionReason: 'Appointment cancelled: Patient account has been deactivated.',
+              cancellationSource: 'system_cascade',
+              previousStatus: apt.status
+            }
           }
-        );
-        console.log(`Cancelled ${allAppointments.length} appointment(s) for deleted patient`);
+        }
+      }));
+      await Appointment.bulkWrite(bulkOps, { session });
+      console.log(`Cancelled ${allAppointments.length} appointment(s) for deleted patient`);
+    }
+    
+    patient.isDeleted = true;
+    patient.deletedAt = new Date();
+    await patient.save({ session });
+    
+    // Post-Delete Operational Assertion
+    const verifyUserHidden = await User.findOne({ _id: patient._id }).session(session);
+    if (verifyUserHidden) {
+      throw new Error("Integrity Failure: User remains visible to standard queries.");
+    }
+
+    const activeAppointments = await Appointment.countDocuments({
+      patient: patient._id,
+      status: { $in: ['pending', 'confirmed'] } 
+    }).session(session);
+    if (activeAppointments > 0) {
+      throw new Error(`Integrity Failure: ${activeAppointments} appointments escaped the cascade.`);
+    }
+
+    logLifecycleEvent({
+      event: "system.user.deleted",
+      userId: patient._id,
+      userRole: "patient",
+      actorId: req.user._id,
+      source: "admin_panel",
+      transactionId: crypto.randomUUID(),
+      cascadeCounts: {
+        appointmentsCancelled: allAppointments.length
       }
-    } catch (appointmentError) {
-      console.error('Error cancelling appointments:', appointmentError);
-      // Continue with patient deletion even if appointment cancellation fails
-    }
-    
-    // Note: Reviews are NOT deleted when patient account is deleted
-    // Reviews remain with patient name and doctor name for other patients' reference
-    
-    const deleteResult = await User.deleteOne({ _id: patient._id });
-    
-    if (deleteResult.deletedCount === 0) {
-      return res.status(500).json({
-        success: false,
-        message: 'Failed to delete patient. No documents were deleted.'
-      });
-    }
+    });
+
+    await session.commitTransaction();
+    session.endSession();
     
     res.json({
       success: true,
       message: 'Patient deleted successfully'
     });
   } catch (error) {
+    await session.abortTransaction();
+    session.endSession();
     console.error('Error deleting patient:', error);
     res.status(500).json({
       success: false,
       message: 'Error deleting patient',
       error: error.message
+    });
+  }
+});
+// Restore account (RESTORE)
+const restoreAccount = asyncHandler(async (req, res) => {
+  const session = await mongoose.startSession();
+  session.startTransaction();
+
+  try {
+    // Find explicitly deleted user, bypassing the global filter
+    const deletedUser = await User.findOne({ _id: req.params.id, isDeleted: true }).session(session);
+    
+    if (!deletedUser) {
+      await session.abortTransaction();
+      session.endSession();
+      return res.status(404).json({
+        success: false,
+        message: 'Deleted user not found'
+      });
+    }
+
+    // Email conflict check
+    const emailConflict = await User.exists({ email: deletedUser.email, isDeleted: { $ne: true } }).session(session);
+    if (emailConflict) {
+       await session.abortTransaction();
+       session.endSession();
+       return res.status(409).json({
+         success: false,
+         message: `Restore failed: Email ${deletedUser.email} is currently in use by a new active registration.`
+       });
+    }
+
+    deletedUser.isDeleted = false;
+    deletedUser.deletedAt = undefined;
+    await deletedUser.save({ session });
+
+    if (deletedUser.role === 'doctor') {
+      await Review.updateMany(
+        { doctor: deletedUser._id, deletedBy: 'system_cascade' },
+        { $set: { isDeleted: false }, $unset: { deletedAt: "", deletedBy: "" } },
+        { session }
+      );
+      await Availability.updateMany(
+        { doctor: deletedUser._id, deletedBy: 'system_cascade' },
+        { $set: { isDeleted: false }, $unset: { deletedAt: "", deletedBy: "" } },
+        { session }
+      );
+    }
+
+    // Restore Appointments (Cascade Reversal)
+    const fieldMatch = deletedUser.role === 'doctor' ? { doctor: deletedUser._id } : { patient: deletedUser._id };
+    const appointmentsToRestore = await Appointment.find({
+      ...fieldMatch,
+      cancellationSource: 'system_cascade'
+    }).session(session);
+
+    if (appointmentsToRestore.length > 0) {
+      const bulkOps = appointmentsToRestore.map(apt => ({
+        updateOne: {
+          filter: { _id: apt._id },
+          update: {
+            $set: { status: apt.previousStatus }, // Revert to pending/confirmed
+            $unset: { previousStatus: "", cancellationSource: "", rejectionReason: "" }
+          }
+        }
+      }));
+      await Appointment.bulkWrite(bulkOps, { session });
+    }
+
+    logLifecycleEvent({
+      event: "system.user.restored",
+      userId: deletedUser._id,
+      userRole: deletedUser.role,
+      actorId: req.user._id,
+      source: "admin_panel",
+      transactionId: crypto.randomUUID(),
+      cascadeCounts: {
+        appointmentsRestored: appointmentsToRestore.length
+      }
+    });
+
+    await session.commitTransaction();
+    session.endSession();
+    
+    res.json({
+      success: true,
+      message: 'Account successfully restored.'
+    });
+  } catch (err) {
+    await session.abortTransaction();
+    session.endSession();
+    res.status(500).json({
+      success: false,
+      message: 'Error restoring account',
+      error: err.message
     });
   }
 });
@@ -1852,6 +2012,131 @@ const deleteNotification = asyncHandler(async (req, res) => {
   }
 });
 
+// ==================== PAYMENTS ====================
+// Get all payments (paginated, with filters)
+const getAdminPayments = asyncHandler(async (req, res) => {
+  try {
+    const { status, startDate, endDate, doctorId, page = 1, limit = 20 } = req.query;
+    const skip = (parseInt(page) - 1) * parseInt(limit);
+
+    let query = { paymentStatus: { $ne: 'pending' } };
+
+    if (status) query.paymentStatus = status;
+    if (doctorId) query.doctor = doctorId;
+    if (startDate || endDate) {
+      query.createdAt = {};
+      if (startDate) query.createdAt.$gte = new Date(startDate);
+      if (endDate) {
+        const end = new Date(endDate);
+        end.setHours(23, 59, 59, 999);
+        query.createdAt.$lte = end;
+      }
+    }
+
+    const appointments = await Appointment.find(query)
+      .populate('patient', 'name email')
+      .populate('doctor', 'name email specialization')
+      .sort({ createdAt: -1 })
+      .skip(skip)
+      .limit(parseInt(limit))
+      .select('patient doctor appointmentDate totalAmount amountPaid amountPending paymentStatus refundId refundAmount razorpayPaymentId createdAt');
+
+    const total = await Appointment.countDocuments(query);
+
+    res.json({
+      success: true,
+      data: appointments,
+      pagination: {
+        page: parseInt(page),
+        limit: parseInt(limit),
+        total,
+        pages: Math.ceil(total / parseInt(limit))
+      }
+    });
+  } catch (error) {
+    res.status(500).json({
+      success: false,
+      message: 'Error fetching payments',
+      error: error.message
+    });
+  }
+});
+
+// Get payment stats (revenue, refunds, monthly revenue)
+const getPaymentStats = asyncHandler(async (req, res) => {
+  try {
+    // Total revenue (sum of amountPaid for completed payments)
+    const revenueAgg = await Appointment.aggregate([
+      { $match: { paymentStatus: 'completed' } },
+      { $group: { _id: null, totalRevenue: { $sum: '$amountPaid' } } }
+    ]);
+    const totalRevenue = revenueAgg[0]?.totalRevenue || 0;
+
+    // Total refunds
+    const refundAgg = await Appointment.aggregate([
+      { $match: { paymentStatus: 'refunded', refundId: { $exists: true, $ne: null } } },
+      { $group: { _id: null, totalRefunds: { $sum: '$refundAmount' } } }
+    ]);
+    const totalRefunds = refundAgg[0]?.totalRefunds || 0;
+
+    // Pending refunds (refunded status but no refundId — refund not yet processed)
+    const pendingRefunds = await Appointment.countDocuments({
+      paymentStatus: 'refunded',
+      $or: [{ refundId: null }, { refundId: { $exists: false } }]
+    });
+
+    // Monthly revenue for last 6 months
+    const sixMonthsAgo = new Date();
+    sixMonthsAgo.setMonth(sixMonthsAgo.getMonth() - 6);
+    sixMonthsAgo.setDate(1);
+    sixMonthsAgo.setHours(0, 0, 0, 0);
+
+    const monthlyRevenue = await Appointment.aggregate([
+      {
+        $match: {
+          paymentStatus: { $in: ['completed', 'refunded'] },
+          createdAt: { $gte: sixMonthsAgo }
+        }
+      },
+      {
+        $group: {
+          _id: {
+            year: { $year: '$createdAt' },
+            month: { $month: '$createdAt' }
+          },
+          revenue: { $sum: '$amountPaid' },
+          refunds: { $sum: '$refundAmount' }
+        }
+      },
+      { $sort: { '_id.year': 1, '_id.month': 1 } }
+    ]);
+
+    // Format monthly data with month names
+    const monthNames = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+    const formattedMonthly = monthlyRevenue.map(item => ({
+      month: `${monthNames[item._id.month - 1]} ${item._id.year}`,
+      revenue: item.revenue,
+      refunds: item.refunds
+    }));
+
+    res.json({
+      success: true,
+      data: {
+        totalRevenue,
+        totalRefunds,
+        pendingRefunds,
+        monthlyRevenue: formattedMonthly
+      }
+    });
+  } catch (error) {
+    res.status(500).json({
+      success: false,
+      message: 'Error fetching payment stats',
+      error: error.message
+    });
+  }
+});
+
 export {
   // Dashboard
   getDashboardStats,
@@ -1871,6 +2156,7 @@ export {
   createPatient,
   updatePatient,
   deletePatient,
+  restoreAccount,
   // Appointments CRUD
   getAllAppointments,
   getAppointment,
@@ -1888,6 +2174,9 @@ export {
   deleteAvailability,
   // Analytics
   getAnalytics,
+  // Payments
+  getAdminPayments,
+  getPaymentStats,
   // Settings
   getSettings,
   updateSettings,
@@ -1900,3 +2189,4 @@ export {
   markAllNotificationsRead,
   deleteNotification,
 };
+

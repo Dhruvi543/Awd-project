@@ -17,6 +17,9 @@ import reviewRoutes from './routes/review.routes.js';
 import doctorRoutes from './routes/doctor.routes.js';
 import userRoutes from './routes/user.routes.js';
 import notificationRoutes from './routes/notification.routes.js';
+import paymentRoutes from './routes/payment.routes.js';
+
+import { handleWebhook } from './controllers/payment.controller.js';
 
 const app = express();
 
@@ -32,6 +35,10 @@ app.use(compression()); // Compress responses
 app.use(mongoSanitize()); // Prevent MongoDB injection attacks
 app.use(xss()); // Prevent XSS attacks
 app.use(apiLogger); // Custom API logging with colors
+
+// Razorpay webhook — must be BEFORE express.json() to preserve raw body for HMAC verification
+app.post('/api/payment/webhook', express.raw({ type: 'application/json' }), handleWebhook);
+
 app.use(express.json({ limit: '10mb' }));
 app.use(express.urlencoded({ extended: true, limit: '10mb' }));
 app.use(cookieParser());
@@ -48,6 +55,7 @@ app.use('/api/reviews', reviewRoutes);
 app.use('/api/doctors', doctorRoutes);
 app.use('/api/users', userRoutes);
 app.use('/api/notifications', notificationRoutes);
+app.use('/api/payment', paymentRoutes);
 
 app.use('*', (_req, res) => {
   res.status(404).json({ message: 'Route not found' });

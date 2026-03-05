@@ -14,18 +14,17 @@ const getDoctors = asyncHandler(async (req, res) => {
       query.specialization = new RegExp(specialty, 'i');
     }
     
+    if (search) {
+      const searchRegex = new RegExp(search, 'i');
+      query.$or = [
+        { name: searchRegex },
+        { specialization: searchRegex }
+      ];
+    }
+    
     let doctors = await User.find(query)
       .select('-password')
       .sort({ name: 1 });
-    
-    // Search filter
-    if (search) {
-      const searchLower = search.toLowerCase();
-      doctors = doctors.filter(doctor =>
-        doctor.name?.toLowerCase().includes(searchLower) ||
-        doctor.specialization?.toLowerCase().includes(searchLower)
-      );
-    }
     
     // Get ratings for each doctor
     const doctorsWithRatings = await Promise.all(
