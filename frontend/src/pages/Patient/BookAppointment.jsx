@@ -3,7 +3,7 @@ import { useNavigate, useSearchParams } from 'react-router-dom';
 import { apiService } from '../../api/apiService';
 import { useAuth } from '../../contexts/AuthContext';
 import Toast from '../../components/feedback/Toast';
-import useRazorpay from 'react-razorpay';
+import { useRazorpay } from 'react-razorpay';
 
 const BookAppointment = () => {
   const navigate = useNavigate();
@@ -28,7 +28,7 @@ const BookAppointment = () => {
     duration: 30
   });
   const [bookingFee, setBookingFee] = useState(100);
-  const [Razorpay] = useRazorpay();
+  const { Razorpay } = useRazorpay();
 
   const [formData, setFormData] = useState({
     patientName: user?.name || '',

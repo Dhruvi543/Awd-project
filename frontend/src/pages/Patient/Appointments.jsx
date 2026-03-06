@@ -480,7 +480,7 @@ const PatientAppointments = () => {
             <p className="text-gray-600 dark:text-gray-400">View and manage all your appointments</p>
           </div>
           <Link
-            to="/patient/book-appointment"
+            to="/patient/find-doctor"
             className="px-6 py-3 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors font-medium flex items-center gap-2"
           >
             <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
