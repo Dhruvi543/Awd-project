@@ -21,9 +21,9 @@ const PatientAppointments = () => {
   const [isLoading, setIsLoading] = useState(true);
   const [filter, setFilter] = useState(() => getFilterFromParam(statusParam));
   const [editingAppointment, setEditingAppointment] = useState(null);
-  const [deletingAppointment, setDeletingAppointment] = useState(null);
+  const [cancellingAppointment, setCancellingAppointment] = useState(null);
   const [showEditModal, setShowEditModal] = useState(false);
-  const [showDeleteModal, setShowDeleteModal] = useState(false);
+  const [showCancelModal, setShowCancelModal] = useState(false);
   const [showCalendar, setShowCalendar] = useState(false);
   const [selectedMonth, setSelectedMonth] = useState(new Date().getMonth());
   const [selectedYear, setSelectedYear] = useState(new Date().getFullYear());
@@ -263,9 +263,9 @@ const PatientAppointments = () => {
     setSuccess('');
   };
 
-  const handleDelete = (appointment) => {
-    setDeletingAppointment(appointment);
-    setShowDeleteModal(true);
+  const handleCancel = (appointment) => {
+    setCancellingAppointment(appointment);
+    setShowCancelModal(true);
     setError('');
   };
 
@@ -302,21 +302,21 @@ const PatientAppointments = () => {
     }
   };
 
-  const handleDeleteAppointment = async () => {
+  const handleCancelAppointment = async () => {
     setError('');
     try {
-      const response = await apiService.deleteAppointment(deletingAppointment._id);
+      const response = await apiService.cancelAppointment(cancellingAppointment._id);
       if (response.data.success) {
-        setSuccess('Appointment deleted successfully!');
-        setShowDeleteModal(false);
-        setDeletingAppointment(null);
+        setSuccess(response.data.message || 'Appointment cancelled successfully!');
+        setShowCancelModal(false);
+        setCancellingAppointment(null);
         fetchAppointments();
         setTimeout(() => setSuccess(''), 3000);
       }
     } catch (error) {
-      console.error('Error deleting appointment:', error);
-      setError(error.response?.data?.message || 'Failed to delete appointment');
-      setShowDeleteModal(false);
+      console.error('Error cancelling appointment:', error);
+      setError(error.response?.data?.message || 'Failed to cancel appointment');
+      setShowCancelModal(false);
     }
   };
 
@@ -471,8 +471,8 @@ const PatientAppointments = () => {
   };
 
   return (
-    <div className="w-full">
-      <div className="max-w-7xl mx-auto">
+    <div className="w-full max-w-full">
+      <div className="max-w-full">
         {/* Header */}
         <div className="mb-8 flex items-center justify-between">
           <div>
@@ -599,13 +599,13 @@ const PatientAppointments = () => {
                           Edit
                         </button>
                         <button
-                          onClick={() => handleDelete(appointment)}
+                          onClick={() => handleCancel(appointment)}
                           className="px-4 py-2 bg-red-50 dark:bg-red-900/20 text-red-700 dark:text-red-400 rounded-lg hover:bg-red-100 dark:hover:bg-red-900/30 transition-colors flex items-center gap-2"
                         >
                           <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
                           </svg>
-                          Delete
+                          Cancel
                         </button>
                       </>
                     )}
@@ -760,29 +760,29 @@ const PatientAppointments = () => {
         </div>
       )}
 
-      {/* Delete Confirmation Modal */}
-      {showDeleteModal && deletingAppointment && (
+      {/* Cancel Confirmation Modal */}
+      {showCancelModal && cancellingAppointment && (
         <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
           <div className="bg-white dark:bg-gray-800 rounded-xl shadow-xl max-w-md w-full">
             <div className="p-6">
-              <div className="flex items-center justify-center w-12 h-12 mx-auto mb-4 bg-red-100 dark:bg-red-900/30 rounded-full">
-                <svg className="w-6 h-6 text-red-600 dark:text-red-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <div className="flex items-center justify-center w-12 h-12 mx-auto mb-4 bg-orange-100 dark:bg-orange-900/30 rounded-full">
+                <svg className="w-6 h-6 text-orange-600 dark:text-orange-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
                 </svg>
               </div>
-              <h2 className="text-xl font-bold text-gray-900 dark:text-white text-center mb-2">Delete Appointment</h2>
+              <h2 className="text-xl font-bold text-gray-900 dark:text-white text-center mb-2">Cancel Appointment</h2>
               <p className="text-gray-600 dark:text-gray-400 text-center mb-6">
-                Are you sure you want to delete this appointment? This action cannot be undone.
+                Are you sure you want to cancel this appointment? You can view cancelled appointments in your payment history.
               </p>
               <div className="bg-gray-50 dark:bg-gray-700 rounded-lg p-4 mb-6">
                 <p className="text-sm text-gray-600 dark:text-gray-400">
-                  <strong>Doctor:</strong> Dr. {deletingAppointment.doctor?.name || 'This doctor is no longer available'}
+                  <strong>Doctor:</strong> Dr. {cancellingAppointment.doctor?.name || 'This doctor is no longer available'}
                 </p>
                 <p className="text-sm text-gray-600 dark:text-gray-400">
-                  <strong>Date:</strong> {formatDate(deletingAppointment.appointmentDate)}
+                  <strong>Date:</strong> {formatDate(cancellingAppointment.appointmentDate)}
                 </p>
                 <p className="text-sm text-gray-600 dark:text-gray-400">
-                  <strong>Time:</strong> {deletingAppointment.startTime} - {deletingAppointment.endTime}
+                  <strong>Time:</strong> {cancellingAppointment.startTime} - {cancellingAppointment.endTime}
                 </p>
               </div>
               {error && (
@@ -792,20 +792,20 @@ const PatientAppointments = () => {
               )}
               <div className="flex gap-3">
                 <button
-                  onClick={handleDeleteAppointment}
-                  className="flex-1 px-6 py-3 bg-red-600 text-white rounded-lg hover:bg-red-700 transition-colors font-medium"
+                  onClick={handleCancelAppointment}
+                  className="flex-1 px-6 py-3 bg-orange-600 text-white rounded-lg hover:bg-orange-700 transition-colors font-medium"
                 >
-                  Delete
+                  Cancel Appointment
                 </button>
                 <button
                   onClick={() => {
-                    setShowDeleteModal(false);
-                    setDeletingAppointment(null);
+                    setShowCancelModal(false);
+                    setCancellingAppointment(null);
                     setError('');
                   }}
                   className="flex-1 px-6 py-3 bg-gray-200 dark:bg-gray-700 text-gray-700 dark:text-gray-300 rounded-lg hover:bg-gray-300 dark:hover:bg-gray-600 transition-colors font-medium"
                 >
-                  Cancel
+                  Keep Appointment
                 </button>
               </div>
             </div>

@@ -65,16 +65,16 @@ const AdminPayments = () => {
   const maxRevenue = Math.max(...(stats.monthlyRevenue.map(m => m.revenue) || [1]), 1);
 
   return (
-    <div className="w-full">
-      <div className="max-w-7xl mx-auto">
+    <div className="w-full max-w-full">
+      <div className="max-w-full">
         {/* Header */}
         <div className="mb-6">
           <h1 className="text-3xl font-bold text-gray-900 dark:text-white mb-2">Payments</h1>
-          <p className="text-base text-gray-600 dark:text-gray-400">Platform revenue overview and transaction history</p>
+          <p className="text-base text-gray-600 dark:text-gray-400">Platform revenue from online payments and transaction history</p>
         </div>
 
         {/* Stat Cards */}
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 mb-6">
           <div className="bg-white dark:bg-gray-800 rounded-xl shadow-md p-5 border border-gray-200 dark:border-gray-700">
             <div className="flex items-center gap-3">
               <div className="w-10 h-10 rounded-lg bg-green-100 dark:bg-green-900/30 flex items-center justify-center">
@@ -83,7 +83,7 @@ const AdminPayments = () => {
                 </svg>
               </div>
               <div>
-                <p className="text-sm text-gray-500 dark:text-gray-400">Total Revenue</p>
+                <p className="text-sm text-gray-500 dark:text-gray-400">Platform Revenue (Online)</p>
                 <p className="text-2xl font-bold text-gray-900 dark:text-white">₹{stats.totalRevenue.toLocaleString()}</p>
               </div>
             </div>
@@ -119,16 +119,18 @@ const AdminPayments = () => {
         {/* Monthly Revenue Bar Chart */}
         {stats.monthlyRevenue.length > 0 && (
           <div className="bg-white dark:bg-gray-800 rounded-xl shadow-md p-6 border border-gray-200 dark:border-gray-700 mb-6">
-            <h2 className="text-lg font-bold text-gray-900 dark:text-white mb-4">Monthly Revenue (Last 6 Months)</h2>
-            <div className="flex items-end gap-3 h-48">
+            <h2 className="text-lg font-bold text-gray-900 dark:text-white mb-4">Monthly Platform Revenue (Last 6 Months)</h2>
+            <div className="flex items-end justify-around gap-4 h-48 px-4">
               {stats.monthlyRevenue.map((item, idx) => (
-                <div key={idx} className="flex-1 flex flex-col items-center gap-1">
-                  <span className="text-xs font-semibold text-gray-700 dark:text-gray-300">₹{item.revenue.toLocaleString()}</span>
-                  <div
-                    className="w-full bg-gradient-to-t from-blue-500 to-blue-400 rounded-t-md transition-all duration-500"
-                    style={{ height: `${Math.max((item.revenue / maxRevenue) * 100, 4)}%`, minHeight: '8px' }}
-                  />
-                  <span className="text-xs text-gray-500 dark:text-gray-400 mt-1">{item.month}</span>
+                <div key={idx} className="flex flex-col items-center gap-2" style={{ width: `${Math.min(100 / stats.monthlyRevenue.length, 20)}%`, minWidth: '60px' }}>
+                  <span className="text-xs font-semibold text-gray-700 dark:text-gray-300 whitespace-nowrap">₹{item.revenue.toLocaleString()}</span>
+                  <div className="w-full flex items-end" style={{ height: '120px' }}>
+                    <div
+                      className="w-full bg-gradient-to-t from-blue-500 to-blue-400 rounded-t-md transition-all duration-500"
+                      style={{ height: `${Math.max((item.revenue / maxRevenue) * 100, 5)}%` }}
+                    />
+                  </div>
+                  <span className="text-xs text-gray-500 dark:text-gray-400 mt-1 whitespace-nowrap">{item.month}</span>
                 </div>
               ))}
             </div>
@@ -193,16 +195,26 @@ const AdminPayments = () => {
                       <th className="px-4 py-3 text-left text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase">Patient</th>
                       <th className="px-4 py-3 text-left text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase">Doctor</th>
                       <th className="px-4 py-3 text-left text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase">Date</th>
-                      <th className="px-4 py-3 text-left text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase">Paid</th>
-                      <th className="px-4 py-3 text-left text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase">Pending</th>
+                      <th className="px-4 py-3 text-left text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase">Booking Fee</th>
+                      <th className="px-4 py-3 text-left text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase">Online Payment</th>
+                      <th className="px-4 py-3 text-left text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase">Clinic Amount</th>
                       <th className="px-4 py-3 text-left text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase">Status</th>
                       <th className="px-4 py-3 text-left text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase">Txn ID</th>
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-gray-200 dark:divide-gray-700">
                     {payments.map(p => (
-                      <tr key={p._id} className="hover:bg-gray-50 dark:hover:bg-gray-700/30 transition-colors">
-                        <td className="px-4 py-3 text-sm text-gray-900 dark:text-white">{p.patient?.name || '—'}</td>
+                      <tr key={p._id} className={`hover:bg-gray-50 dark:hover:bg-gray-700/30 transition-colors ${p.isDeleted ? 'bg-red-50/50 dark:bg-red-900/10' : ''}`}>
+                        <td className="px-4 py-3 text-sm text-gray-900 dark:text-white">
+                          <div>
+                            <p>{p.patient?.name || '—'}</p>
+                            {p.isDeleted && (
+                              <span className="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-red-100 text-red-800 dark:bg-red-900/30 dark:text-red-400 mt-1">
+                                {p.status === 'cancelled' ? 'Cancelled' : 'Deleted'}
+                              </span>
+                            )}
+                          </div>
+                        </td>
                         <td className="px-4 py-3">
                           <div>
                             <p className="text-sm text-gray-900 dark:text-white">Dr. {p.doctor?.name || '—'}</p>
@@ -210,8 +222,9 @@ const AdminPayments = () => {
                           </div>
                         </td>
                         <td className="px-4 py-3 text-sm text-gray-700 dark:text-gray-300">{formatDate(p.appointmentDate)}</td>
-                        <td className="px-4 py-3 text-sm font-semibold text-gray-900 dark:text-white">₹{p.amountPaid || 0}</td>
-                        <td className="px-4 py-3 text-sm text-gray-700 dark:text-gray-300">₹{p.amountPending || 0}</td>
+                        <td className="px-4 py-3 text-sm font-semibold text-gray-900 dark:text-white">₹{p.totalFee || p.amountPaid + (p.amountPending || 0) || 0}</td>
+                        <td className="px-4 py-3 text-sm text-blue-600 dark:text-blue-400 font-semibold">₹{p.amountPaid || 0}</td>
+                        <td className="px-4 py-3 text-sm text-gray-700 dark:text-gray-300">₹{p.clinicAmount || p.amountPending || 0}</td>
                         <td className="px-4 py-3">{getStatusBadge(p.paymentStatus)}</td>
                         <td className="px-4 py-3 text-xs text-gray-500 dark:text-gray-400 font-mono">{p.razorpayPaymentId ? p.razorpayPaymentId.slice(-12) : '—'}</td>
                       </tr>

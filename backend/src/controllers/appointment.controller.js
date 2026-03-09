@@ -279,9 +279,7 @@ const bookAppointment = asyncHandler(async (req, res) => {
       });
     }
     
-    // Transaction for creation to avoid race conditions
-    const session = await mongoose.startSession();
-    session.startTransaction();
+    // Using standard operations instead of transactions for standalone MongoDB compatibility
     
     try {
       // Check max appointments per day for the doctor
@@ -290,11 +288,9 @@ const bookAppointment = asyncHandler(async (req, res) => {
         doctor: doctorId,
         appointmentDate: new Date(appointmentDate),
         status: { $in: ['pending', 'confirmed'] }
-      }).session(session);
+      });
       
       if (appointmentsCount >= maxAppointmentsPerDay) {
-        await session.abortTransaction();
-        session.endSession();
         return res.status(400).json({
           success: false,
           message: `Doctor has reached the maximum appointments per day (${maxAppointmentsPerDay}). Please select another date.`
@@ -304,8 +300,6 @@ const bookAppointment = asyncHandler(async (req, res) => {
       // Check if doctor is on leave on the requested date
       const leaveCheck = await isDateOnLeave(doctorId, appointmentDate);
       if (leaveCheck.isOnLeave) {
-        await session.abortTransaction();
-        session.endSession();
         const leaveStart = new Date(leaveCheck.leave.startDate).toLocaleDateString();
         const leaveEnd = new Date(leaveCheck.leave.endDate).toLocaleDateString();
         return res.status(400).json({
@@ -320,11 +314,9 @@ const bookAppointment = asyncHandler(async (req, res) => {
         appointmentDate: new Date(appointmentDate),
         startTime: startTime,
         status: { $in: ['pending', 'confirmed'] }
-      }).session(session);
+      });
       
       if (conflictingAppointment) {
-        await session.abortTransaction();
-        session.endSession();
         return res.status(400).json({
           success: false,
           message: `This time slot (${startTime} - ${endTime}) is already booked. Please select another time.`
@@ -337,21 +329,34 @@ const bookAppointment = asyncHandler(async (req, res) => {
         appointmentDate: new Date(appointmentDate),
         startTime: startTime,
         status: { $in: ['pending', 'confirmed'] }
-      }).session(session);
+      });
       
       if (patientConflict) {
-        await session.abortTransaction();
-        session.endSession();
         return res.status(400).json({
           success: false,
           message: 'You already have an appointment at this time. Please select another time slot.'
         });
       }
       
-      // Calculate fees
-      const doctorConsultationFee = doctor.consultationFee || 500;
-      const bookingFee = settings.bookingFee || 100;
-      const amountPending = Math.max(0, doctorConsultationFee - bookingFee);
+      // Calculate fees using NEW BUSINESS MODEL
+      // Doctor sets bookingFee (total fee)
+      // Patient pays platformFeePercentage% of bookingFee online
+      // Platform keeps entire online payment as revenue
+      // Doctor collects remaining at clinic
+      
+      // Doctor's total fee (use bookingFee, fallback to consultationFee for backward compatibility)
+      const doctorBookingFee = doctor.bookingFee || doctor.consultationFee || 500;
+      
+      // Platform fee percentage from settings
+      const platformFeePercentage = settings.platformFeePercentage || settings.platformCommissionPercentage || 20;
+      
+      // Online amount = bookingFee × platformFeePercentage / 100
+      // This is what patient pays online - goes entirely to platform as revenue
+      const onlineAmount = Math.round((doctorBookingFee * platformFeePercentage) / 100);
+      
+      // Clinic amount = bookingFee - onlineAmount
+      // This is what patient pays at clinic - goes to doctor
+      const clinicAmount = doctorBookingFee - onlineAmount;
 
       // Create appointment
       const appointment = new Appointment({
@@ -362,17 +367,26 @@ const bookAppointment = asyncHandler(async (req, res) => {
         endTime,
         consultationNotes,
         status: 'pending',
-        paymentStatus: 'completed', // Booking fee paid
+        paymentStatus: 'completed', // Online payment completed
         razorpayOrderId: razorpay_order_id,
         razorpayPaymentId: razorpay_payment_id,
-        totalAmount: doctorConsultationFee,
-        amountPaid: bookingFee,
-        amountPending: amountPending
+        // NEW fields
+        totalFee: doctorBookingFee,
+        onlineAmount: onlineAmount,
+        clinicAmount: clinicAmount,
+        platformFeePercentage: platformFeePercentage,
+        onlinePaymentAt: new Date(),
+        // Legacy fields for backward compatibility
+        totalAmount: doctorBookingFee,
+        amountPaid: onlineAmount,
+        amountPending: clinicAmount,
+        commissionPercentage: platformFeePercentage,
+        platformCommissionAmount: onlineAmount,
+        doctorShareAmount: clinicAmount,
+        bookingFeePaidAt: new Date()
       });
       
-      await appointment.save({ session });
-      await session.commitTransaction();
-      session.endSession();
+      await appointment.save();
       
       // Populate fields after commit
       await appointment.populate('doctor', 'name email specialization');
@@ -399,7 +413,7 @@ const bookAppointment = asyncHandler(async (req, res) => {
         const patientPaymentNotif = new Notification({
           user: patientId,
           type: 'payment_received',
-          message: `Payment of ₹${bookingFee} received. Your appointment with Dr. ${doctor.name} is awaiting confirmation.`,
+          message: `Online payment of ₹${onlineAmount} received. Your appointment with Dr. ${doctor.name} is awaiting confirmation. Pay ₹${clinicAmount} at clinic.`,
           link: `/patient/appointments`,
           relatedAppointment: appointment._id
         });
@@ -434,10 +448,8 @@ const bookAppointment = asyncHandler(async (req, res) => {
         data: appointment
       });
       
-    } catch (transactionError) {
-        await session.abortTransaction();
-        session.endSession();
-        throw transactionError;
+    } catch (dbError) {
+        throw dbError;
     }
     
   } catch (error) {
@@ -725,11 +737,48 @@ const deletePatientAppointment = asyncHandler(async (req, res) => {
       console.error('Error creating notification:', notifError);
     }
     
-    await Appointment.deleteOne({ _id: appointmentId });
+    // Process refund based on patient cancellation timing policy
+    let refundResult = { success: false, refundAmount: 0, reason: 'No payment to refund' };
+    if (appointment.paymentStatus === 'completed' && appointment.amountPaid > 0) {
+      try {
+        refundResult = await processRefund(appointment._id, 'patient');
+        console.log('Patient delete refund result:', refundResult);
+      } catch (refundError) {
+        console.error('Refund processing error during patient delete:', refundError);
+        // Continue with deletion even if refund fails
+      }
+    }
+
+    // Soft delete: Mark as cancelled and deleted instead of permanently removing
+    // This preserves the record for payment history and admin dashboard
+    appointment.status = 'cancelled';
+    appointment.cancellationSource = 'patient';
+    appointment.isDeleted = true;
+    appointment.deletedAt = new Date();
+    appointment.deletedBy = 'patient';
+    await appointment.save();
+    
+    // Send refund notification to patient (if refund was processed)
+    if (refundResult.refundAmount > 0) {
+      try {
+        const patientNotification = new Notification({
+          user: patientId,
+          type: 'payment_refund',
+          message: `Refund of ₹${refundResult.refundAmount} has been initiated for your deleted appointment. It will reflect in 3-5 business days.`,
+          link: '/patient/payment-history',
+          relatedAppointment: appointment._id
+        });
+        await patientNotification.save();
+      } catch (notifError) {
+        console.error('Error creating patient refund notification:', notifError);
+      }
+    }
     
     res.json({
       success: true,
-      message: 'Appointment deleted successfully'
+      message: refundResult.refundAmount > 0
+        ? `Appointment deleted successfully. Refund of ₹${refundResult.refundAmount} initiated. ${refundResult.reason}`
+        : `Appointment deleted successfully. ${refundResult.reason}`
     });
   } catch (error) {
     console.error('Error deleting appointment:', error);
@@ -808,6 +857,22 @@ const cancelAppointment = asyncHandler(async (req, res) => {
       relatedAppointment: appointment._id
     });
     await doctorNotification.save();
+    
+    // Send refund notification to patient (if refund was processed)
+    if (refundResult.refundAmount > 0) {
+      try {
+        const patientRefundNotification = new Notification({
+          user: patientId,
+          type: 'payment_refund',
+          message: `Refund of ₹${refundResult.refundAmount} has been initiated for your cancelled appointment. It will reflect in 3-5 business days.`,
+          link: '/patient/payment-history',
+          relatedAppointment: appointment._id
+        });
+        await patientRefundNotification.save();
+      } catch (notifError) {
+        console.error('Error creating patient refund notification:', notifError);
+      }
+    }
     
     // Reload to get updated payment fields
     const updatedAppointment = await Appointment.findById(appointment._id)

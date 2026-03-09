@@ -433,8 +433,8 @@ const AdminAnalytics = () => {
 
   if (isLoading) {
     return (
-      <div className="w-full">
-        <div className="max-w-7xl mx-auto">
+      <div className="w-full max-w-full">
+        <div className="max-w-full">
           <div className="text-center py-12 text-gray-500 dark:text-gray-400">Loading analytics...</div>
         </div>
       </div>
@@ -443,8 +443,8 @@ const AdminAnalytics = () => {
 
   if (error) {
     return (
-      <div className="w-full">
-        <div className="max-w-7xl mx-auto">
+      <div className="w-full max-w-full">
+        <div className="max-w-full">
           <div className="bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 text-red-700 dark:text-red-400 px-4 py-3 rounded">
             {error}
           </div>
@@ -454,8 +454,8 @@ const AdminAnalytics = () => {
   }
 
   return (
-    <div className="w-full">
-      <div className="max-w-7xl mx-auto">
+    <div className="w-full max-w-full">
+      <div className="max-w-full">
         {/* Header */}
         <div className="mb-6">
           <div className="flex justify-between items-center mb-4">
@@ -489,7 +489,7 @@ const AdminAnalytics = () => {
           
           {/* Summary Statistics */}
           {analytics && (
-            <div className="grid grid-cols-1 md:grid-cols-5 gap-4 mb-6">
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-4 mb-6">
               {/* Total Registered Users in DOXI - Prominent */}
               <div className="bg-gradient-to-br from-blue-500 to-blue-600 dark:from-blue-600 dark:to-blue-700 rounded-xl shadow-lg p-4 border border-blue-400 dark:border-blue-600">
                 <div className="flex items-center justify-between">

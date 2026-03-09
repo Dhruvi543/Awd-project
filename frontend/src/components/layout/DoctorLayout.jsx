@@ -3,6 +3,8 @@ import { Outlet, Link, useLocation, useNavigate } from 'react-router-dom';
 import { useAuth } from '../../contexts/AuthContext';
 import { useTheme } from '../../contexts/ThemeContext';
 import { apiService } from '../../api/apiService';
+import ConfirmModal from '../feedback/ConfirmModal';
+import TermsAcceptanceModal from '../feedback/TermsAcceptanceModal';
 import logo from '../../logo.png';
 
 const DoctorLayout = () => {
@@ -15,10 +17,18 @@ const DoctorLayout = () => {
   const [unreadCount, setUnreadCount] = useState(0);
   const [showNotifications, setShowNotifications] = useState(false);
   const [isLoadingNotifications, setIsLoadingNotifications] = useState(false);
+  const [showLogoutModal, setShowLogoutModal] = useState(false);
+  const [showTermsModal, setShowTermsModal] = useState(false);
+  const [currentTerms, setCurrentTerms] = useState(null);
+  const [termsChecked, setTermsChecked] = useState(false);
 
-  const handleLogout = async (e) => {
+  const handleLogoutClick = (e) => {
     e?.preventDefault();
     e?.stopPropagation();
+    setShowLogoutModal(true);
+  };
+
+  const handleLogoutConfirm = async () => {
     try {
       const result = await logout();
       if (result?.success !== false) {
@@ -109,6 +119,30 @@ const DoctorLayout = () => {
         return null;
     }
   };
+
+  // Check Terms & Conditions status
+  useEffect(() => {
+    if (!user || termsChecked) return;
+
+    const checkTermsStatus = async () => {
+      try {
+        const response = await apiService.getTermsStatus();
+        if (response.data.success) {
+          const { needsReaccept, currentTerms: terms } = response.data.data;
+          if (needsReaccept) {
+            setCurrentTerms(terms);
+            setShowTermsModal(true);
+          }
+        }
+      } catch (err) {
+        console.error('Error checking terms status:', err);
+      } finally {
+        setTermsChecked(true);
+      }
+    };
+
+    checkTermsStatus();
+  }, [user, termsChecked]);
 
   // Fetch notifications
   useEffect(() => {
@@ -245,7 +279,7 @@ const DoctorLayout = () => {
                   <span className={isActive(item.path) ? 'text-white' : 'text-gray-600 dark:text-gray-400'}>
                     {getIcon(item.icon)}
                   </span>
-                  {sidebarOpen && <span className="ml-3 font-medium">{item.label}</span>}
+                  {sidebarOpen && <span className="ml-3 font-medium whitespace-nowrap">{item.label}</span>}
                 </Link>
               </li>
             ))}
@@ -256,19 +290,19 @@ const DoctorLayout = () => {
         <div className="p-4 border-t border-blue-200 dark:border-gray-600 bg-white dark:bg-gray-800">
           <button
             type="button"
-            onClick={handleLogout}
+            onClick={handleLogoutClick}
             className="w-full flex items-center justify-center px-4 py-2 bg-red-50 dark:bg-red-900/20 text-red-600 dark:text-red-400 rounded-lg hover:bg-red-100 dark:hover:bg-red-900/30 transition-colors border border-red-200 dark:border-red-800"
           >
             <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1" />
             </svg>
-            {sidebarOpen && <span className="ml-3 font-medium">Logout</span>}
+            {sidebarOpen && <span className="ml-3 font-medium whitespace-nowrap">Logout</span>}
           </button>
         </div>
       </aside>
 
       {/* Main Content */}
-      <div className={`flex-1 transition-all duration-300 ${sidebarOpen ? 'ml-72' : 'ml-20'}`}>
+      <div className={`flex-1 transition-all duration-300 overflow-x-hidden ${sidebarOpen ? 'ml-72' : 'ml-20'}`}>
         {/* Top Bar */}
         <header className="bg-white dark:bg-gray-800 sticky top-0 z-30 shadow-sm h-16 border-b border-blue-200 dark:border-gray-700">
           <div className="h-full px-6 flex items-center justify-between gap-4">
@@ -446,10 +480,33 @@ const DoctorLayout = () => {
         </header>
 
         {/* Page Content */}
-        <main className="p-6">
+        <main className="p-4 sm:p-6 lg:p-8 w-full">
           <Outlet />
         </main>
       </div>
+
+      {/* Logout Confirmation Modal */}
+      <ConfirmModal
+        isOpen={showLogoutModal}
+        onClose={() => setShowLogoutModal(false)}
+        onConfirm={handleLogoutConfirm}
+        title="Confirm Logout"
+        message="Are you sure you want to logout?"
+        confirmText="Logout"
+        cancelText="Cancel"
+        type="warning"
+      />
+
+      {/* Terms & Conditions Acceptance Modal */}
+      <TermsAcceptanceModal
+        isOpen={showTermsModal}
+        onAccept={() => {
+          setShowTermsModal(false);
+          // Refresh user data to update terms acceptance status
+          window.location.reload();
+        }}
+        currentTerms={currentTerms}
+      />
     </div>
   );
 };

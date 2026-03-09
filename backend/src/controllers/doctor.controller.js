@@ -2,6 +2,98 @@ import asyncHandler from '../utils/asyncHandler.js';
 import User from '../models/User.js';
 import Availability from '../models/Availability.js';
 import Review from '../models/Review.js';
+import Appointment from '../models/Appointment.js';
+import Notification from '../models/Notification.js';
+import { processRefund } from './payment.controller.js';
+
+/**
+ * Helper function to cancel appointments when doctor marks leave
+ * @param {String} doctorId - Doctor's user ID
+ * @param {Object} leave - The leave availability record
+ * @param {String} doctorName - Doctor's name for notifications
+ * @returns {Array} - List of cancelled appointment IDs
+ */
+const cancelAppointmentsForLeave = async (doctorId, leave, doctorName) => {
+  const cancelledAppointments = [];
+  
+  try {
+    // Normalize leave dates
+    const leaveStart = new Date(leave.startDate);
+    leaveStart.setHours(0, 0, 0, 0);
+    const leaveEnd = new Date(leave.endDate);
+    leaveEnd.setHours(23, 59, 59, 999);
+    
+    // Find all confirmed or pending appointments in the leave date range
+    const appointments = await Appointment.find({
+      doctor: doctorId,
+      appointmentDate: {
+        $gte: leaveStart,
+        $lte: leaveEnd
+      },
+      status: { $in: ['confirmed', 'pending'] }
+    }).populate('patient', 'name email');
+    
+    for (const appointment of appointments) {
+      try {
+        // Process refund (100% since doctor initiated the cancellation)
+        let refundResult = { refundAmount: 0, reason: 'No payment to refund' };
+        if (appointment.paymentStatus === 'completed' && appointment.amountPaid > 0) {
+          refundResult = await processRefund(appointment._id, 'doctor');
+        }
+        
+        // Update appointment status
+        appointment.status = 'cancelled';
+        appointment.cancellationSource = 'system_cascade';
+        appointment.rejectionReason = `Doctor is on leave from ${leaveStart.toLocaleDateString()} to ${leaveEnd.toLocaleDateString()}${leave.reason ? ': ' + leave.reason : ''}`;
+        await appointment.save();
+        
+        // Create notification for patient
+        try {
+          const patientNotification = new Notification({
+            user: appointment.patient._id,
+            type: 'appointment_cancelled',
+            message: `Your appointment with Dr. ${doctorName} on ${new Date(appointment.appointmentDate).toLocaleDateString()} has been cancelled because the doctor is on leave.${refundResult.refundAmount > 0 ? ` Refund of ₹${refundResult.refundAmount} has been initiated.` : ''}`,
+            link: `/patient/appointments`,
+            relatedUser: doctorId,
+            relatedAppointment: appointment._id
+          });
+          await patientNotification.save();
+        } catch (notifError) {
+          console.error('Error creating patient notification:', notifError);
+        }
+        
+        cancelledAppointments.push({
+          appointmentId: appointment._id,
+          patientName: appointment.patient?.name,
+          appointmentDate: appointment.appointmentDate,
+          refundAmount: refundResult.refundAmount,
+          refundReason: refundResult.reason
+        });
+      } catch (apptError) {
+        console.error(`Error cancelling appointment ${appointment._id}:`, apptError);
+      }
+    }
+    
+    // Create notification for doctor about cancelled appointments
+    if (cancelledAppointments.length > 0) {
+      try {
+        const doctorNotification = new Notification({
+          user: doctorId,
+          type: 'appointment_cancelled',
+          message: `You have marked leave from ${leaveStart.toLocaleDateString()} to ${leaveEnd.toLocaleDateString()}. ${cancelledAppointments.length} appointment(s) have been automatically cancelled and refunds initiated for patients.`,
+          link: `/doctor/appointments`
+        });
+        await doctorNotification.save();
+      } catch (notifError) {
+        console.error('Error creating doctor notification:', notifError);
+      }
+    }
+  } catch (error) {
+    console.error('Error in cancelAppointmentsForLeave:', error);
+  }
+  
+  return cancelledAppointments;
+};
 
 // Get all approved doctors (public)
 const getDoctors = asyncHandler(async (req, res) => {
@@ -259,10 +351,19 @@ const createMyAvailability = asyncHandler(async (req, res) => {
     
     await availability.save();
     
+    // If this is a leave record, cancel any confirmed appointments in the date range
+    let cancelledAppointments = [];
+    if (type === 'leave' && startDate && endDate) {
+      cancelledAppointments = await cancelAppointmentsForLeave(doctorId, availability, req.user.name);
+    }
+    
     res.status(201).json({
       success: true,
-      message: 'Availability created successfully',
-      data: availability
+      message: cancelledAppointments.length > 0 
+        ? `Leave marked successfully. ${cancelledAppointments.length} appointment(s) cancelled and refunds initiated.`
+        : 'Availability created successfully',
+      data: availability,
+      cancelledAppointments: cancelledAppointments.length > 0 ? cancelledAppointments : undefined
     });
   } catch (error) {
     res.status(500).json({
@@ -395,10 +496,19 @@ const updateMyAvailability = asyncHandler(async (req, res) => {
     
     await availability.save();
     
+    // If this is a leave record and dates were updated, cancel any confirmed appointments in the new date range
+    let cancelledAppointments = [];
+    if ((type === 'leave' || availability.type === 'leave') && (startDate || endDate)) {
+      cancelledAppointments = await cancelAppointmentsForLeave(doctorId, availability, req.user.name);
+    }
+    
     res.json({
       success: true,
-      message: 'Availability updated successfully',
-      data: availability
+      message: cancelledAppointments.length > 0 
+        ? `Leave updated successfully. ${cancelledAppointments.length} appointment(s) cancelled and refunds initiated.`
+        : 'Availability updated successfully',
+      data: availability,
+      cancelledAppointments: cancelledAppointments.length > 0 ? cancelledAppointments : undefined
     });
   } catch (error) {
     res.status(500).json({
@@ -661,10 +771,16 @@ const toggleDateAvailability = asyncHandler(async (req, res) => {
       });
       await leave.save();
       
+      // Cancel any confirmed appointments on this date
+      const cancelledAppointments = await cancelAppointmentsForLeave(doctorId, leave, req.user.name);
+      
       res.json({
         success: true,
-        message: 'Date marked as leave',
-        data: { type: 'leave', availability: leave }
+        message: cancelledAppointments.length > 0 
+          ? `Date marked as leave. ${cancelledAppointments.length} appointment(s) cancelled and refunds initiated.`
+          : 'Date marked as leave',
+        data: { type: 'leave', availability: leave },
+        cancelledAppointments: cancelledAppointments.length > 0 ? cancelledAppointments : undefined
       });
     } else if (existingLeave) {
       // If there's a leave covering this date, create a schedule entry for this specific date

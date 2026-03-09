@@ -5,6 +5,7 @@ import { useTheme } from '../../contexts/ThemeContext';
 import { UserRole } from '../../common/enums/enumConstant';
 import PatientRegisterForm from '../../components/auth/PatientRegisterForm';
 import DoctorRegisterForm from '../../components/auth/DoctorRegisterForm';
+import PasswordInput from '../../components/forms/PasswordInput';
 import logo from '../../logo.png';
 
 const Auth = () => {
@@ -135,6 +136,19 @@ const Auth = () => {
       alert('Passwords do not match');
       return;
     }
+    
+    // Validate T&C acceptance for doctors
+    if (role === 'doctor') {
+      if (!data.termsAccepted) {
+        alert('You must accept the Terms & Conditions to register');
+        return;
+      }
+      // Call validateTerms if available to show error in form
+      if (data.validateTerms && !data.validateTerms()) {
+        return;
+      }
+    }
+    
     setIsLoading(true);
     const userData = { role, ...data };
     
@@ -266,17 +280,14 @@ const Auth = () => {
             {/* Password field */}
             <div>
               <label htmlFor="login-password" className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">Password</label>
-              <input
-                type="password"
+              <PasswordInput
                 id="login-password"
                 name="password"
                 autoComplete="current-password"
                 value={loginData.password}
                 onChange={onChangeLogin}
                 required
-                className={`w-full px-3 py-2 border rounded-md bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent ${
-                  loginErrors.password ? 'border-red-500 dark:border-red-500' : 'border-gray-300 dark:border-gray-600'
-                }`}
+                hasError={!!loginErrors.password}
                 placeholder="Enter your password"
               />
               {loginErrors.password && <p className="mt-1 text-sm text-red-500">{loginErrors.password}</p>}

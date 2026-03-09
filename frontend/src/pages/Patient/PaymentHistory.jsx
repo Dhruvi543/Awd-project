@@ -148,7 +148,7 @@ const PaymentHistory = () => {
                 </thead>
                 <tbody className="divide-y divide-gray-200 dark:divide-gray-700">
                   {payments.map((payment) => (
-                    <tr key={payment._id} className="hover:bg-gray-50 dark:hover:bg-gray-700/30 transition-colors">
+                    <tr key={payment._id} className={`hover:bg-gray-50 dark:hover:bg-gray-700/30 transition-colors ${payment.isDeleted ? 'bg-red-50/50 dark:bg-red-900/10' : ''}`}>
                       <td className="px-6 py-4 whitespace-nowrap">
                         <div>
                           <p className="text-sm font-medium text-gray-900 dark:text-white">
@@ -157,6 +157,11 @@ const PaymentHistory = () => {
                           <p className="text-xs text-gray-500 dark:text-gray-400">
                             {payment.doctor?.specialization || '—'}
                           </p>
+                          {payment.isDeleted && (
+                            <span className="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-red-100 text-red-800 dark:bg-red-900/30 dark:text-red-400 mt-1">
+                              {payment.status === 'cancelled' ? 'Cancelled' : 'Deleted'}
+                            </span>
+                          )}
                         </div>
                       </td>
                       <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-700 dark:text-gray-300">

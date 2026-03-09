@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import { apiService } from '../../api/apiService';
 import { useAuth } from '../../contexts/AuthContext';
+import ConfirmModal from '../../components/feedback/ConfirmModal';
 
 const PatientReviews = () => {
   const { user } = useAuth();
@@ -28,6 +29,15 @@ const PatientReviews = () => {
   const [submittedReview, setSubmittedReview] = useState(null);
   const [modalMessage, setModalMessage] = useState('Review Posted Successfully!');
   const [isDeleteModal, setIsDeleteModal] = useState(false);
+  const [confirmModal, setConfirmModal] = useState({
+    isOpen: false,
+    title: '',
+    message: '',
+    confirmText: 'Confirm',
+    cancelText: 'Cancel',
+    type: 'warning',
+    onConfirm: null
+  });
 
   useEffect(() => {
     fetchData();
@@ -196,57 +206,61 @@ const PatientReviews = () => {
     }
   };
 
-  const handleDelete = async (reviewId) => {
-    if (!window.confirm('Are you sure you want to delete this review? This action cannot be undone.')) {
-      return;
-    }
-
-    setError('');
-
-    try {
-      const response = await apiService.deleteReview(reviewId);
-      if (response.data.success) {
+  const handleDelete = (reviewId) => {
+    setConfirmModal({
+      isOpen: true,
+      title: 'Confirm Delete',
+      message: 'Are you sure you want to delete this review? This action cannot be undone.',
+      confirmText: 'Delete',
+      cancelText: 'Cancel',
+      type: 'danger',
+      onConfirm: async () => {
         setError('');
-        setModalMessage('Review Deleted Successfully!');
-        setIsDeleteModal(true);
-        setSubmittedReview(null); // No review object needed for delete
-        setShowSuccessModal(true);
-        fetchData();
-      }
-    } catch (error) {
-      console.error('Error deleting review:', error);
-      console.error('Error response:', error.response?.data);
-      
-      let errorMessage = 'Failed to delete review. Please try again.';
-      
-      if (error.response?.status === 401) {
-        errorMessage = 'You are not authenticated. Please login again.';
-      } else if (error.response?.status === 403) {
-        const responseMessage = error.response?.data?.message || 'Access denied.';
-        const debugInfo = error.response?.data?.debug;
-        
-        // Build detailed error message
-        if (debugInfo) {
-          if (debugInfo.userRole && debugInfo.userRole !== 'patient') {
-            errorMessage = `Access denied. Your role is "${debugInfo.userRole}", but only patients can delete reviews. Please contact support if you believe this is an error.`;
-          } else if (debugInfo.reviewPatientId && debugInfo.currentPatientId) {
-            errorMessage = `Access denied. This review belongs to a different patient. You can only delete your own reviews.`;
-          } else {
-            errorMessage = responseMessage;
+        try {
+          const response = await apiService.deleteReview(reviewId);
+          if (response.data.success) {
+            setError('');
+            setModalMessage('Review Deleted Successfully!');
+            setIsDeleteModal(true);
+            setSubmittedReview(null);
+            setShowSuccessModal(true);
+            fetchData();
           }
-        } else {
-          errorMessage = responseMessage || 'Access denied. You can only delete your own reviews within 30 minutes of posting.';
+        } catch (error) {
+          console.error('Error deleting review:', error);
+          console.error('Error response:', error.response?.data);
+
+          let errorMessage = 'Failed to delete review. Please try again.';
+
+          if (error.response?.status === 401) {
+            errorMessage = 'You are not authenticated. Please login again.';
+          } else if (error.response?.status === 403) {
+            const responseMessage = error.response?.data?.message || 'Access denied.';
+            const debugInfo = error.response?.data?.debug;
+
+            if (debugInfo) {
+              if (debugInfo.userRole && debugInfo.userRole !== 'patient') {
+                errorMessage = `Access denied. Your role is "${debugInfo.userRole}", but only patients can delete reviews.`;
+              } else if (debugInfo.reviewPatientId && debugInfo.currentPatientId) {
+                errorMessage = `Access denied. This review belongs to a different patient.`;
+              } else {
+                errorMessage = responseMessage;
+              }
+            } else {
+              errorMessage = responseMessage || 'Access denied. You can only delete your own reviews within 30 minutes.';
+            }
+          } else if (error.response?.status === 400) {
+            errorMessage = error.response?.data?.message || 'Review can only be deleted within 30 minutes.';
+          } else if (error.response?.data?.message) {
+            errorMessage = error.response.data.message;
+          } else if (error.message) {
+            errorMessage = error.message;
+          }
+
+          setError(errorMessage);
         }
-      } else if (error.response?.status === 400) {
-        errorMessage = error.response?.data?.message || 'Review can only be deleted within 30 minutes of posting.';
-      } else if (error.response?.data?.message) {
-        errorMessage = error.response.data.message;
-      } else if (error.message) {
-        errorMessage = error.message;
       }
-      
-      setError(errorMessage);
-    }
+    });
   };
 
 
@@ -340,8 +354,8 @@ const PatientReviews = () => {
 
   if (isLoading) {
     return (
-      <div className="w-full">
-        <div className="max-w-7xl mx-auto">
+      <div className="w-full max-w-full">
+        <div className="max-w-full">
           <div className="text-center py-12 text-gray-500 dark:text-gray-400">Loading...</div>
         </div>
       </div>
@@ -349,8 +363,8 @@ const PatientReviews = () => {
   }
 
   return (
-    <div className="w-full">
-      <div className="max-w-7xl mx-auto">
+    <div className="w-full max-w-full">
+      <div className="max-w-full">
         {/* Header */}
         <div className="mb-8">
           <h1 className="text-3xl font-bold text-gray-900 dark:text-white mb-2">Reviews & Ratings</h1>
@@ -729,6 +743,18 @@ const PatientReviews = () => {
           </div>
         </div>
       )}
+
+      {/* Confirmation Modal */}
+      <ConfirmModal
+        isOpen={confirmModal.isOpen}
+        onClose={() => setConfirmModal(prev => ({ ...prev, isOpen: false }))}
+        onConfirm={confirmModal.onConfirm || (() => {})}
+        title={confirmModal.title}
+        message={confirmModal.message}
+        confirmText={confirmModal.confirmText}
+        cancelText={confirmModal.cancelText}
+        type={confirmModal.type}
+      />
     </div>
   );
 };

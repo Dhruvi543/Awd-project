@@ -13,6 +13,11 @@ const razorpay = new Razorpay({
 });
 
 // Create Order for Booking Fee
+// NEW BUSINESS MODEL:
+// - Doctor sets bookingFee (total fee)
+// - Patient pays platformFeePercentage% of bookingFee online
+// - Platform keeps entire online payment as revenue
+// - Doctor collects remaining at clinic
 export const createOrder = asyncHandler(async (req, res) => {
   // Check if user is authenticated
   if (!req.user || req.user.role !== 'patient') {
@@ -23,19 +28,49 @@ export const createOrder = asyncHandler(async (req, res) => {
   }
 
   try {
-    // 1. Fetch the platform booking fee from settings
-    const settings = await Setting.getSettings();
-    const bookingFee = settings.bookingFee || 100;
+    const { doctorId } = req.body;
+    
+    if (!doctorId) {
+      return res.status(400).json({
+        success: false,
+        message: 'Doctor ID is required'
+      });
+    }
 
-    // 2. Create options for Razorpay order
+    // 1. Fetch the doctor's booking fee
+    const doctor = await User.findById(doctorId);
+    if (!doctor || doctor.role !== 'doctor') {
+      return res.status(404).json({
+        success: false,
+        message: 'Doctor not found'
+      });
+    }
+
+    // 2. Fetch the platform fee percentage from settings
+    const settings = await Setting.getSettings();
+    const platformFeePercentage = settings.platformFeePercentage || 20;
+    
+    // 3. Calculate amounts
+    // Doctor's total fee (use bookingFee, fallback to consultationFee for backward compatibility)
+    const bookingFee = doctor.bookingFee || doctor.consultationFee || 500;
+    
+    // Online amount = bookingFee × platformFeePercentage / 100
+    // This is what patient pays online and goes entirely to platform
+    const onlineAmount = Math.round((bookingFee * platformFeePercentage) / 100);
+    
+    // Clinic amount = bookingFee - onlineAmount
+    // This is what patient pays at clinic, goes to doctor
+    const clinicAmount = bookingFee - onlineAmount;
+
+    // 4. Create options for Razorpay order
     // Amount must be in the smallest currency unit (e.g., paise for INR)
     const options = {
-      amount: bookingFee * 100, // booking fee in paise
+      amount: onlineAmount * 100, // online amount in paise
       currency: 'INR',
       receipt: `receipt_order_${Date.now()}`,
     };
 
-    // 3. Request Razorpay to create the order
+    // 5. Request Razorpay to create the order
     const order = await razorpay.orders.create(options);
 
     if (!order) {
@@ -51,7 +86,14 @@ export const createOrder = asyncHandler(async (req, res) => {
         orderId: order.id,
         amount: order.amount,
         currency: order.currency,
-        keyId: process.env.RAZORPAY_KEY_ID || 'rzp_test_YourKeyIdHere'
+        keyId: process.env.RAZORPAY_KEY_ID || 'rzp_test_YourKeyIdHere',
+        // Return breakdown for frontend display
+        breakdown: {
+          bookingFee: bookingFee,
+          platformFeePercentage: platformFeePercentage,
+          onlineAmount: onlineAmount,
+          clinicAmount: clinicAmount
+        }
       }
     });
 
@@ -312,7 +354,7 @@ export const getPaymentHistory = asyncHandler(async (req, res) => {
     })
       .populate('doctor', 'name specialization')
       .sort({ createdAt: -1 })
-      .select('doctor appointmentDate totalAmount amountPaid amountPending paymentStatus refundId refundAmount razorpayPaymentId createdAt');
+      .select('doctor appointmentDate totalAmount amountPaid amountPending paymentStatus refundId refundAmount razorpayPaymentId createdAt isDeleted deletedAt deletedBy status');
 
     res.status(200).json({
       success: true,

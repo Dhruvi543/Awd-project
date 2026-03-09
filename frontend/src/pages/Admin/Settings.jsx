@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useLayoutEffect, useRef } from 'react';
 import { apiService } from '../../api/apiService';
 import { useAuth } from '../../contexts/AuthContext';
+import PasswordInput from '../../components/forms/PasswordInput';
 
 const AdminSettings = () => {
   const [settings, setSettings] = useState(null);
@@ -225,8 +226,8 @@ const AdminSettings = () => {
 
   if (isLoading) {
     return (
-      <div className="w-full">
-        <div className="max-w-7xl mx-auto">
+      <div className="w-full max-w-full">
+        <div className="max-w-full">
           <div className="text-center py-12 text-gray-500 dark:text-gray-400">Loading settings...</div>
         </div>
       </div>
@@ -234,8 +235,8 @@ const AdminSettings = () => {
   }
 
   return (
-    <div className="w-full">
-      <div className="max-w-7xl mx-auto">
+    <div className="w-full max-w-full">
+      <div className="max-w-full">
         {/* Header */}
         <div className="mb-6">
           <h1 className="text-3xl font-bold text-gray-900 dark:text-white mb-2">Settings</h1>
@@ -854,27 +855,15 @@ const EmailUpdateForm = () => {
             <label className="block text-sm font-semibold text-gray-700 dark:text-gray-300 mb-2">
               Current Password <span className="text-red-500">*</span>
             </label>
-            <div className="relative">
-              <div className="absolute inset-y-0 left-0 flex items-center pl-3 pointer-events-none">
-                <svg className="w-5 h-5 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" />
-                </svg>
-              </div>
-              <input
-                type="password"
-                name="password"
-                value={formData.password}
-                onChange={handleInputChange}
-                required
-                placeholder="Enter your current password"
-                autoFocus
-                className={`w-full pl-10 pr-4 py-2.5 border rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white placeholder-gray-400 dark:placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-colors ${
-                  errors.password 
-                    ? 'border-red-500 dark:border-red-500 focus:ring-red-500' 
-                    : 'border-gray-300 dark:border-gray-600'
-                }`}
-              />
-            </div>
+            <PasswordInput
+              name="password"
+              value={formData.password}
+              onChange={handleInputChange}
+              required
+              placeholder="Enter your current password"
+              autoFocus
+              hasError={!!errors.password}
+            />
             {errors.password && (
               <p className="text-xs text-red-500 dark:text-red-400 mt-1.5 flex items-center">
                 <svg className="w-4 h-4 mr-1" fill="currentColor" viewBox="0 0 20 20">
@@ -1200,27 +1189,15 @@ const PasswordUpdateForm = () => {
             <label className="block text-sm font-semibold text-gray-700 dark:text-gray-300 mb-2">
               Current Password <span className="text-red-500">*</span>
             </label>
-            <div className="relative">
-              <div className="absolute inset-y-0 left-0 flex items-center pl-3 pointer-events-none">
-                <svg className="w-5 h-5 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" />
-                </svg>
-              </div>
-              <input
-                type="password"
-                name="currentPassword"
-                value={formData.currentPassword}
-                onChange={handleInputChange}
-                required
-                placeholder="Enter your current password"
-                autoFocus
-                className={`w-full pl-10 pr-4 py-2.5 border rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white placeholder-gray-400 dark:placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-green-500 focus:border-transparent transition-colors ${
-                  errors.currentPassword 
-                    ? 'border-red-500 dark:border-red-500 focus:ring-red-500' 
-                    : 'border-gray-300 dark:border-gray-600'
-                }`}
-              />
-            </div>
+            <PasswordInput
+              name="currentPassword"
+              value={formData.currentPassword}
+              onChange={handleInputChange}
+              required
+              placeholder="Enter your current password"
+              autoFocus
+              hasError={!!errors.currentPassword}
+            />
             {errors.currentPassword && (
               <p className="text-xs text-red-500 dark:text-red-400 mt-1.5 flex items-center">
                 <svg className="w-4 h-4 mr-1" fill="currentColor" viewBox="0 0 20 20">
@@ -1259,28 +1236,16 @@ const PasswordUpdateForm = () => {
             <label className="block text-sm font-semibold text-gray-700 dark:text-gray-300 mb-2">
               New Password <span className="text-red-500">*</span>
             </label>
-            <div className="relative">
-              <div className="absolute inset-y-0 left-0 flex items-center pl-3 pointer-events-none">
-                <svg className="w-5 h-5 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 7a2 2 0 012 2m4 0a6 6 0 01-7.743 5.743L11 17H9v2H7v2H4a1 1 0 01-1-1v-2.586a1 1 0 01.293-.707l5.964-5.964A6 6 0 1121 9z" />
-                </svg>
-              </div>
-              <input
-                type="password"
-                name="newPassword"
-                value={formData.newPassword}
-                onChange={handleInputChange}
-                required
-                minLength={6}
-                placeholder="Enter new password (min 6 characters)"
-                autoFocus
-                className={`w-full pl-10 pr-4 py-2.5 border rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white placeholder-gray-400 dark:placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-green-500 focus:border-transparent transition-colors ${
-                  errors.newPassword 
-                    ? 'border-red-500 dark:border-red-500 focus:ring-red-500' 
-                    : 'border-gray-300 dark:border-gray-600'
-                }`}
-              />
-            </div>
+            <PasswordInput
+              name="newPassword"
+              value={formData.newPassword}
+              onChange={handleInputChange}
+              required
+              minLength={6}
+              placeholder="Enter new password (min 6 characters)"
+              autoFocus
+              hasError={!!errors.newPassword}
+            />
             {errors.newPassword && (
               <p className="text-xs text-red-500 dark:text-red-400 mt-1.5 flex items-center">
                 <svg className="w-4 h-4 mr-1" fill="currentColor" viewBox="0 0 20 20">
@@ -1296,27 +1261,15 @@ const PasswordUpdateForm = () => {
             <label className="block text-sm font-semibold text-gray-700 dark:text-gray-300 mb-2">
               Confirm New Password <span className="text-red-500">*</span>
             </label>
-            <div className="relative">
-              <div className="absolute inset-y-0 left-0 flex items-center pl-3 pointer-events-none">
-                <svg className="w-5 h-5 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
-                </svg>
-              </div>
-              <input
-                type="password"
-                name="confirmPassword"
-                value={formData.confirmPassword}
-                onChange={handleInputChange}
-                required
-                minLength={6}
-                placeholder="Confirm new password"
-                className={`w-full pl-10 pr-4 py-2.5 border rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white placeholder-gray-400 dark:placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-green-500 focus:border-transparent transition-colors ${
-                  errors.confirmPassword 
-                    ? 'border-red-500 dark:border-red-500 focus:ring-red-500' 
-                    : 'border-gray-300 dark:border-gray-600'
-                }`}
-              />
-            </div>
+            <PasswordInput
+              name="confirmPassword"
+              value={formData.confirmPassword}
+              onChange={handleInputChange}
+              required
+              minLength={6}
+              placeholder="Confirm new password"
+              hasError={!!errors.confirmPassword}
+            />
             {errors.confirmPassword && (
               <p className="text-xs text-red-500 dark:text-red-400 mt-1.5 flex items-center">
                 <svg className="w-4 h-4 mr-1" fill="currentColor" viewBox="0 0 20 20">

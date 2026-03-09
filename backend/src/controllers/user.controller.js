@@ -37,10 +37,10 @@ const updateProfileSchema = z.object({
       if (!val || val === '') return true; // Allow empty
       // Remove all non-digit characters for validation
       const digitsOnly = val.replace(/\D/g, '');
-      // Must have at least 10 digits and max 15 digits
-      return digitsOnly.length >= 10 && digitsOnly.length <= 15;
+      // Must have exactly 10 digits
+      return digitsOnly.length === 10;
     }, {
-      message: 'Phone number must contain at least 10 digits and maximum 15 digits'
+      message: 'Phone number must be exactly 10 digits'
     })
     .optional()
     .or(z.literal('')), // Allow empty string

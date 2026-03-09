@@ -75,6 +75,9 @@ const doctorRegisterSchemaBase = z.object({
     .string()
     .min(2, "Clinic/Hospital name must be at least 2 characters")
     .trim(),
+  termsAccepted: z.boolean().refine((val) => val === true, {
+    message: "You must accept the Terms & Conditions to register",
+  }),
   role: z.literal("doctor"),
 });
 
@@ -162,6 +165,10 @@ const register = asyncHandler(async (req, res) => {
     userData.name = `${validatedData.firstName} ${validatedData.lastName}`;
     // Use autoApproveDoctors setting
     userData.isApproved = settings.autoApproveDoctors === true;
+    // Record T&C acceptance for doctors
+    userData.termsAccepted = true;
+    userData.termsAcceptedAt = new Date();
+    userData.termsVersionAccepted = settings.termsVersion || 1;
   } else {
     userData.name = validatedData.fullName;
     // Patients are auto-approved
@@ -358,6 +365,19 @@ const login = asyncHandler(async (req, res) => {
     }
   }
 
+  // Check if doctor needs to re-accept Terms & Conditions
+  let termsReacceptRequired = false;
+  if (user.role === "doctor") {
+    const settings = await Setting.getSettings();
+    const currentTermsVersion = settings.termsVersion || 1;
+    
+    if (user.termsReacceptRequired || 
+        !user.termsAccepted || 
+        (user.termsVersionAccepted && user.termsVersionAccepted < currentTermsVersion)) {
+      termsReacceptRequired = true;
+    }
+  }
+
   res.json({
     success: true,
     message: approvalMessage || "Login successful",
@@ -366,8 +386,13 @@ const login = asyncHandler(async (req, res) => {
       name: user.name,
       email: user.email,
       role: user.role,
+      termsAccepted: user.termsAccepted,
+      termsAcceptedAt: user.termsAcceptedAt,
+      termsVersionAccepted: user.termsVersionAccepted,
+      termsReacceptRequired: termsReacceptRequired,
     },
     approvalMessage: approvalMessage, // Include approval message separately for frontend handling
+    termsReacceptRequired: termsReacceptRequired,
   });
 });
 

@@ -9,6 +9,96 @@ import bcrypt from 'bcryptjs';
 import crypto from 'crypto';
 import { logLifecycleEvent } from '../utils/auditLogger.js';
 import mongoose from 'mongoose';
+import { processRefund } from './payment.controller.js';
+
+/**
+ * Helper function to cancel appointments when leave is marked (admin)
+ * @param {String} doctorId - Doctor's user ID
+ * @param {Object} leave - The leave availability record
+ * @param {String} doctorName - Doctor's name for notifications
+ * @returns {Array} - List of cancelled appointment IDs
+ */
+const cancelAppointmentsForLeave = async (doctorId, leave, doctorName) => {
+  const cancelledAppointments = [];
+  
+  try {
+    // Normalize leave dates
+    const leaveStart = new Date(leave.startDate);
+    leaveStart.setHours(0, 0, 0, 0);
+    const leaveEnd = new Date(leave.endDate);
+    leaveEnd.setHours(23, 59, 59, 999);
+    
+    // Find all confirmed or pending appointments in the leave date range
+    const appointments = await Appointment.find({
+      doctor: doctorId,
+      appointmentDate: {
+        $gte: leaveStart,
+        $lte: leaveEnd
+      },
+      status: { $in: ['confirmed', 'pending'] }
+    }).populate('patient', 'name email');
+    
+    for (const appointment of appointments) {
+      try {
+        // Process refund (100% since doctor/admin initiated the cancellation)
+        let refundResult = { refundAmount: 0, reason: 'No payment to refund' };
+        if (appointment.paymentStatus === 'completed' && appointment.amountPaid > 0) {
+          refundResult = await processRefund(appointment._id, 'doctor');
+        }
+        
+        // Update appointment status
+        appointment.status = 'cancelled';
+        appointment.cancellationSource = 'system_cascade';
+        appointment.rejectionReason = `Doctor is on leave from ${leaveStart.toLocaleDateString()} to ${leaveEnd.toLocaleDateString()}${leave.reason ? ': ' + leave.reason : ''}`;
+        await appointment.save();
+        
+        // Create notification for patient
+        try {
+          const patientNotification = new Notification({
+            user: appointment.patient._id,
+            type: 'appointment_cancelled',
+            message: `Your appointment with Dr. ${doctorName} on ${new Date(appointment.appointmentDate).toLocaleDateString()} has been cancelled because the doctor is on leave.${refundResult.refundAmount > 0 ? ` Refund of ₹${refundResult.refundAmount} has been initiated.` : ''}`,
+            link: `/patient/appointments`,
+            relatedUser: doctorId,
+            relatedAppointment: appointment._id
+          });
+          await patientNotification.save();
+        } catch (notifError) {
+          console.error('Error creating patient notification:', notifError);
+        }
+        
+        cancelledAppointments.push({
+          appointmentId: appointment._id,
+          patientName: appointment.patient?.name,
+          appointmentDate: appointment.appointmentDate,
+          refundAmount: refundResult.refundAmount,
+          refundReason: refundResult.reason
+        });
+      } catch (apptError) {
+        console.error(`Error cancelling appointment ${appointment._id}:`, apptError);
+      }
+    }
+    
+    // Create notification for doctor about cancelled appointments
+    if (cancelledAppointments.length > 0) {
+      try {
+        const doctorNotification = new Notification({
+          user: doctorId,
+          type: 'appointment_cancelled',
+          message: `Leave has been marked for you from ${leaveStart.toLocaleDateString()} to ${leaveEnd.toLocaleDateString()}. ${cancelledAppointments.length} appointment(s) have been automatically cancelled and refunds initiated for patients.`,
+          link: `/doctor/appointments`
+        });
+        await doctorNotification.save();
+      } catch (notifError) {
+        console.error('Error creating doctor notification:', notifError);
+      }
+    }
+  } catch (error) {
+    console.error('Error in cancelAppointmentsForLeave:', error);
+  }
+  
+  return cancelledAppointments;
+};
 
 // ==================== DASHBOARD ====================
 // Get dashboard statistics
@@ -150,6 +240,8 @@ const getAllDoctors = asyncHandler(async (req, res) => {
       query.isApproved = false;
     } else if (status === 'approved') {
       query.isApproved = true;
+      // Only show active (non-deleted) approved doctors
+      query.isDeleted = { $ne: true };
     }
     
     // Filter by specialization
@@ -170,9 +262,10 @@ const getAllDoctors = asyncHandler(async (req, res) => {
       .select('-password')
       .sort({ createdAt: -1 })
       .skip(skip)
-      .limit(parseInt(limit));
-    
-    const total = await User.countDocuments(query);
+      .limit(parseInt(limit))
+      .setOptions({ skipSoftDeleteFilter: true });
+
+    const total = await User.countDocuments(query).setOptions({ skipSoftDeleteFilter: true });
     
     res.json({
       success: true,
@@ -259,7 +352,18 @@ const createDoctor = asyncHandler(async (req, res) => {
         });
       }
     }
-    
+
+    // Validate phone number - must be exactly 10 digits
+    if (phone) {
+      const phoneRegex = /^\d{10}$/;
+      if (!phoneRegex.test(phone.replace(/\D/g, ''))) {
+        return res.status(400).json({
+          success: false,
+          message: 'Phone number must be exactly 10 digits'
+        });
+      }
+    }
+
     // Check if user already exists
     const existingUser = await User.findOne({ email: email?.toLowerCase().trim() });
     if (existingUser) {
@@ -370,7 +474,18 @@ const updateDoctor = asyncHandler(async (req, res) => {
         });
       }
     }
-    
+
+    // Validate phone number - must be exactly 10 digits
+    if (phone) {
+      const phoneRegex = /^\d{10}$/;
+      if (!phoneRegex.test(phone.replace(/\D/g, ''))) {
+        return res.status(400).json({
+          success: false,
+          message: 'Phone number must be exactly 10 digits'
+        });
+      }
+    }
+
     // Update fields
     if (firstName) doctor.firstName = firstName;
     if (lastName) doctor.lastName = lastName;
@@ -409,15 +524,10 @@ const updateDoctor = asyncHandler(async (req, res) => {
 
 // Delete doctor (DELETE)
 const deleteDoctor = asyncHandler(async (req, res) => {
-  const session = await mongoose.startSession();
-  session.startTransaction();
-
   try {
-    const doctor = await User.findOne({ _id: req.params.id, role: 'doctor', isDeleted: { $ne: true } }).session(session);
+    const doctor = await User.findOne({ _id: req.params.id, role: 'doctor', isDeleted: { $ne: true } });
     
     if (!doctor) {
-      await session.abortTransaction();
-      session.endSession();
       return res.status(404).json({
         success: false,
         message: 'Doctor not found'
@@ -427,7 +537,7 @@ const deleteDoctor = asyncHandler(async (req, res) => {
     const allAppointments = await Appointment.find({ 
       doctor: doctor._id,
       status: { $in: ['pending', 'confirmed'] } 
-    }).session(session);
+    });
     
     if (allAppointments.length > 0) {
       const bulkOps = allAppointments.map(apt => ({
@@ -443,28 +553,26 @@ const deleteDoctor = asyncHandler(async (req, res) => {
           }
         }
       }));
-      await Appointment.bulkWrite(bulkOps, { session });
+      await Appointment.bulkWrite(bulkOps);
       console.log(`Cancelled ${allAppointments.length} appointment(s) for deleted doctor`);
     }
 
     await Review.updateMany(
       { doctor: doctor._id, isDeleted: { $ne: true } },
-      { $set: { isDeleted: true, deletedAt: new Date(), deletedBy: 'system_cascade' } },
-      { session }
+      { $set: { isDeleted: true, deletedAt: new Date(), deletedBy: 'system_cascade' } }
     );
 
     await Availability.updateMany(
       { doctor: doctor._id, isDeleted: { $ne: true } },
-      { $set: { isDeleted: true, deletedAt: new Date(), deletedBy: 'system_cascade' } },
-      { session }
+      { $set: { isDeleted: true, deletedAt: new Date(), deletedBy: 'system_cascade' } }
     );
 
     doctor.isDeleted = true;
     doctor.deletedAt = new Date();
-    await doctor.save({ session });
+    await doctor.save();
     
     // Post-Delete Operational Assertion
-    const verifyUserHidden = await User.findOne({ _id: doctor._id }).session(session);
+    const verifyUserHidden = await User.findOne({ _id: doctor._id });
     if (verifyUserHidden) {
       throw new Error("Integrity Failure: User remains visible to standard queries.");
     }
@@ -472,7 +580,7 @@ const deleteDoctor = asyncHandler(async (req, res) => {
     const activeAppointments = await Appointment.countDocuments({
       doctor: doctor._id,
       status: { $in: ['pending', 'confirmed'] } 
-    }).session(session);
+    });
     if (activeAppointments > 0) {
       throw new Error(`Integrity Failure: ${activeAppointments} appointments escaped the cascade.`);
     }
@@ -489,16 +597,11 @@ const deleteDoctor = asyncHandler(async (req, res) => {
       }
     });
 
-    await session.commitTransaction();
-    session.endSession();
-    
     res.json({
       success: true,
       message: 'Doctor deleted successfully'
     });
   } catch (error) {
-    await session.abortTransaction();
-    session.endSession();
     res.status(500).json({
       success: false,
       message: 'Error deleting doctor',
@@ -523,6 +626,11 @@ const approveDoctor = asyncHandler(async (req, res) => {
     doctor.approvedAt = new Date();
     doctor.approvedBy = req.user._id;
     doctor.rejectionReason = undefined;
+    
+    // Auto-repair missing name field for older seeded docs
+    if (!doctor.name) {
+      doctor.name = `${doctor.firstName || ''} ${doctor.lastName || ''}`.trim() || 'Unknown Doctor';
+    }
     
     await doctor.save();
     
@@ -575,6 +683,11 @@ const rejectDoctor = asyncHandler(async (req, res) => {
     doctor.isApproved = false;
     doctor.rejectionReason = rejectionReason || 'Registration rejected by admin';
     
+    // Auto-repair missing name field for older seeded docs
+    if (!doctor.name) {
+      doctor.name = `${doctor.firstName || ''} ${doctor.lastName || ''}`.trim() || 'Unknown Doctor';
+    }
+    
     await doctor.save();
     
     // Create notification for doctor
@@ -603,6 +716,7 @@ const rejectDoctor = asyncHandler(async (req, res) => {
       }
     });
   } catch (error) {
+    console.error('DEBUG Rejection 500 error:', error);
     res.status(500).json({
       success: false,
       message: 'Error rejecting doctor',
@@ -638,9 +752,10 @@ const getAllPatients = asyncHandler(async (req, res) => {
       .select('-password')
       .sort({ createdAt: -1 })
       .skip(skip)
-      .limit(parseInt(limit));
-    
-    const total = await User.countDocuments(query);
+      .limit(parseInt(limit))
+      .setOptions({ skipSoftDeleteFilter: true });
+
+    const total = await User.countDocuments(query).setOptions({ skipSoftDeleteFilter: true });
     
     res.json({
       success: true,
@@ -702,7 +817,18 @@ const createPatient = asyncHandler(async (req, res) => {
         });
       }
     }
-    
+
+    // Validate phone number - must be exactly 10 digits
+    if (phone) {
+      const phoneRegex = /^\d{10}$/;
+      if (!phoneRegex.test(phone.replace(/\D/g, ''))) {
+        return res.status(400).json({
+          success: false,
+          message: 'Phone number must be exactly 10 digits'
+        });
+      }
+    }
+
     // Check if user already exists
     const existingUser = await User.findOne({ email: email?.toLowerCase().trim() });
     if (existingUser) {
@@ -777,7 +903,18 @@ const updatePatient = asyncHandler(async (req, res) => {
         });
       }
     }
-    
+
+    // Validate phone number - must be exactly 10 digits
+    if (phone) {
+      const phoneRegex = /^\d{10}$/;
+      if (!phoneRegex.test(phone.replace(/\D/g, ''))) {
+        return res.status(400).json({
+          success: false,
+          message: 'Phone number must be exactly 10 digits'
+        });
+      }
+    }
+
     // Update fields
     if (name) patient.name = name;
     if (email) patient.email = email.toLowerCase().trim();
@@ -807,15 +944,10 @@ const updatePatient = asyncHandler(async (req, res) => {
 
 // Delete patient (DELETE)
 const deletePatient = asyncHandler(async (req, res) => {
-  const session = await mongoose.startSession();
-  session.startTransaction();
-
   try {
-    const patient = await User.findOne({ _id: req.params.id, role: 'patient', isDeleted: { $ne: true } }).session(session);
+    const patient = await User.findOne({ _id: req.params.id, role: 'patient', isDeleted: { $ne: true } });
     
     if (!patient) {
-      await session.abortTransaction();
-      session.endSession();
       return res.status(404).json({
         success: false,
         message: 'Patient not found'
@@ -825,7 +957,7 @@ const deletePatient = asyncHandler(async (req, res) => {
     const allAppointments = await Appointment.find({ 
       patient: patient._id,
       status: { $in: ['pending', 'confirmed'] }
-    }).session(session);
+    });
     
     if (allAppointments.length > 0) {
       const bulkOps = allAppointments.map(apt => ({
@@ -841,16 +973,16 @@ const deletePatient = asyncHandler(async (req, res) => {
           }
         }
       }));
-      await Appointment.bulkWrite(bulkOps, { session });
+      await Appointment.bulkWrite(bulkOps);
       console.log(`Cancelled ${allAppointments.length} appointment(s) for deleted patient`);
     }
     
     patient.isDeleted = true;
     patient.deletedAt = new Date();
-    await patient.save({ session });
+    await patient.save();
     
     // Post-Delete Operational Assertion
-    const verifyUserHidden = await User.findOne({ _id: patient._id }).session(session);
+    const verifyUserHidden = await User.findOne({ _id: patient._id });
     if (verifyUserHidden) {
       throw new Error("Integrity Failure: User remains visible to standard queries.");
     }
@@ -858,7 +990,7 @@ const deletePatient = asyncHandler(async (req, res) => {
     const activeAppointments = await Appointment.countDocuments({
       patient: patient._id,
       status: { $in: ['pending', 'confirmed'] } 
-    }).session(session);
+    });
     if (activeAppointments > 0) {
       throw new Error(`Integrity Failure: ${activeAppointments} appointments escaped the cascade.`);
     }
@@ -875,16 +1007,11 @@ const deletePatient = asyncHandler(async (req, res) => {
       }
     });
 
-    await session.commitTransaction();
-    session.endSession();
-    
     res.json({
       success: true,
       message: 'Patient deleted successfully'
     });
   } catch (error) {
-    await session.abortTransaction();
-    session.endSession();
     console.error('Error deleting patient:', error);
     res.status(500).json({
       success: false,
@@ -895,16 +1022,11 @@ const deletePatient = asyncHandler(async (req, res) => {
 });
 // Restore account (RESTORE)
 const restoreAccount = asyncHandler(async (req, res) => {
-  const session = await mongoose.startSession();
-  session.startTransaction();
-
   try {
     // Find explicitly deleted user, bypassing the global filter
-    const deletedUser = await User.findOne({ _id: req.params.id, isDeleted: true }).session(session);
+    const deletedUser = await User.findOne({ _id: req.params.id, isDeleted: true });
     
     if (!deletedUser) {
-      await session.abortTransaction();
-      session.endSession();
       return res.status(404).json({
         success: false,
         message: 'Deleted user not found'
@@ -912,10 +1034,8 @@ const restoreAccount = asyncHandler(async (req, res) => {
     }
 
     // Email conflict check
-    const emailConflict = await User.exists({ email: deletedUser.email, isDeleted: { $ne: true } }).session(session);
+    const emailConflict = await User.exists({ email: deletedUser.email, isDeleted: { $ne: true } });
     if (emailConflict) {
-       await session.abortTransaction();
-       session.endSession();
        return res.status(409).json({
          success: false,
          message: `Restore failed: Email ${deletedUser.email} is currently in use by a new active registration.`
@@ -924,18 +1044,16 @@ const restoreAccount = asyncHandler(async (req, res) => {
 
     deletedUser.isDeleted = false;
     deletedUser.deletedAt = undefined;
-    await deletedUser.save({ session });
+    await deletedUser.save();
 
     if (deletedUser.role === 'doctor') {
       await Review.updateMany(
         { doctor: deletedUser._id, deletedBy: 'system_cascade' },
-        { $set: { isDeleted: false }, $unset: { deletedAt: "", deletedBy: "" } },
-        { session }
+        { $set: { isDeleted: false }, $unset: { deletedAt: "", deletedBy: "" } }
       );
       await Availability.updateMany(
         { doctor: deletedUser._id, deletedBy: 'system_cascade' },
-        { $set: { isDeleted: false }, $unset: { deletedAt: "", deletedBy: "" } },
-        { session }
+        { $set: { isDeleted: false }, $unset: { deletedAt: "", deletedBy: "" } }
       );
     }
 
@@ -944,7 +1062,7 @@ const restoreAccount = asyncHandler(async (req, res) => {
     const appointmentsToRestore = await Appointment.find({
       ...fieldMatch,
       cancellationSource: 'system_cascade'
-    }).session(session);
+    });
 
     if (appointmentsToRestore.length > 0) {
       const bulkOps = appointmentsToRestore.map(apt => ({
@@ -956,7 +1074,7 @@ const restoreAccount = asyncHandler(async (req, res) => {
           }
         }
       }));
-      await Appointment.bulkWrite(bulkOps, { session });
+      await Appointment.bulkWrite(bulkOps);
     }
 
     logLifecycleEvent({
@@ -971,16 +1089,11 @@ const restoreAccount = asyncHandler(async (req, res) => {
       }
     });
 
-    await session.commitTransaction();
-    session.endSession();
-    
     res.json({
       success: true,
       message: 'Account successfully restored.'
     });
   } catch (err) {
-    await session.abortTransaction();
-    session.endSession();
     res.status(500).json({
       success: false,
       message: 'Error restoring account',
@@ -1340,10 +1453,20 @@ const createAvailability = asyncHandler(async (req, res) => {
     await availability.save();
     await availability.populate('doctor', 'name email specialization');
     
+    // If this is a leave record, cancel any confirmed appointments in the date range
+    let cancelledAppointments = [];
+    if (type === 'leave' && startDate && endDate && availability.doctor) {
+      const doctorName = availability.doctor?.name || 'the doctor';
+      cancelledAppointments = await cancelAppointmentsForLeave(doctor, availability, doctorName);
+    }
+    
     res.status(201).json({
       success: true,
-      message: 'Availability created successfully',
-      data: availability
+      message: cancelledAppointments.length > 0 
+        ? `Leave marked successfully. ${cancelledAppointments.length} appointment(s) cancelled and refunds initiated.`
+        : 'Availability created successfully',
+      data: availability,
+      cancelledAppointments: cancelledAppointments.length > 0 ? cancelledAppointments : undefined
     });
   } catch (error) {
     res.status(500).json({
@@ -1380,10 +1503,20 @@ const updateAvailability = asyncHandler(async (req, res) => {
     await availability.save();
     await availability.populate('doctor', 'name email specialization');
     
+    // If this is a leave record and dates were updated, cancel any confirmed appointments in the new date range
+    let cancelledAppointments = [];
+    if ((type === 'leave' || availability.type === 'leave') && (startDate || endDate) && availability.doctor) {
+      const doctorName = availability.doctor?.name || 'the doctor';
+      cancelledAppointments = await cancelAppointmentsForLeave(availability.doctor._id || availability.doctor, availability, doctorName);
+    }
+    
     res.json({
       success: true,
-      message: 'Availability updated successfully',
-      data: availability
+      message: cancelledAppointments.length > 0 
+        ? `Leave updated successfully. ${cancelledAppointments.length} appointment(s) cancelled and refunds initiated.`
+        : 'Availability updated successfully',
+      data: availability,
+      cancelledAppointments: cancelledAppointments.length > 0 ? cancelledAppointments : undefined
     });
   } catch (error) {
     res.status(500).json({
@@ -2039,7 +2172,7 @@ const getAdminPayments = asyncHandler(async (req, res) => {
       .sort({ createdAt: -1 })
       .skip(skip)
       .limit(parseInt(limit))
-      .select('patient doctor appointmentDate totalAmount amountPaid amountPending paymentStatus refundId refundAmount razorpayPaymentId createdAt');
+      .select('patient doctor appointmentDate totalAmount amountPaid amountPending paymentStatus refundId refundAmount razorpayPaymentId createdAt isDeleted deletedAt deletedBy');
 
     const total = await Appointment.countDocuments(query);
 

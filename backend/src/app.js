@@ -18,6 +18,8 @@ import doctorRoutes from './routes/doctor.routes.js';
 import userRoutes from './routes/user.routes.js';
 import notificationRoutes from './routes/notification.routes.js';
 import paymentRoutes from './routes/payment.routes.js';
+import termsRoutes from './routes/terms.routes.js';
+import commissionRoutes from './routes/commission.routes.js';
 
 import { handleWebhook } from './controllers/payment.controller.js';
 
@@ -49,6 +51,15 @@ app.get('/health', (_req, res) => res.json({
 }));
 
 app.use('/api/auth', authRoutes);
+app.get('/api/settings', async (req, res) => {
+  try {
+    const Setting = (await import('./models/Setting.js')).default;
+    const settings = await Setting.getSettings();
+    res.json({ success: true, data: settings });
+  } catch (error) {
+    res.status(500).json({ success: false, message: 'Error fetching settings' });
+  }
+});
 app.use('/api/admin', adminRoutes);
 app.use('/api/appointments', appointmentRoutes);
 app.use('/api/reviews', reviewRoutes);
@@ -56,6 +67,8 @@ app.use('/api/doctors', doctorRoutes);
 app.use('/api/users', userRoutes);
 app.use('/api/notifications', notificationRoutes);
 app.use('/api/payment', paymentRoutes);
+app.use('/api/terms', termsRoutes);
+app.use('/api/commission', commissionRoutes);
 
 app.use('*', (_req, res) => {
   res.status(404).json({ message: 'Route not found' });

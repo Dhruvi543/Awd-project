@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../../contexts/AuthContext';
 import { apiService } from '../../api/apiService';
+import PasswordInput from '../../components/forms/PasswordInput';
 
 const PatientSettings = () => {
   const { user, getCurrentUser, logout } = useAuth();
@@ -109,8 +110,8 @@ const PatientSettings = () => {
 
     if (profileData.phone && profileData.phone.trim() !== '') {
       const phoneDigits = profileData.phone.replace(/\D/g, '');
-      if (phoneDigits.length < 10 || phoneDigits.length > 15) {
-        setError('Phone number must contain between 10 and 15 digits');
+      if (phoneDigits.length !== 10) {
+        setError('Phone number must be exactly 10 digits');
         return;
       }
     }
@@ -468,20 +469,22 @@ const PatientSettings = () => {
                           type="tel"
                           value={profileData.phone}
                           onChange={(e) => {
-                            const value = e.target.value;
-                            // Allow only digits, spaces, dashes, parentheses, and plus sign
-                            if (/^[\d\s\-+()]*$/.test(value) || value === '') {
+                            const value = e.target.value.replace(/[^0-9]/g, '');
+                            if (value.length <= 10) {
                               setProfileData({ ...profileData, phone: value });
                             }
                           }}
                           className="w-full pl-10 pr-4 py-3 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all"
-                          placeholder="Enter your phone number (e.g., +1 234 567 8900)"
-                          maxLength={20}
+                          placeholder="Enter 10 digit phone number"
+                          maxLength={10}
+                          minLength={10}
+                          pattern="[0-9]{10}"
+                          inputMode="numeric"
                         />
                         {profileData.phone && profileData.phone.trim() !== '' && (
                           <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
                             {profileData.phone.replace(/\D/g, '').length < 10 
-                              ? `At least 10 digits required (currently: ${profileData.phone.replace(/\D/g, '').length})`
+                              ? `Exactly 10 digits required (currently: ${profileData.phone.replace(/\D/g, '').length})`
                               : `${profileData.phone.replace(/\D/g, '').length} digits entered`
                             }
                           </p>
@@ -599,44 +602,25 @@ const PatientSettings = () => {
                       <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
                         Current Password <span className="text-red-500">*</span>
                       </label>
-                      <div className="relative">
-                        <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
-                          <svg className="w-5 h-5 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" />
-                          </svg>
-                        </div>
-                        <input
-                          type="password"
-                          value={passwordData.currentPassword}
-                          onChange={(e) => setPasswordData({ ...passwordData, currentPassword: e.target.value })}
-                          className="w-full pl-10 pr-4 py-3 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all"
-                          placeholder="Enter your current password"
-                          required
-                        />
-                      </div>
+                      <PasswordInput
+                        value={passwordData.currentPassword}
+                        onChange={(e) => setPasswordData({ ...passwordData, currentPassword: e.target.value })}
+                        placeholder="Enter your current password"
+                        required
+                      />
                     </div>
 
                     <div>
                       <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
                         New Password <span className="text-red-500">*</span>
                       </label>
-                      <div className="relative">
-                        <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
-                          <svg className="w-5 h-5 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
-                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" />
-                          </svg>
-                        </div>
-                        <input
-                          type="password"
-                          value={passwordData.newPassword}
-                          onChange={(e) => setPasswordData({ ...passwordData, newPassword: e.target.value })}
-                          className="w-full pl-10 pr-4 py-3 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all"
-                          placeholder="Enter new password (min 6 characters)"
-                          required
-                          minLength={6}
-                        />
-                      </div>
+                      <PasswordInput
+                        value={passwordData.newPassword}
+                        onChange={(e) => setPasswordData({ ...passwordData, newPassword: e.target.value })}
+                        placeholder="Enter new password (min 6 characters)"
+                        required
+                        minLength={6}
+                      />
                       {passwordData.newPassword && (
                         <div className="mt-2">
                           <div className="flex items-center justify-between mb-1">
@@ -681,26 +665,14 @@ const PatientSettings = () => {
                       <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
                         Confirm New Password <span className="text-red-500">*</span>
                       </label>
-                      <div className="relative">
-                        <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
-                          <svg className="w-5 h-5 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
-                          </svg>
-                        </div>
-                        <input
-                          type="password"
-                          value={passwordData.confirmPassword}
-                          onChange={(e) => setPasswordData({ ...passwordData, confirmPassword: e.target.value })}
-                          className={`w-full pl-10 pr-4 py-3 border rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all ${
-                            passwordData.confirmPassword && passwordData.newPassword !== passwordData.confirmPassword
-                              ? 'border-red-300 dark:border-red-600'
-                              : 'border-gray-300 dark:border-gray-600'
-                          }`}
-                          placeholder="Confirm your new password"
-                          required
-                          minLength={6}
-                        />
-                      </div>
+                      <PasswordInput
+                        value={passwordData.confirmPassword}
+                        onChange={(e) => setPasswordData({ ...passwordData, confirmPassword: e.target.value })}
+                        hasError={passwordData.confirmPassword && passwordData.newPassword !== passwordData.confirmPassword}
+                        placeholder="Confirm your new password"
+                        required
+                        minLength={6}
+                      />
                       {passwordData.confirmPassword && passwordData.newPassword !== passwordData.confirmPassword && (
                         <p className="mt-1 text-xs text-red-600 dark:text-red-400">Passwords do not match</p>
                       )}

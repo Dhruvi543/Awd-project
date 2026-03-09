@@ -43,6 +43,14 @@ const userSchema = new mongoose.Schema({
     trim: true 
   },
   clinicHospitalName: { type: String, trim: true },
+  // Booking Fee - total fee the doctor charges patients
+  // Platform collects platformFeePercentage% online, doctor collects rest at clinic
+  bookingFee: {
+    type: Number,
+    default: 500,
+    min: 0
+  },
+  // Legacy field - kept for backward compatibility
   consultationFee: {
     type: Number,
     default: 500,
@@ -63,6 +71,23 @@ const userSchema = new mongoose.Schema({
     ref: 'User'
   },
   rejectionReason: String,
+  
+  // Terms & Conditions acceptance (for doctors)
+  termsAccepted: {
+    type: Boolean,
+    default: false
+  },
+  termsAcceptedAt: {
+    type: Date
+  },
+  termsVersionAccepted: {
+    type: Number
+  },
+  termsReacceptRequired: {
+    type: Boolean,
+    default: false
+  },
+  
   // Soft delete capabilities
   isDeleted: {
     type: Boolean,
