@@ -3,6 +3,11 @@ node_modules/
 backend/node_modules/
 frontend/node_modules/
 
+# Lock files - DO NOT IGNORE (commit for reproducible builds)
+# package-lock.json
+# yarn.lock
+# pnpm-lock.yaml
+
 # Build outputs
 frontend/dist/
 frontend/build/
