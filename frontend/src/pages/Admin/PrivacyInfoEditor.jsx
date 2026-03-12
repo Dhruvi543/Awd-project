@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { apiService } from '../../api/apiService';
 import ConfirmModal from '../../components/feedback/ConfirmModal';
 
-const PrivacyPolicyEditor = () => {
+const PrivacyInfoEditor = () => {
   const [privacyContent, setPrivacyContent] = useState('');
   const [currentVersion, setCurrentVersion] = useState(1);
   const [lastUpdated, setLastUpdated] = useState(null);
@@ -275,4 +275,4 @@ const PrivacyPolicyEditor = () => {
   );
 };
 
-export default PrivacyPolicyEditor;
+export default PrivacyInfoEditor;

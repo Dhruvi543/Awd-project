@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
 import { apiService } from '../../api/apiService';
 
-const PrivacyPolicy = () => {
+const PrivacyInfo = () => {
   const [privacyData, setPrivacyData] = useState({
     content: '',
     version: 1,
@@ -182,4 +182,4 @@ const PrivacyPolicy = () => {
   );
 };
 
-export default PrivacyPolicy;
+export default PrivacyInfo;
