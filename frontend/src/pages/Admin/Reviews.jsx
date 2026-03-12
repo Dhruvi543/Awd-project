@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import { apiService } from '../../api/apiService';
+import ConfirmModal from '../../components/feedback/ConfirmModal';
 
 const AdminReviews = () => {
   const [reviews, setReviews] = useState([]);
@@ -21,6 +22,15 @@ const AdminReviews = () => {
     threeStar: 0,
     twoStar: 0,
     oneStar: 0
+  });
+  const [confirmModal, setConfirmModal] = useState({
+    isOpen: false,
+    title: '',
+    message: '',
+    confirmText: 'Confirm',
+    cancelText: 'Cancel',
+    type: 'warning',
+    onConfirm: null
   });
 
   // Sync search term from URL
@@ -95,17 +105,42 @@ const AdminReviews = () => {
     setShowViewModal(true);
   };
 
-  const handleDelete = async (id) => {
-    if (!window.confirm('Are you sure you want to delete this review?')) {
-      return;
-    }
-    try {
-      await apiService.deleteReviewAdmin(id);
-      fetchReviews();
-      alert('Review deleted successfully');
-    } catch (err) {
-      alert(err.response?.data?.message || 'Failed to delete review');
-    }
+  const handleDelete = (id) => {
+    setConfirmModal({
+      isOpen: true,
+      title: 'Confirm Delete',
+      message: 'Are you sure you want to delete this review?',
+      confirmText: 'Delete',
+      cancelText: 'Cancel',
+      type: 'danger',
+      onConfirm: async () => {
+        try {
+          await apiService.deleteReviewAdmin(id);
+          fetchReviews();
+          setConfirmModal(prev => ({
+            ...prev,
+            isOpen: true,
+            title: 'Success',
+            message: 'Review deleted successfully',
+            confirmText: 'OK',
+            cancelText: '',
+            type: 'info',
+            onConfirm: () => setConfirmModal(prev => ({ ...prev, isOpen: false }))
+          }));
+        } catch (err) {
+          setConfirmModal(prev => ({
+            ...prev,
+            isOpen: true,
+            title: 'Error',
+            message: err.response?.data?.message || 'Failed to delete review',
+            confirmText: 'OK',
+            cancelText: '',
+            type: 'danger',
+            onConfirm: () => setConfirmModal(prev => ({ ...prev, isOpen: false }))
+          }));
+        }
+      }
+    });
   };
 
   const renderStars = (rating) => {
@@ -113,8 +148,8 @@ const AdminReviews = () => {
   };
 
   return (
-    <div className="w-full">
-      <div className="max-w-7xl mx-auto">
+    <div className="w-full max-w-full">
+      <div className="max-w-full">
         {/* Header */}
         <div className="mb-6">
           <div className="mb-4">
@@ -123,7 +158,7 @@ const AdminReviews = () => {
           </div>
           
           {/* Statistics Cards */}
-          <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-6">
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
             <div className="bg-white dark:bg-gray-800 rounded-xl shadow-md p-4 border border-gray-200 dark:border-gray-700">
               <div className="flex items-center justify-between">
                 <div>
@@ -181,7 +216,7 @@ const AdminReviews = () => {
         
         {/* Filters */}
         <div className="bg-white dark:bg-gray-800 rounded-xl shadow-md p-4 mb-6 border border-gray-200 dark:border-gray-700">
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
             <div>
               <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">Search</label>
               <input
@@ -422,6 +457,18 @@ const AdminReviews = () => {
           </div>
         )}
       </div>
+
+      {/* Confirmation Modal */}
+      <ConfirmModal
+        isOpen={confirmModal.isOpen}
+        onClose={() => setConfirmModal(prev => ({ ...prev, isOpen: false }))}
+        onConfirm={confirmModal.onConfirm || (() => {})}
+        title={confirmModal.title}
+        message={confirmModal.message}
+        confirmText={confirmModal.confirmText}
+        cancelText={confirmModal.cancelText}
+        type={confirmModal.type}
+      />
     </div>
   );
 };

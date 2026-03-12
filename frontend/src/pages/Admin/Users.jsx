@@ -82,8 +82,8 @@ const AdminUsers = () => {
   }, [users, activeRole, searchTerm]);
 
   return (
-    <div className="w-full">
-      <div className="max-w-7xl mx-auto">
+    <div className="w-full max-w-full">
+      <div className="max-w-full">
         <div className="mb-6">
           <h1 className="text-3xl font-bold text-gray-900 dark:text-white mb-2">User Management</h1>
           <p className="text-gray-600 dark:text-gray-400">
@@ -91,7 +91,7 @@ const AdminUsers = () => {
           </p>
         </div>
 
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 mb-6">
           <div className="bg-white dark:bg-gray-800 rounded-xl shadow-md p-4 border border-gray-200 dark:border-gray-700">
             <p className="text-sm text-gray-600 dark:text-gray-400">Total Users</p>
             <p className="text-3xl font-bold text-gray-900 dark:text-white mt-1">{stats.total}</p>

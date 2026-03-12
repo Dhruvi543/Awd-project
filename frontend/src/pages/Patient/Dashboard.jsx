@@ -3,9 +3,10 @@ import { Link } from 'react-router-dom';
 import { useAuth } from '../../contexts/AuthContext';
 import { useTheme } from '../../contexts/ThemeContext';
 import { apiService } from '../../api/apiService';
+import ProfileCompletionPrompt from '../../components/auth/ProfileCompletionPrompt';
 
 const PatientDashboard = () => {
-  const { user } = useAuth();
+  const { user, getCurrentUser } = useAuth();
   const { theme } = useTheme();
   const [stats, setStats] = useState({
     totalAppointments: 0,
@@ -15,6 +16,11 @@ const PatientDashboard = () => {
   });
   const [upcomingAppointments, setUpcomingAppointments] = useState([]);
   const [isLoading, setIsLoading] = useState(true);
+  const [showProfilePrompt, setShowProfilePrompt] = useState(false);
+  const [dismissProfileBanner, setDismissProfileBanner] = useState(false);
+
+  // Check if profile needs completion
+  const needsProfileCompletion = user?.authProvider === 'google' && user?.profileComplete === false;
 
   useEffect(() => {
     fetchDashboardData();
@@ -101,9 +107,60 @@ const PatientDashboard = () => {
     });
   };
 
+  const handleProfileComplete = async () => {
+    await getCurrentUser();
+    setShowProfilePrompt(false);
+  };
+
   return (
-    <div className="w-full">
-      <div className="max-w-7xl mx-auto">
+    <div className="w-full max-w-full">
+      <div className="max-w-full">
+        {/* Profile Completion Prompt Modal */}
+        {showProfilePrompt && needsProfileCompletion && (
+          <ProfileCompletionPrompt 
+            onClose={() => setShowProfilePrompt(false)}
+            onComplete={handleProfileComplete}
+          />
+        )}
+
+        {/* Profile Completion Banner */}
+        {needsProfileCompletion && !dismissProfileBanner && !showProfilePrompt && (
+          <div className="mb-6 bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-xl p-4 flex items-center justify-between">
+            <div className="flex items-center">
+              <div className="flex-shrink-0">
+                <svg className="h-6 w-6 text-blue-600 dark:text-blue-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                </svg>
+              </div>
+              <div className="ml-3">
+                <p className="text-sm font-medium text-blue-900 dark:text-blue-300">
+                  Complete your profile for a better experience
+                </p>
+                <p className="text-sm text-blue-700 dark:text-blue-400 mt-1">
+                  Add your phone number, address, and other details to help us serve you better.
+                </p>
+              </div>
+            </div>
+            <div className="flex items-center gap-3">
+              <button
+                onClick={() => setShowProfilePrompt(true)}
+                className="bg-blue-600 hover:bg-blue-700 text-white text-sm font-medium py-2 px-4 rounded-lg transition-colors"
+              >
+                Complete Profile
+              </button>
+              <button
+                onClick={() => setDismissProfileBanner(true)}
+                className="text-blue-600 dark:text-blue-400 hover:text-blue-800 dark:hover:text-blue-300"
+                aria-label="Dismiss"
+              >
+                <svg className="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                </svg>
+              </button>
+            </div>
+          </div>
+        )}
+
         {/* Header */}
         <div className="mb-8">
           <h1 className="text-3xl font-bold text-gray-900 dark:text-white mb-2">

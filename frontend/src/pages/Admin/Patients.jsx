@@ -1,6 +1,8 @@
 import React, { useState, useEffect } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import { apiService } from '../../api/apiService';
+import ConfirmModal from '../../components/feedback/ConfirmModal';
+import PasswordInput from '../../components/forms/PasswordInput';
 
 const AdminPatients = () => {
   const [patients, setPatients] = useState([]);
@@ -20,6 +22,7 @@ const AdminPatients = () => {
   const [searchParams] = useSearchParams();
   const [searchTerm, setSearchTerm] = useState(searchParams.get('search') || '');
   const [genderFilter, setGenderFilter] = useState('all');
+  const [activationFilter, setActivationFilter] = useState('all');
   const [currentPage, setCurrentPage] = useState(1);
   const [pagination, setPagination] = useState({ page: 1, limit: 10, total: 0, pages: 0 });
   const [stats, setStats] = useState({
@@ -27,6 +30,15 @@ const AdminPatients = () => {
     male: 0,
     female: 0,
     totalAppointments: 0
+  });
+  const [confirmModal, setConfirmModal] = useState({
+    isOpen: false,
+    title: '',
+    message: '',
+    confirmText: 'Confirm',
+    cancelText: 'Cancel',
+    type: 'warning',
+    onConfirm: null
   });
 
   // Sync search term from URL
@@ -40,7 +52,7 @@ const AdminPatients = () => {
   useEffect(() => {
     fetchPatients();
     fetchStats();
-  }, [currentPage, searchTerm, genderFilter]);
+  }, [currentPage, searchTerm, genderFilter, activationFilter]);
   
   const fetchStats = async () => {
     try {
@@ -71,7 +83,14 @@ const AdminPatients = () => {
       };
       const response = await apiService.getAllPatients(params);
       if (response.data.success) {
-        setPatients(response.data.data);
+        let filteredPatients = response.data.data;
+        // Client-side filter for activation status
+        if (activationFilter !== 'all') {
+          filteredPatients = filteredPatients.filter(patient =>
+            activationFilter === 'active' ? !patient.isDeleted : patient.isDeleted
+          );
+        }
+        setPatients(filteredPatients);
         setPagination(response.data.pagination || { page: 1, limit: 10, total: 0, pages: 0 });
       }
     } catch (err) {
@@ -134,17 +153,50 @@ const AdminPatients = () => {
     setShowViewModal(true);
   };
 
-  const handleDelete = async (id) => {
-    if (!window.confirm('Are you sure you want to delete this patient?')) {
-      return;
-    }
-    try {
-      await apiService.deletePatient(id);
-      fetchPatients();
-      alert('Patient deleted successfully');
-    } catch (err) {
-      alert(err.response?.data?.message || 'Failed to delete patient');
-    }
+  const handleToggleStatus = (patient) => {
+    const isActive = !patient.isDeleted;
+    const action = isActive ? 'deactivate' : 'activate';
+    const actionPast = isActive ? 'deactivated' : 'activated';
+
+    setConfirmModal({
+      isOpen: true,
+      title: `Confirm ${action.charAt(0).toUpperCase() + action.slice(1)}`,
+      message: `Are you sure you want to ${action} this patient?`,
+      confirmText: action.charAt(0).toUpperCase() + action.slice(1),
+      cancelText: 'Cancel',
+      type: isActive ? 'danger' : 'warning',
+      onConfirm: async () => {
+        try {
+          if (isActive) {
+            await apiService.deletePatient(patient._id);
+          } else {
+            await apiService.restorePatient(patient._id);
+          }
+          fetchPatients();
+          setConfirmModal(prev => ({
+            ...prev,
+            isOpen: true,
+            title: 'Success',
+            message: `Patient ${actionPast} successfully`,
+            confirmText: 'OK',
+            cancelText: '',
+            type: 'info',
+            onConfirm: () => setConfirmModal(prev => ({ ...prev, isOpen: false }))
+          }));
+        } catch (err) {
+          setConfirmModal(prev => ({
+            ...prev,
+            isOpen: true,
+            title: 'Error',
+            message: err.response?.data?.message || `Failed to ${action} patient`,
+            confirmText: 'OK',
+            cancelText: '',
+            type: 'danger',
+            onConfirm: () => setConfirmModal(prev => ({ ...prev, isOpen: false }))
+          }));
+        }
+      }
+    });
   };
 
   const validateForm = () => {
@@ -312,8 +364,8 @@ const AdminPatients = () => {
   };
 
   return (
-    <div className="w-full">
-      <div className="max-w-7xl mx-auto">
+    <div className="w-full max-w-full">
+      <div className="max-w-full">
         {/* Header */}
         <div className="mb-6">
           <div className="flex justify-between items-center mb-4">
@@ -391,7 +443,7 @@ const AdminPatients = () => {
 
         {/* Filters */}
         <div className="bg-white dark:bg-gray-800 rounded-xl shadow-md p-4 mb-6 border border-gray-200 dark:border-gray-700">
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
             <div>
               <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">Search</label>
               <input
@@ -419,6 +471,21 @@ const AdminPatients = () => {
                 <option value="male">Male</option>
                 <option value="female">Female</option>
                 <option value="other">Other</option>
+              </select>
+            </div>
+            <div>
+              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">Activation Status</label>
+              <select
+                value={activationFilter}
+                onChange={(e) => {
+                  setActivationFilter(e.target.value);
+                  setCurrentPage(1);
+                }}
+                className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-blue-500"
+              >
+                <option value="all">All</option>
+                <option value="active">Active</option>
+                <option value="inactive">Inactive</option>
               </select>
             </div>
             <div className="flex items-end">
@@ -458,6 +525,7 @@ const AdminPatients = () => {
                       <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">Email</th>
                       <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">Phone</th>
                       <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">Gender</th>
+                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">Status</th>
                       <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">Actions</th>
                     </tr>
                   </thead>
@@ -495,6 +563,15 @@ const AdminPatients = () => {
                             <span className="text-sm text-gray-400 dark:text-gray-500 italic">Not specified</span>
                           )}
                         </td>
+                        <td className="px-6 py-4 whitespace-nowrap">
+                          <span className={`px-2 py-1 text-xs font-medium rounded-full inline-block w-fit ${
+                            patient.isDeleted
+                              ? 'bg-red-100 text-red-800 dark:bg-red-900/30 dark:text-red-400'
+                              : 'bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-400'
+                          }`}>
+                            {patient.isDeleted ? 'Inactive' : 'Active'}
+                          </span>
+                        </td>
                         <td className="px-6 py-4 whitespace-nowrap text-sm font-medium">
                           <div className="flex gap-2">
                             <button
@@ -508,13 +585,23 @@ const AdminPatients = () => {
                               </svg>
                             </button>
                             <button
-                              onClick={() => handleDelete(patient._id)}
-                              className="text-red-600 hover:text-red-900 dark:text-red-400 dark:hover:text-red-300"
-                              title="Delete"
+                              onClick={() => handleToggleStatus(patient)}
+                              className={`${
+                                patient.isDeleted
+                                  ? 'text-green-600 hover:text-green-900 dark:text-green-400 dark:hover:text-green-300'
+                                  : 'text-red-600 hover:text-red-900 dark:text-red-400 dark:hover:text-red-300'
+                              }`}
+                              title={patient.isDeleted ? 'Activate' : 'Deactivate'}
                             >
-                              <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
-                              </svg>
+                              {patient.isDeleted ? (
+                                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
+                                </svg>
+                              ) : (
+                                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 9v6m4-6v6m7-3a9 9 0 11-18 0 9 9 0 0118 0z" />
+                                </svg>
+                              )}
                             </button>
                           </div>
                         </td>
@@ -644,16 +731,13 @@ const AdminPatients = () => {
                     <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
                       Password <span className="text-red-500">*</span>
                     </label>
-                    <input
-                      type="password"
+                    <PasswordInput
                       name="password"
                       value={formData.password}
                       onChange={handleInputChange}
                       onBlur={handleBlur}
                       required
-                      className={`w-full px-3 py-2 border rounded-md bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-blue-500 ${
-                        errors.password ? 'border-red-500 dark:border-red-500' : 'border-gray-300 dark:border-gray-600'
-                      }`}
+                      hasError={!!errors.password}
                       placeholder="Password (min 6 characters)"
                     />
                     {errors.password && <p className="mt-1 text-xs text-red-500">{errors.password}</p>}
@@ -737,15 +821,6 @@ const AdminPatients = () => {
               </div>
               <div className="flex justify-end gap-3 mt-6">
                 <button
-                  onClick={() => handleDelete(selectedPatient._id)}
-                  className="px-6 py-2 bg-red-600 text-white rounded-md hover:bg-red-700 flex items-center gap-2 font-medium"
-                >
-                  <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
-                  </svg>
-                  Delete
-                </button>
-                <button
                   onClick={() => setShowViewModal(false)}
                   className="px-6 py-2 bg-gray-600 text-white rounded-md hover:bg-gray-700 font-medium"
                 >
@@ -756,6 +831,18 @@ const AdminPatients = () => {
           </div>
         )}
       </div>
+
+      {/* Confirmation Modal */}
+      <ConfirmModal
+        isOpen={confirmModal.isOpen}
+        onClose={() => setConfirmModal(prev => ({ ...prev, isOpen: false }))}
+        onConfirm={confirmModal.onConfirm || (() => {})}
+        title={confirmModal.title}
+        message={confirmModal.message}
+        confirmText={confirmModal.confirmText}
+        cancelText={confirmModal.cancelText}
+        type={confirmModal.type}
+      />
     </div>
   );
 };

@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { useAuth } from '../../contexts/AuthContext';
 import { apiService } from '../../api/apiService';
+import ConfirmModal from '../../components/feedback/ConfirmModal';
 
 const DoctorAvailability = () => {
   const { user } = useAuth();
@@ -38,6 +39,15 @@ const DoctorAvailability = () => {
   
   const [error, setError] = useState('');
   const [success, setSuccess] = useState('');
+  const [confirmModal, setConfirmModal] = useState({
+    isOpen: false,
+    title: '',
+    message: '',
+    confirmText: 'Confirm',
+    cancelText: 'Cancel',
+    type: 'warning',
+    onConfirm: null
+  });
 
   useEffect(() => {
     fetchAvailability();
@@ -480,20 +490,26 @@ const DoctorAvailability = () => {
     setSuccess('');
   };
 
-  const handleDelete = async (id) => {
-    if (!window.confirm('Are you sure you want to delete this?')) {
-      return;
-    }
-
-    try {
-      await apiService.deleteMyAvailability(id);
-      setSuccess('Deleted successfully!');
-      fetchAvailability();
-      setTimeout(() => setSuccess(''), 3000);
-    } catch (error) {
-      console.error('Error deleting:', error);
-      setError(error.response?.data?.message || 'Failed to delete. Please try again.');
-    }
+  const handleDelete = (id) => {
+    setConfirmModal({
+      isOpen: true,
+      title: 'Confirm Delete',
+      message: 'Are you sure you want to delete this?',
+      confirmText: 'Delete',
+      cancelText: 'Cancel',
+      type: 'danger',
+      onConfirm: async () => {
+        try {
+          await apiService.deleteMyAvailability(id);
+          setSuccess('Deleted successfully!');
+          fetchAvailability();
+          setTimeout(() => setSuccess(''), 3000);
+        } catch (error) {
+          console.error('Error deleting:', error);
+          setError(error.response?.data?.message || 'Failed to delete. Please try again.');
+        }
+      }
+    });
   };
 
   const handleToggleActive = async (item) => {
@@ -644,8 +660,8 @@ const DoctorAvailability = () => {
   const leaves = availability.filter(item => item.type === 'leave');
 
   return (
-    <div className="w-full min-h-screen bg-gradient-to-br from-gray-50 to-gray-100 dark:from-gray-900 dark:to-gray-800 p-4 md:p-6 lg:p-8">
-      <div className="max-w-7xl mx-auto">
+    <div className="w-full max-w-full min-h-screen bg-gradient-to-br from-gray-50 to-gray-100 dark:from-gray-900 dark:to-gray-800 p-4 md:p-6 lg:p-8">
+      <div className="max-w-full">
         {/* Header */}
         <div className="mb-8">
           <h1 className="text-4xl font-bold text-gray-900 dark:text-white mb-2">
@@ -1207,6 +1223,18 @@ const DoctorAvailability = () => {
           )}
         </div>
       </div>
+
+      {/* Confirmation Modal */}
+      <ConfirmModal
+        isOpen={confirmModal.isOpen}
+        onClose={() => setConfirmModal(prev => ({ ...prev, isOpen: false }))}
+        onConfirm={confirmModal.onConfirm || (() => {})}
+        title={confirmModal.title}
+        message={confirmModal.message}
+        confirmText={confirmModal.confirmText}
+        cancelText={confirmModal.cancelText}
+        type={confirmModal.type}
+      />
     </div>
   );
 };

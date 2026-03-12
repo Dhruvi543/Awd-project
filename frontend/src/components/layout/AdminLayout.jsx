@@ -3,6 +3,7 @@ import { Outlet, Link, useLocation, useNavigate } from 'react-router-dom';
 import { useAuth } from '../../contexts/AuthContext';
 import { useTheme } from '../../contexts/ThemeContext';
 import { apiService } from '../../api/apiService';
+import ConfirmModal from '../feedback/ConfirmModal';
 import logo from '../../logo.png';
 import { RoutePath } from '../../common/enums/enumConstant';
 
@@ -17,6 +18,7 @@ const AdminLayout = () => {
   const [showNotifications, setShowNotifications] = useState(false);
   const [isLoadingNotifications, setIsLoadingNotifications] = useState(false);
   const [siteName, setSiteName] = useState('DOXI Admin');
+  const [showLogoutModal, setShowLogoutModal] = useState(false);
 
   // Load site settings from localStorage
   useEffect(() => {
@@ -118,9 +120,13 @@ const AdminLayout = () => {
     navigate(RoutePath.ADMIN_NOTIFICATIONS);
   };
 
-  const handleLogout = async (e) => {
+  const handleLogoutClick = (e) => {
     e?.preventDefault();
     e?.stopPropagation();
+    setShowLogoutModal(true);
+  };
+
+  const handleLogoutConfirm = async () => {
     try {
       const result = await logout();
       if (result?.success !== false) {
@@ -147,6 +153,9 @@ const AdminLayout = () => {
     { path: RoutePath.ADMIN_AVAILABILITY, label: 'Availability Overview', icon: 'availability' },
     { path: RoutePath.ADMIN_ANALYTICS, label: 'Analytics', icon: 'analytics' },
     { path: RoutePath.ADMIN_PAYMENTS, label: 'Payments', icon: 'payments' },
+    { path: '/admin/revenue', label: 'Revenue Dashboard', icon: 'revenue' },
+    { path: '/admin/terms', label: 'Terms & Conditions', icon: 'terms' },
+    { path: '/admin/commission', label: 'Commission Settings', icon: 'commission' },
     { path: RoutePath.ADMIN_SETTINGS, label: 'Settings', icon: 'settings' },
   ];
 
@@ -213,6 +222,24 @@ const AdminLayout = () => {
           <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z" />
             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+          </svg>
+        );
+      case 'revenue':
+        return (
+          <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" />
+          </svg>
+        );
+      case 'terms':
+        return (
+          <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+          </svg>
+        );
+      case 'commission':
+        return (
+          <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
           </svg>
         );
       default:
@@ -286,7 +313,7 @@ const AdminLayout = () => {
                   <span className={isActive(item.path) ? 'text-white' : 'text-gray-600 dark:text-gray-400'}>
                     {getIcon(item.icon)}
                   </span>
-                  {sidebarOpen && <span className="ml-3 font-medium">{item.label}</span>}
+                  {sidebarOpen && <span className="ml-3 font-medium whitespace-nowrap">{item.label}</span>}
                 </Link>
               </li>
             ))}
@@ -297,19 +324,19 @@ const AdminLayout = () => {
         <div className="p-4 border-t border-blue-200 dark:border-gray-600 bg-white dark:bg-gray-800">
           <button
             type="button"
-            onClick={handleLogout}
+            onClick={handleLogoutClick}
             className="w-full flex items-center justify-center px-4 py-2 bg-red-50 dark:bg-red-900/20 text-red-600 dark:text-red-400 rounded-lg hover:bg-red-100 dark:hover:bg-red-900/30 transition-colors border border-red-200 dark:border-red-800"
           >
             <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1" />
             </svg>
-            {sidebarOpen && <span className="ml-3 font-medium">Logout</span>}
+            {sidebarOpen && <span className="ml-3 font-medium whitespace-nowrap">Logout</span>}
           </button>
         </div>
       </aside>
 
       {/* Main Content */}
-      <div className={`flex-1 transition-all duration-300 ${sidebarOpen ? 'ml-72' : 'ml-20'}`}>
+      <div className={`flex-1 transition-all duration-300 overflow-x-hidden ${sidebarOpen ? 'ml-72' : 'ml-20'}`}>
         {/* Top Bar */}
         <header className="bg-white dark:bg-gray-800 sticky top-0 z-30 shadow-sm h-16 border-b border-gray-200 dark:border-gray-700">
           <div className="h-full px-4 md:px-6 flex items-center justify-between gap-3">
@@ -491,10 +518,22 @@ const AdminLayout = () => {
         </header>
 
         {/* Page Content */}
-        <main className="p-6 lg:p-8 bg-gray-50 dark:bg-gray-900 min-h-[calc(100vh-4rem)]">
+        <main className="p-4 sm:p-6 lg:p-8 bg-gray-50 dark:bg-gray-900 min-h-[calc(100vh-4rem)] w-full">
           <Outlet />
         </main>
       </div>
+
+      {/* Logout Confirmation Modal */}
+      <ConfirmModal
+        isOpen={showLogoutModal}
+        onClose={() => setShowLogoutModal(false)}
+        onConfirm={handleLogoutConfirm}
+        title="Confirm Logout"
+        message="Are you sure you want to logout?"
+        confirmText="Logout"
+        cancelText="Cancel"
+        type="warning"
+      />
     </div>
   );
 };

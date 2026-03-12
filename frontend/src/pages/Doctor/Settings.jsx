@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../../contexts/AuthContext';
 import { apiService } from '../../api/apiService';
+import PasswordInput from '../../components/forms/PasswordInput';
 
 const DoctorSettings = () => {
   const { user, getCurrentUser, logout } = useAuth();
@@ -22,7 +23,7 @@ const DoctorSettings = () => {
     licenseNo: user?.licenseNo || '',
     clinicHospitalType: user?.clinicHospitalType || '',
     clinicHospitalName: user?.clinicHospitalName || '',
-    consultationFee: user?.consultationFee || 500,
+    bookingFee: user?.bookingFee || user?.consultationFee || 500,
   });
   const [passwordData, setPasswordData] = useState({
     currentPassword: '',
@@ -51,7 +52,7 @@ const DoctorSettings = () => {
         licenseNo: user?.licenseNo || '',
         clinicHospitalType: user?.clinicHospitalType || '',
         clinicHospitalName: user?.clinicHospitalName || '',
-        consultationFee: user?.consultationFee || 500,
+        bookingFee: user?.bookingFee || user?.consultationFee || 500,
       });
     }
   }, [user]);
@@ -107,8 +108,8 @@ const DoctorSettings = () => {
     } else if (name === 'phone') {
       if (value && value.trim() !== '') {
         const phoneDigits = value.replace(/\D/g, '');
-        if (phoneDigits.length < 10 || phoneDigits.length > 15) {
-          error = 'Phone number must contain between 10 and 15 digits';
+        if (phoneDigits.length !== 10) {
+          error = 'Phone number must be exactly 10 digits';
         }
       }
     } else if (name === 'experience') {
@@ -152,10 +153,10 @@ const DoctorSettings = () => {
           error = 'License number must be in format: XX/YYYY/XXXXX (e.g., TN/2020/123456)';
         }
       }
-    } else if (name === 'consultationFee') {
+    } else if (name === 'bookingFee') {
       const num = parseInt(value);
       if (isNaN(num) || num < 0) {
-        error = 'Consultation fee must be a positive number';
+        error = 'Booking fee must be a positive number';
       }
     }
 
@@ -177,7 +178,7 @@ const DoctorSettings = () => {
     if (name === 'firstName' || name === 'lastName') {
       processedValue = value.replace(/[^a-zA-Z\s]/g, '');
     } else if (name === 'phone') {
-      processedValue = value.replace(/\D/g, '').slice(0, 15);
+      processedValue = value.replace(/\D/g, '').slice(0, 10);
     } else if (name === 'experience') {
       // Only allow digits (0-9), remove ALL special characters including minus (-), dot (.), plus (+), etc.
       // This regex removes everything except digits 0-9
@@ -198,7 +199,7 @@ const DoctorSettings = () => {
       // Allow uppercase letters, numbers, and slashes only
       // Auto-format: convert to uppercase, allow only valid characters
       processedValue = value.toUpperCase().replace(/[^A-Z0-9\/]/g, '');
-    } else if (name === 'consultationFee') {
+    } else if (name === 'bookingFee') {
       processedValue = parseInt(value) || 0;
     }
 
@@ -276,7 +277,7 @@ const DoctorSettings = () => {
         location: profileData.location?.trim() || '',
         licenseNo: profileData.licenseNo?.trim() || '',
         clinicHospitalName: profileData.clinicHospitalName?.trim() || '',
-        consultationFee: profileData.consultationFee !== undefined ? profileData.consultationFee : 500,
+        bookingFee: profileData.bookingFee !== undefined ? profileData.bookingFee : 500,
       };
       const response = await apiService.updateProfile(normalizedData);
       if (response.data.success) {
@@ -298,7 +299,7 @@ const DoctorSettings = () => {
             licenseNo: updatedUser.licenseNo || '',
             clinicHospitalType: updatedUser.clinicHospitalType || '',
             clinicHospitalName: updatedUser.clinicHospitalName || '',
-            consultationFee: updatedUser.consultationFee !== undefined ? updatedUser.consultationFee : 500,
+            bookingFee: updatedUser.bookingFee !== undefined ? updatedUser.bookingFee : updatedUser.consultationFee !== undefined ? updatedUser.consultationFee : 500,
           });
           
           // Update localStorage
@@ -629,15 +630,18 @@ const DoctorSettings = () => {
                         className={`w-full px-4 py-3 border rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all ${
                           fieldErrors.phone ? 'border-red-300 dark:border-red-600' : 'border-gray-300 dark:border-gray-600'
                         }`}
-                        placeholder="Enter phone number (10-15 digits)"
-                        maxLength={15}
+                        placeholder="Enter 10 digit phone number"
+                        maxLength={10}
+                        minLength={10}
+                        pattern="[0-9]{10}"
+                        inputMode="numeric"
                       />
                       {fieldErrors.phone && (
                         <p className="mt-1 text-xs text-red-600 dark:text-red-400">{fieldErrors.phone}</p>
                       )}
                       {profileData.phone && !fieldErrors.phone && (
                         <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">
-                          {profileData.phone.replace(/\D/g, '').length} digits
+                          {profileData.phone.replace(/\D/g, '').length} / 10 digits
                         </p>
                       )}
                     </div>
@@ -870,26 +874,26 @@ const DoctorSettings = () => {
                     
                     <div>
                       <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-                        Consultation Fee (₹) <span className="text-red-500">*</span>
+                        Booking Fee (₹) <span className="text-red-500">*</span>
                       </label>
                       <input
                         type="number"
-                        value={profileData.consultationFee === 0 ? '' : profileData.consultationFee}
-                        onChange={(e) => handleFieldChange('consultationFee', e.target.value)}
-                        onBlur={(e) => validateField('consultationFee', e.target.value)}
+                        value={profileData.bookingFee === 0 ? '' : profileData.bookingFee}
+                        onChange={(e) => handleFieldChange('bookingFee', e.target.value)}
+                        onBlur={(e) => validateField('bookingFee', e.target.value)}
                         className={`w-full px-4 py-3 border rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all ${
-                          fieldErrors.consultationFee ? 'border-red-300 dark:border-red-600' : 'border-gray-300 dark:border-gray-600'
+                          fieldErrors.bookingFee ? 'border-red-300 dark:border-red-600' : 'border-gray-300 dark:border-gray-600'
                         }`}
                         placeholder="e.g., 500"
                         min="0"
                         required
                       />
-                      {fieldErrors.consultationFee && (
-                        <p className="mt-1 text-xs text-red-600 dark:text-red-400">{fieldErrors.consultationFee}</p>
+                      {fieldErrors.bookingFee && (
+                        <p className="mt-1 text-xs text-red-600 dark:text-red-400">{fieldErrors.bookingFee}</p>
                       )}
-                      {!fieldErrors.consultationFee && (
+                      {!fieldErrors.bookingFee && (
                         <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">
-                          Total fee charged to patients.
+                          This is the total fee you charge patients. A percentage (set by admin) will be collected online by the platform to secure the appointment. You collect the remaining amount directly from the patient at the clinic.
                         </p>
                       )}
                     </div>
@@ -914,7 +918,7 @@ const DoctorSettings = () => {
                         licenseNo: user?.licenseNo || '',
                         clinicHospitalType: user?.clinicHospitalType || '',
                         clinicHospitalName: user?.clinicHospitalName || '',
-                        consultationFee: user?.consultationFee || 500,
+                        bookingFee: user?.bookingFee || user?.consultationFee || 500,
                       });
                       setFieldErrors({});
                       setError('');
@@ -969,11 +973,9 @@ const DoctorSettings = () => {
                   <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
                         Current Password <span className="text-red-500">*</span>
                   </label>
-                  <input
-                    type="password"
+                  <PasswordInput
                     value={passwordData.currentPassword}
                     onChange={(e) => setPasswordData({ ...passwordData, currentPassword: e.target.value })}
-                        className="w-full px-4 py-3 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all"
                         placeholder="Enter your current password"
                     required
                   />
@@ -983,11 +985,9 @@ const DoctorSettings = () => {
                   <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
                         New Password <span className="text-red-500">*</span>
                   </label>
-                  <input
-                    type="password"
+                  <PasswordInput
                     value={passwordData.newPassword}
                     onChange={(e) => setPasswordData({ ...passwordData, newPassword: e.target.value })}
-                        className="w-full px-4 py-3 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all"
                         placeholder="Enter new password (min 6 characters)"
                     required
                         minLength={6}
@@ -1019,15 +1019,10 @@ const DoctorSettings = () => {
                   <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
                         Confirm New Password <span className="text-red-500">*</span>
                   </label>
-                  <input
-                    type="password"
+                  <PasswordInput
                     value={passwordData.confirmPassword}
                     onChange={(e) => setPasswordData({ ...passwordData, confirmPassword: e.target.value })}
-                        className={`w-full px-4 py-3 border rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all ${
-                          passwordData.confirmPassword && passwordData.newPassword !== passwordData.confirmPassword
-                            ? 'border-red-300 dark:border-red-600'
-                            : 'border-gray-300 dark:border-gray-600'
-                        }`}
+                        hasError={passwordData.confirmPassword && passwordData.newPassword !== passwordData.confirmPassword}
                         placeholder="Confirm your new password"
                     required
                         minLength={6}

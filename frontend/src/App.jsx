@@ -55,6 +55,9 @@ import AdminAnalytics from './pages/Admin/Analytics';
 import AdminSettings from './pages/Admin/Settings';
 import AdminNotifications from './pages/Admin/Notifications';
 import AdminPayments from './pages/Admin/Payments';
+import TermsEditor from './pages/Admin/TermsEditor';
+import CommissionEditor from './pages/Admin/CommissionEditor';
+import RevenueDashboard from './pages/Admin/RevenueDashboard';
 
 // Common Pages
 import Doctors from './pages/Common/Doctors';
@@ -173,6 +176,9 @@ function App() {
             <Route path="analytics" element={<AdminAnalytics />} />
             <Route path="notifications" element={<AdminNotifications />} />
             <Route path="payments" element={<AdminPayments />} />
+            <Route path="terms" element={<TermsEditor />} />
+            <Route path="commission" element={<CommissionEditor />} />
+            <Route path="revenue" element={<RevenueDashboard />} />
             <Route path="settings" element={<AdminSettings />} />
           </Route>
 

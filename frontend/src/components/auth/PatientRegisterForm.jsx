@@ -1,4 +1,5 @@
 import React, { useState } from 'react';
+import PasswordInput from '../forms/PasswordInput';
 
 const PatientRegisterForm = ({ setPatientData }) => {
   const [formData, setFormData] = useState({
@@ -181,20 +182,15 @@ const PatientRegisterForm = ({ setPatientData }) => {
         <label htmlFor="register-patient-password" className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
           Password <span className="text-red-500">*</span>
         </label>
-        <input
-          type="password"
+        <PasswordInput
           id="register-patient-password"
           name="password"
           autoComplete="new-password"
-          data-lpignore="true"
-          data-form-type="register"
           value={formData.password}
           onChange={handleChange}
           onBlur={handleBlur}
           required
-          className={`w-full px-3 py-2 border rounded-md bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent ${
-            errors.password ? 'border-red-500 dark:border-red-500' : 'border-gray-300 dark:border-gray-600'
-          }`}
+          hasError={!!errors.password}
           placeholder="Enter your password"
         />
         {errors.password && <p className="mt-1 text-sm text-red-500">{errors.password}</p>}
@@ -204,17 +200,14 @@ const PatientRegisterForm = ({ setPatientData }) => {
         <label htmlFor="confirmPassword" className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
           Confirm Password <span className="text-red-500">*</span>
         </label>
-        <input
-          type="password"
+        <PasswordInput
           id="confirmPassword"
           name="confirmPassword"
           value={formData.confirmPassword}
           onChange={handleChange}
           onBlur={handleBlur}
           required
-          className={`w-full px-3 py-2 border rounded-md bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent ${
-            errors.confirmPassword ? 'border-red-500 dark:border-red-500' : 'border-gray-300 dark:border-gray-600'
-          }`}
+          hasError={!!errors.confirmPassword}
           placeholder="Confirm your password"
         />
         {errors.confirmPassword && <p className="mt-1 text-sm text-red-500">{errors.confirmPassword}</p>}

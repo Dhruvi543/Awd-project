@@ -32,10 +32,47 @@ const settingSchema = new mongoose.Schema({
   },
   
   // Payment Settings
+  // Platform Fee Percentage - percentage of doctor's booking fee collected online
+  // This goes entirely to the platform as revenue
+  platformFeePercentage: {
+    type: Number,
+    default: 20,
+    min: 0,
+    max: 100
+  },
+  platformFeeLastUpdated: {
+    type: Date,
+    default: Date.now
+  },
+  // Legacy field - kept for backward compatibility
   bookingFee: {
     type: Number,
     default: 100,
     min: 0
+  },
+  platformCommissionPercentage: {
+    type: Number,
+    default: 20,
+    min: 0,
+    max: 100
+  },
+  commissionLastUpdated: {
+    type: Date,
+    default: Date.now
+  },
+  
+  // Terms & Conditions Settings
+  termsAndConditions: {
+    type: String,
+    default: 'Please read and accept our Terms & Conditions to use the platform.'
+  },
+  termsVersion: {
+    type: Number,
+    default: 1
+  },
+  termsLastUpdated: {
+    type: Date,
+    default: Date.now
   },
   
   // Appointment Settings

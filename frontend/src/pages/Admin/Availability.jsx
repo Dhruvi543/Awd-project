@@ -50,8 +50,8 @@ const AdminAvailability = () => {
 
 
   return (
-    <div className="w-full">
-      <div className="max-w-7xl mx-auto">
+    <div className="w-full max-w-full">
+      <div className="max-w-full">
         {/* Header */}
         <div className="mb-6">
           <div className="mb-4">

@@ -1,18 +1,23 @@
 import React, { useEffect, useState } from 'react';
 
-const Toast = ({ message, type = 'success', onClose, duration = 3000 }) => {
-  const [isVisible, setIsVisible] = useState(true);
+const Toast = ({ message, type = 'success', onClose, duration = 3000, show = true }) => {
+  const [isVisible, setIsVisible] = useState(false);
 
   useEffect(() => {
-    const timer = setTimeout(() => {
-      setIsVisible(false);
-      setTimeout(() => {
-        if (onClose) onClose();
-      }, 300); // Wait for fade-out animation
-    }, duration);
+    if (show) {
+      setIsVisible(true);
+      const timer = setTimeout(() => {
+        setIsVisible(false);
+        setTimeout(() => {
+          if (onClose) onClose();
+        }, 300); // Wait for fade-out animation
+      }, duration);
 
-    return () => clearTimeout(timer);
-  }, [duration, onClose]);
+      return () => clearTimeout(timer);
+    } else {
+      setIsVisible(false);
+    }
+  }, [show, duration, onClose]);
 
   const handleClose = () => {
     setIsVisible(false);
@@ -38,6 +43,9 @@ const Toast = ({ message, type = 'success', onClose, duration = 3000 }) => {
       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
     </svg>
   );
+
+  // Don't render if show is false and not visible
+  if (!show && !isVisible) return null;
 
   return (
     <div

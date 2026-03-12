@@ -1,6 +1,8 @@
 import React, { useState, useEffect } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import { apiService } from '../../api/apiService';
+import ConfirmModal from '../../components/feedback/ConfirmModal';
+import PasswordInput from '../../components/forms/PasswordInput';
 
 const AdminDoctors = () => {
   const [searchParams, setSearchParams] = useSearchParams();
@@ -29,6 +31,7 @@ const AdminDoctors = () => {
   const [errors, setErrors] = useState({});
   const [searchTerm, setSearchTerm] = useState(searchParams.get('search') || '');
   const [statusFilter, setStatusFilter] = useState('all');
+  const [activationFilter, setActivationFilter] = useState('all');
   const [specializationFilter, setSpecializationFilter] = useState('all');
   const [currentPage, setCurrentPage] = useState(1);
   const [pagination, setPagination] = useState({ page: 1, limit: 10, total: 0, pages: 0 });
@@ -37,6 +40,15 @@ const AdminDoctors = () => {
     approved: 0,
     pending: 0,
     totalAppointments: 0
+  });
+  const [confirmModal, setConfirmModal] = useState({
+    isOpen: false,
+    title: '',
+    message: '',
+    confirmText: 'Confirm',
+    cancelText: 'Cancel',
+    type: 'warning',
+    onConfirm: null
   });
 
   // Sync search term from URL
@@ -50,7 +62,7 @@ const AdminDoctors = () => {
   useEffect(() => {
     fetchDoctors();
     fetchStats();
-  }, [statusFilter, currentPage, searchTerm, specializationFilter]);
+  }, [statusFilter, activationFilter, currentPage, searchTerm, specializationFilter]);
 
   // Check for action=add query parameter to auto-open add modal
   useEffect(() => {
@@ -110,7 +122,14 @@ const AdminDoctors = () => {
       };
       const response = await apiService.getAllDoctors(params);
       if (response.data.success) {
-        setDoctors(response.data.data);
+        let filteredDoctors = response.data.data;
+        // Client-side filter for activation status
+        if (activationFilter !== 'all') {
+          filteredDoctors = filteredDoctors.filter(doctor =>
+            activationFilter === 'active' ? !doctor.isDeleted : doctor.isDeleted
+          );
+        }
+        setDoctors(filteredDoctors);
         setPagination(response.data.pagination || { page: 1, limit: 10, total: 0, pages: 0 });
       }
     } catch (err) {
@@ -206,30 +225,88 @@ const AdminDoctors = () => {
     setShowViewModal(true);
   };
 
-  const handleDelete = async (id) => {
-    if (!window.confirm('Are you sure you want to delete this doctor?')) {
-      return;
-    }
-    try {
-      await apiService.deleteDoctor(id);
-      fetchDoctors();
-      alert('Doctor deleted successfully');
-    } catch (err) {
-      alert(err.response?.data?.message || 'Failed to delete doctor');
-    }
+  const handleToggleStatus = (doctor) => {
+    const isActive = !doctor.isDeleted;
+    const action = isActive ? 'deactivate' : 'activate';
+    const actionPast = isActive ? 'deactivated' : 'activated';
+
+    setConfirmModal({
+      isOpen: true,
+      title: `Confirm ${action.charAt(0).toUpperCase() + action.slice(1)}`,
+      message: `Are you sure you want to ${action} this doctor?`,
+      confirmText: action.charAt(0).toUpperCase() + action.slice(1),
+      cancelText: 'Cancel',
+      type: isActive ? 'danger' : 'warning',
+      onConfirm: async () => {
+        try {
+          if (isActive) {
+            await apiService.deleteDoctor(doctor._id);
+          } else {
+            await apiService.restoreDoctor(doctor._id);
+          }
+          fetchDoctors();
+          setConfirmModal(prev => ({
+            ...prev,
+            isOpen: true,
+            title: 'Success',
+            message: `Doctor ${actionPast} successfully`,
+            confirmText: 'OK',
+            cancelText: '',
+            type: 'info',
+            onConfirm: () => setConfirmModal(prev => ({ ...prev, isOpen: false }))
+          }));
+        } catch (err) {
+          setConfirmModal(prev => ({
+            ...prev,
+            isOpen: true,
+            title: 'Error',
+            message: err.response?.data?.message || `Failed to ${action} doctor`,
+            confirmText: 'OK',
+            cancelText: '',
+            type: 'danger',
+            onConfirm: () => setConfirmModal(prev => ({ ...prev, isOpen: false }))
+          }));
+        }
+      }
+    });
   };
 
-  const handleApprove = async (id) => {
-    if (!window.confirm('Are you sure you want to approve this doctor?')) {
-      return;
-    }
-    try {
-      await apiService.approveDoctor(id);
-      fetchDoctors();
-      alert('Doctor approved successfully');
-    } catch (err) {
-      alert(err.response?.data?.message || 'Failed to approve doctor');
-    }
+  const handleApprove = (id) => {
+    setConfirmModal({
+      isOpen: true,
+      title: 'Confirm Approval',
+      message: 'Are you sure you want to approve this doctor?',
+      confirmText: 'Approve',
+      cancelText: 'Cancel',
+      type: 'warning',
+      onConfirm: async () => {
+        try {
+          await apiService.approveDoctor(id);
+          fetchDoctors();
+          setConfirmModal(prev => ({
+            ...prev,
+            isOpen: true,
+            title: 'Success',
+            message: 'Doctor approved successfully',
+            confirmText: 'OK',
+            cancelText: '',
+            type: 'info',
+            onConfirm: () => setConfirmModal(prev => ({ ...prev, isOpen: false }))
+          }));
+        } catch (err) {
+          setConfirmModal(prev => ({
+            ...prev,
+            isOpen: true,
+            title: 'Error',
+            message: err.response?.data?.message || 'Failed to approve doctor',
+            confirmText: 'OK',
+            cancelText: '',
+            type: 'danger',
+            onConfirm: () => setConfirmModal(prev => ({ ...prev, isOpen: false }))
+          }));
+        }
+      }
+    });
   };
 
   const handleReject = (doctor) => {
@@ -593,8 +670,8 @@ const AdminDoctors = () => {
   };
 
   return (
-    <div className="w-full">
-      <div className="max-w-7xl mx-auto">
+    <div className="w-full max-w-full">
+      <div className="max-w-full">
         {/* Header */}
         <div className="mb-6">
           <div className="flex justify-between items-center mb-4">
@@ -672,7 +749,7 @@ const AdminDoctors = () => {
 
         {/* Filters */}
         <div className="bg-white dark:bg-gray-800 rounded-xl shadow-md p-4 mb-6 border border-gray-200 dark:border-gray-700">
-          <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-4">
             <div>
               <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">Search</label>
               <input
@@ -687,7 +764,7 @@ const AdminDoctors = () => {
               />
             </div>
             <div>
-              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">Status</label>
+              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">Approval Status</label>
               <select
                 value={statusFilter}
                 onChange={(e) => {
@@ -696,9 +773,24 @@ const AdminDoctors = () => {
                 }}
                 className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-blue-500"
               >
-                <option value="all">All Doctors</option>
+                <option value="all">All</option>
                 <option value="approved">Approved</option>
                 <option value="pending">Pending Approval</option>
+              </select>
+            </div>
+            <div>
+              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">Activation Status</label>
+              <select
+                value={activationFilter}
+                onChange={(e) => {
+                  setActivationFilter(e.target.value);
+                  setCurrentPage(1);
+                }}
+                className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-blue-500"
+              >
+                <option value="all">All</option>
+                <option value="active">Active</option>
+                <option value="inactive">Inactive</option>
               </select>
             </div>
             <div>
@@ -786,13 +878,22 @@ const AdminDoctors = () => {
                           </div>
                         </td>
                         <td className="px-6 py-4 whitespace-nowrap">
-                          <span className={`px-2 py-1 text-xs font-medium rounded-full ${
-                            doctor.isApproved
-                              ? 'bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-400'
-                              : 'bg-yellow-100 text-yellow-800 dark:bg-yellow-900/30 dark:text-yellow-400'
-                          }`}>
-                            {doctor.isApproved ? 'Approved' : 'Pending'}
-                          </span>
+                          <div className="flex flex-col gap-1">
+                            <span className={`px-2 py-1 text-xs font-medium rounded-full inline-block w-fit ${
+                              doctor.isApproved
+                                ? 'bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-400'
+                                : 'bg-yellow-100 text-yellow-800 dark:bg-yellow-900/30 dark:text-yellow-400'
+                            }`}>
+                              {doctor.isApproved ? 'Approved' : 'Pending'}
+                            </span>
+                            <span className={`px-2 py-1 text-xs font-medium rounded-full inline-block w-fit ${
+                              doctor.isDeleted
+                                ? 'bg-red-100 text-red-800 dark:bg-red-900/30 dark:text-red-400'
+                                : 'bg-blue-100 text-blue-800 dark:bg-blue-900/30 dark:text-blue-400'
+                            }`}>
+                              {doctor.isDeleted ? 'Inactive' : 'Active'}
+                            </span>
+                          </div>
                         </td>
                         <td className="px-6 py-4 whitespace-nowrap text-sm font-medium">
                           <div className="flex gap-2">
@@ -829,15 +930,25 @@ const AdminDoctors = () => {
                                 </button>
                               </>
                             ) : (
-                              // For approved doctors: only show Delete button
+                              // For approved doctors: show Activate/Deactivate toggle button
                               <button
-                                onClick={() => handleDelete(doctor._id)}
-                                className="text-red-600 hover:text-red-900 dark:text-red-400 dark:hover:text-red-300"
-                                title="Delete"
+                                onClick={() => handleToggleStatus(doctor)}
+                                className={`${
+                                  doctor.isDeleted
+                                    ? 'text-green-600 hover:text-green-900 dark:text-green-400 dark:hover:text-green-300'
+                                    : 'text-red-600 hover:text-red-900 dark:text-red-400 dark:hover:text-red-300'
+                                }`}
+                                title={doctor.isDeleted ? 'Activate' : 'Deactivate'}
                               >
-                                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
-                                </svg>
+                                {doctor.isDeleted ? (
+                                  <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
+                                  </svg>
+                                ) : (
+                                  <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 9v6m4-6v6m7-3a9 9 0 11-18 0 9 9 0 0118 0z" />
+                                  </svg>
+                                )}
                               </button>
                             )}
                           </div>
@@ -1125,16 +1236,13 @@ const AdminDoctors = () => {
                       <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
                         Password <span className="text-red-500">*</span>
                       </label>
-                      <input
-                        type="password"
+                      <PasswordInput
                         name="password"
                         value={formData.password}
                         onChange={handleInputChange}
                         onBlur={handleBlur}
                         required
-                        className={`w-full px-3 py-2 border rounded-md bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-blue-500 ${
-                          errors.password ? 'border-red-500 dark:border-red-500' : 'border-gray-300 dark:border-gray-600'
-                        }`}
+                        hasError={!!errors.password}
                         placeholder="Password (min 6 characters)"
                       />
                       {errors.password && <p className="mt-1 text-xs text-red-500">{errors.password}</p>}
@@ -1273,18 +1381,7 @@ const AdminDoctors = () => {
                 {!selectedDoctor.isApproved ? (
                   <>
                     <button
-                      onClick={async () => {
-                        if (window.confirm('Are you sure you want to approve this doctor?')) {
-                          try {
-                            await apiService.approveDoctor(selectedDoctor._id);
-                            setShowViewModal(false);
-                            fetchDoctors();
-                            alert('Doctor approved successfully');
-                          } catch (err) {
-                            alert(err.response?.data?.message || 'Failed to approve doctor');
-                          }
-                        }
-                      }}
+                      onClick={() => handleApprove(selectedDoctor._id)}
                       className="px-6 py-2 bg-green-600 text-white rounded-md hover:bg-green-700 flex items-center gap-2 font-medium"
                     >
                       <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -1306,23 +1403,12 @@ const AdminDoctors = () => {
                     </button>
                   </>
                 ) : (
-                  <>
-                    <button
-                      onClick={() => handleDelete(selectedDoctor._id)}
-                      className="px-6 py-2 bg-red-600 text-white rounded-md hover:bg-red-700 flex items-center gap-2 font-medium"
-                    >
-                      <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
-                      </svg>
-                      Delete
-                    </button>
-                    <button
-                      onClick={() => setShowViewModal(false)}
-                      className="px-6 py-2 bg-gray-600 text-white rounded-md hover:bg-gray-700 font-medium"
-                    >
-                      Close
-                    </button>
-                  </>
+                  <button
+                    onClick={() => setShowViewModal(false)}
+                    className="px-6 py-2 bg-gray-600 text-white rounded-md hover:bg-gray-700 font-medium"
+                  >
+                    Close
+                  </button>
                 )}
               </div>
             </div>
@@ -1363,6 +1449,18 @@ const AdminDoctors = () => {
           </div>
         )}
       </div>
+
+      {/* Confirmation Modal */}
+      <ConfirmModal
+        isOpen={confirmModal.isOpen}
+        onClose={() => setConfirmModal(prev => ({ ...prev, isOpen: false }))}
+        onConfirm={confirmModal.onConfirm || (() => {})}
+        title={confirmModal.title}
+        message={confirmModal.message}
+        confirmText={confirmModal.confirmText}
+        cancelText={confirmModal.cancelText}
+        type={confirmModal.type}
+      />
     </div>
   );
 };

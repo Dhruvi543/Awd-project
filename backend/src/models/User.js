@@ -43,6 +43,14 @@ const userSchema = new mongoose.Schema({
     trim: true 
   },
   clinicHospitalName: { type: String, trim: true },
+  // Booking Fee - total fee the doctor charges patients
+  // Platform collects platformFeePercentage% online, doctor collects rest at clinic
+  bookingFee: {
+    type: Number,
+    default: 500,
+    min: 0
+  },
+  // Legacy field - kept for backward compatibility
   consultationFee: {
     type: Number,
     default: 500,
@@ -63,12 +71,51 @@ const userSchema = new mongoose.Schema({
     ref: 'User'
   },
   rejectionReason: String,
+  
+  // Terms & Conditions acceptance (for doctors)
+  termsAccepted: {
+    type: Boolean,
+    default: false
+  },
+  termsAcceptedAt: {
+    type: Date
+  },
+  termsVersionAccepted: {
+    type: Number
+  },
+  termsReacceptRequired: {
+    type: Boolean,
+    default: false
+  },
+  
   // Soft delete capabilities
   isDeleted: {
     type: Boolean,
     default: false
   },
-  deletedAt: Date
+  deletedAt: Date,
+  
+  // Google OAuth fields
+  googleId: {
+    type: String,
+    unique: true,
+    sparse: true // Allows null/undefined values while maintaining uniqueness
+  },
+  authProvider: {
+    type: String,
+    enum: ['local', 'google'],
+    default: 'local'
+  },
+  profilePicture: {
+    type: String,
+    trim: true
+  },
+  
+  // Profile completeness tracking for Google users
+  profileComplete: {
+    type: Boolean,
+    default: true // Default true for local users, will be false for new Google users
+  }
 }, {
   timestamps: true
 });
@@ -88,6 +135,7 @@ userSchema.methods.comparePassword = async function(candidatePassword) {
 userSchema.index({ role: 1, isApproved: 1, isDeleted: 1 });
 userSchema.index({ name: 1 });
 userSchema.index({ specialization: 1 });
+userSchema.index({ googleId: 1 });
 
 // Soft delete global filter hook
 const filterDeleted = function(next) {

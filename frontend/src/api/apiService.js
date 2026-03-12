@@ -73,6 +73,7 @@ export const apiService = {
   register: (userData) => apiClient.post('/api/auth/register', userData),
   logout: () => apiClient.post('/api/auth/logout'),
   refreshToken: () => apiClient.post('/api/auth/refresh'),
+  googleLogin: (credential) => apiClient.post('/api/auth/google', { credential }),
   
   // User methods
   getProfile: () => apiClient.get('/api/users/profile'),
@@ -105,7 +106,7 @@ export const apiService = {
   completeAppointment: (id, prescription) => apiClient.patch(`/api/appointments/${id}/complete`, { prescription }),
 
   // Payment methods
-  createPaymentOrder: () => apiClient.post('/api/payment/create-order'),
+  createPaymentOrder: (data) => apiClient.post('/api/payment/create-order', data),
   getPaymentHistory: () => apiClient.get('/api/payment/history'),
   getDoctorEarnings: () => apiClient.get('/api/payment/doctor-earnings'),
   
@@ -133,6 +134,7 @@ export const apiService = {
   createDoctor: (doctorData) => apiClient.post('/api/admin/doctors', doctorData),
   updateDoctor: (id, doctorData) => apiClient.put(`/api/admin/doctors/${id}`, doctorData),
   deleteDoctor: (id) => apiClient.delete(`/api/admin/doctors/${id}`),
+  restoreDoctor: (id) => apiClient.patch(`/api/admin/users/${id}/restore`),
   approveDoctor: (id) => apiClient.patch(`/api/admin/doctors/${id}/approve`),
   rejectDoctor: (id, rejectionReason) => apiClient.patch(`/api/admin/doctors/${id}/reject`, { rejectionReason }),
   
@@ -142,6 +144,7 @@ export const apiService = {
   createPatient: (patientData) => apiClient.post('/api/admin/patients', patientData),
   updatePatient: (id, patientData) => apiClient.put(`/api/admin/patients/${id}`, patientData),
   deletePatient: (id) => apiClient.delete(`/api/admin/patients/${id}`),
+  restorePatient: (id) => apiClient.patch(`/api/admin/users/${id}/restore`),
   
   // Admin methods - Appointments CRUD
   getAllAppointments: (params = {}) => apiClient.get('/api/admin/appointments', { params }),
@@ -169,7 +172,7 @@ export const apiService = {
   getAdminPaymentStats: () => apiClient.get('/api/admin/payments/stats'),
   
   // Admin methods - Settings
-  getSettings: () => apiClient.get('/api/admin/settings'),
+  getSettings: () => apiClient.get('/api/settings'),
   updateSettings: (settingsData) => apiClient.put('/api/admin/settings', settingsData),
   verifyAdminPassword: (passwordData) => apiClient.post('/api/admin/settings/verify-password', passwordData),
   updateAdminEmail: (emailData) => apiClient.put('/api/admin/settings/email', emailData),
@@ -180,6 +183,17 @@ export const apiService = {
   markNotificationReadAdmin: (id) => apiClient.patch(`/api/admin/notifications/${id}/read`),
   markAllNotificationsReadAdmin: () => apiClient.patch('/api/admin/notifications/read-all'),
   deleteNotificationAdmin: (id) => apiClient.delete(`/api/admin/notifications/${id}`),
+
+  // Terms & Conditions methods
+  getCurrentTerms: () => apiClient.get('/api/terms/current'),
+  getTermsStatus: () => apiClient.get('/api/terms/status'),
+  acceptTerms: () => apiClient.post('/api/terms/accept', { accepted: true }),
+
+  // Commission methods
+  getCommissionSettings: () => apiClient.get('/api/commission/settings'),
+  updateCommissionSettings: (data) => apiClient.put('/api/commission/settings', data),
+  getDoctorEarningsDetailed: (params = {}) => apiClient.get('/api/commission/doctor-earnings', { params }),
+  getAdminRevenueStats: (params = {}) => apiClient.get('/api/commission/admin-revenue', { params }),
 };
 
 export default apiService;

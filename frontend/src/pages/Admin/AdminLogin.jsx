@@ -3,6 +3,7 @@ import { useAuth } from '../../contexts/AuthContext';
 import { useNavigate } from 'react-router-dom';
 import { useTheme } from '../../contexts/ThemeContext';
 import { UserRole } from '../../common/enums/enumConstant';
+import PasswordInput from '../../components/forms/PasswordInput';
 import logo from '../../logo.png';
 
 const AdminLogin = () => {
@@ -177,17 +178,14 @@ const AdminLogin = () => {
               <label htmlFor="admin-password" className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
                 Password
               </label>
-              <input
-                type="password"
+              <PasswordInput
                 id="admin-password"
                 name="password"
                 autoComplete="current-password"
                 value={password}
                 onChange={handleChange}
                 required
-                className={`w-full px-3 py-2 border rounded-md bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent ${
-                  loginErrors.password ? 'border-red-500 dark:border-red-500' : 'border-gray-300 dark:border-gray-600'
-                }`}
+                hasError={!!loginErrors.password}
                 placeholder="Enter your password"
               />
               {loginErrors.password && <p className="mt-1 text-sm text-red-500">{loginErrors.password}</p>}

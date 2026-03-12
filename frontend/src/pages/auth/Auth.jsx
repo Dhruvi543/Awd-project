@@ -1,10 +1,12 @@
 import React, { useState, useEffect } from 'react';
 import { Link, useNavigate, useLocation } from 'react-router-dom';
+import { GoogleLogin } from '@react-oauth/google';
 import { useAuth } from '../../contexts/AuthContext';
 import { useTheme } from '../../contexts/ThemeContext';
 import { UserRole } from '../../common/enums/enumConstant';
 import PatientRegisterForm from '../../components/auth/PatientRegisterForm';
 import DoctorRegisterForm from '../../components/auth/DoctorRegisterForm';
+import PasswordInput from '../../components/forms/PasswordInput';
 import logo from '../../logo.png';
 
 const Auth = () => {
@@ -27,8 +29,9 @@ const Auth = () => {
   const [rejectionReason, setRejectionReason] = useState('');
   const [showApprovalModal, setShowApprovalModal] = useState(false);
 
-  const { login, register, error, clearError, user, isAuthenticated } = useAuth();
+  const { login, register, googleLogin, error, clearError, user, isAuthenticated } = useAuth();
   const { theme } = useTheme();
+  const [googleError, setGoogleError] = useState('');
 
   // Update active tab when route changes
   useEffect(() => {
@@ -135,6 +138,19 @@ const Auth = () => {
       alert('Passwords do not match');
       return;
     }
+    
+    // Validate T&C acceptance for doctors
+    if (role === 'doctor') {
+      if (!data.termsAccepted) {
+        alert('You must accept the Terms & Conditions to register');
+        return;
+      }
+      // Call validateTerms if available to show error in form
+      if (data.validateTerms && !data.validateTerms()) {
+        return;
+      }
+    }
+    
     setIsLoading(true);
     const userData = { role, ...data };
     
@@ -174,6 +190,47 @@ const Auth = () => {
     } finally {
       setIsLoading(false);
     }
+  };
+
+  // Handle Google login success
+  const handleGoogleSuccess = async (credentialResponse) => {
+    setGoogleError('');
+    setIsLoading(true);
+    
+    try {
+      const result = await googleLogin(credentialResponse.credential);
+      
+      if (result.success) {
+        // Show toast for linked accounts
+        if (result.isNewGoogleLink) {
+          // Show success message for account linking
+          setGoogleError(''); // Clear any errors
+        }
+        
+        // If new user with incomplete profile, could show completion modal here
+        // For now, redirect happens automatically via useEffect
+      } else {
+        // Handle specific error cases
+        if (result.isRejected) {
+          setRejectionReason(result.rejectionReason || 'No specific reason provided.');
+          setShowRejectionModal(true);
+        } else if (result.isPending) {
+          // Pending approval - error is shown via error state
+        } else {
+          setGoogleError(result.error || 'Google login failed. Please try again.');
+        }
+      }
+    } catch (error) {
+      console.error('Google login error:', error);
+      setGoogleError('Google login failed. Please try again.');
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  // Handle Google login error
+  const handleGoogleError = () => {
+    setGoogleError('Google login failed. Please try again.');
   };
 
   return (
@@ -225,9 +282,9 @@ const Auth = () => {
         </div>
       </div>
 
-      {error && (
+      {(error || googleError) && (
         <div className="mx-8 mt-4 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 text-red-700 dark:text-red-400 px-4 py-3 rounded">
-          {error}
+          {googleError || error}
         </div>
       )}
 
@@ -266,17 +323,14 @@ const Auth = () => {
             {/* Password field */}
             <div>
               <label htmlFor="login-password" className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">Password</label>
-              <input
-                type="password"
+              <PasswordInput
                 id="login-password"
                 name="password"
                 autoComplete="current-password"
                 value={loginData.password}
                 onChange={onChangeLogin}
                 required
-                className={`w-full px-3 py-2 border rounded-md bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent ${
-                  loginErrors.password ? 'border-red-500 dark:border-red-500' : 'border-gray-300 dark:border-gray-600'
-                }`}
+                hasError={!!loginErrors.password}
                 placeholder="Enter your password"
               />
               {loginErrors.password && <p className="mt-1 text-sm text-red-500">{loginErrors.password}</p>}
@@ -317,6 +371,26 @@ const Auth = () => {
               >
                 Create an account
               </button>
+            </div>
+
+            {/* Divider with OR */}
+            <div className="relative flex items-center justify-center">
+              <div className="border-t border-gray-300 dark:border-gray-600 w-full"></div>
+              <span className="bg-white dark:bg-gray-800 px-3 text-sm text-gray-500 dark:text-gray-400 absolute">OR</span>
+            </div>
+
+            {/* Google Login Button */}
+            <div className="flex justify-center">
+              <GoogleLogin
+                onSuccess={handleGoogleSuccess}
+                onError={handleGoogleError}
+                useOneTap
+                theme="outline"
+                size="large"
+                text="continue_with"
+                shape="rectangular"
+                width="100%"
+              />
             </div>
           </form>
         ) : (
@@ -369,6 +443,26 @@ const Auth = () => {
               >
                 Sign in
               </button>
+            </div>
+
+            {/* Divider with OR */}
+            <div className="relative flex items-center justify-center">
+              <div className="border-t border-gray-300 dark:border-gray-600 w-full"></div>
+              <span className="bg-white dark:bg-gray-800 px-3 text-sm text-gray-500 dark:text-gray-400 absolute">OR</span>
+            </div>
+
+            {/* Google Sign Up Button */}
+            <div className="flex justify-center">
+              <GoogleLogin
+                onSuccess={handleGoogleSuccess}
+                onError={handleGoogleError}
+                useOneTap={false}
+                theme="outline"
+                size="large"
+                text="signup_with"
+                shape="rectangular"
+                width="100%"
+              />
             </div>
           </form>
         )}

@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import { apiService } from '../../api/apiService';
+import ConfirmModal from '../../components/feedback/ConfirmModal';
 
 const AdminAppointments = () => {
   const [searchParams, setSearchParams] = useSearchParams();
@@ -30,6 +31,15 @@ const AdminAppointments = () => {
     completed: 0,
     cancelled: 0,
     today: 0
+  });
+  const [confirmModal, setConfirmModal] = useState({
+    isOpen: false,
+    title: '',
+    message: '',
+    confirmText: 'Confirm',
+    cancelText: 'Cancel',
+    type: 'warning',
+    onConfirm: null
   });
 
   // Update filters when URL parameters change
@@ -114,17 +124,42 @@ const AdminAppointments = () => {
     setShowViewModal(true);
   };
 
-  const handleDelete = async (id) => {
-    if (!window.confirm('Are you sure you want to delete this appointment?')) {
-      return;
-    }
-    try {
-      await apiService.deleteAppointmentAdmin(id);
-      fetchAppointments();
-      alert('Appointment deleted successfully');
-    } catch (err) {
-      alert(err.response?.data?.message || 'Failed to delete appointment');
-    }
+  const handleDelete = (id) => {
+    setConfirmModal({
+      isOpen: true,
+      title: 'Confirm Delete',
+      message: 'Are you sure you want to delete this appointment?',
+      confirmText: 'Delete',
+      cancelText: 'Cancel',
+      type: 'danger',
+      onConfirm: async () => {
+        try {
+          await apiService.deleteAppointmentAdmin(id);
+          fetchAppointments();
+          setConfirmModal(prev => ({
+            ...prev,
+            isOpen: true,
+            title: 'Success',
+            message: 'Appointment deleted successfully',
+            confirmText: 'OK',
+            cancelText: '',
+            type: 'info',
+            onConfirm: () => setConfirmModal(prev => ({ ...prev, isOpen: false }))
+          }));
+        } catch (err) {
+          setConfirmModal(prev => ({
+            ...prev,
+            isOpen: true,
+            title: 'Error',
+            message: err.response?.data?.message || 'Failed to delete appointment',
+            confirmText: 'OK',
+            cancelText: '',
+            type: 'danger',
+            onConfirm: () => setConfirmModal(prev => ({ ...prev, isOpen: false }))
+          }));
+        }
+      }
+    });
   };
 
   const handleSubmit = async (e) => {
@@ -145,8 +180,8 @@ const AdminAppointments = () => {
   };
 
   return (
-    <div className="w-full">
-      <div className="max-w-7xl mx-auto">
+    <div className="w-full max-w-full">
+      <div className="max-w-full">
         {/* Header */}
         <div className="mb-6">
           <div className="mb-4">
@@ -155,7 +190,7 @@ const AdminAppointments = () => {
           </div>
           
           {/* Statistics Cards */}
-          <div className="grid grid-cols-1 md:grid-cols-5 gap-4 mb-6">
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-4 mb-6">
             <div className="bg-white dark:bg-gray-800 rounded-xl shadow-md p-4 border border-gray-200 dark:border-gray-700">
               <div className="flex items-center justify-between">
                 <div>
@@ -226,7 +261,7 @@ const AdminAppointments = () => {
 
         {/* Filters */}
         <div className="bg-white dark:bg-gray-800 rounded-xl shadow-md p-4 mb-6 border border-gray-200 dark:border-gray-700">
-          <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
             <div>
               <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">Search</label>
               <input
@@ -524,6 +559,18 @@ const AdminAppointments = () => {
           </div>
         )}
       </div>
+
+      {/* Confirmation Modal */}
+      <ConfirmModal
+        isOpen={confirmModal.isOpen}
+        onClose={() => setConfirmModal(prev => ({ ...prev, isOpen: false }))}
+        onConfirm={confirmModal.onConfirm || (() => {})}
+        title={confirmModal.title}
+        message={confirmModal.message}
+        confirmText={confirmModal.confirmText}
+        cancelText={confirmModal.cancelText}
+        type={confirmModal.type}
+      />
     </div>
   );
 };

@@ -57,6 +57,40 @@ const appointmentSchema = new mongoose.Schema({
   razorpayPaymentId: {
     type: String
   },
+  
+  // NEW PAYMENT MODEL - Correct Business Logic
+  // Doctor sets bookingFee (total fee)
+  // Patient pays platformFeePercentage% of bookingFee online (goes to platform)
+  // Patient pays remaining at clinic (goes to doctor)
+  
+  // Total fee set by doctor (copied at booking time)
+  totalFee: {
+    type: Number,
+    default: 0
+  },
+  // Amount patient pays online = totalFee × platformFeePercentage / 100
+  // This entire amount goes to platform as revenue
+  onlineAmount: {
+    type: Number,
+    default: 0
+  },
+  // Amount patient pays at clinic = totalFee - onlineAmount
+  // This goes to the doctor
+  clinicAmount: {
+    type: Number,
+    default: 0
+  },
+  // Snapshot of platform fee percentage at booking time
+  platformFeePercentage: {
+    type: Number,
+    default: 20
+  },
+  // When the online payment was made
+  onlinePaymentAt: {
+    type: Date
+  },
+  
+  // Legacy fields - kept for backward compatibility
   totalAmount: {
     type: Number,
     default: 0
@@ -69,12 +103,31 @@ const appointmentSchema = new mongoose.Schema({
     type: Number,
     default: 0
   },
+  
+  // Refund fields
   refundId: {
     type: String
   },
   refundAmount: {
     type: Number,
     default: 0
+  },
+  
+  // Legacy commission fields - kept for backward compatibility
+  commissionPercentage: {
+    type: Number,
+    default: 20
+  },
+  platformCommissionAmount: {
+    type: Number,
+    default: 0
+  },
+  doctorShareAmount: {
+    type: Number,
+    default: 0
+  },
+  bookingFeePaidAt: {
+    type: Date
   }
 }, {
   timestamps: true

@@ -27,7 +27,7 @@ const BookAppointment = () => {
     end: '17:00',
     duration: 30
   });
-  const [bookingFee, setBookingFee] = useState(100);
+  const [platformFeePercentage, setPlatformFeePercentage] = useState(20);
   const { Razorpay } = useRazorpay();
 
   const [formData, setFormData] = useState({
@@ -141,7 +141,7 @@ const BookAppointment = () => {
             end: settings.workingHoursEnd || '17:00',
             duration: settings.appointmentDuration || 30
           });
-          setBookingFee(settings.bookingFee || 100);
+          setPlatformFeePercentage(settings.platformFeePercentage || settings.platformCommissionPercentage || 20);
           // Cache for future use
           localStorage.setItem('siteSettings', JSON.stringify(settings));
         }
@@ -435,8 +435,8 @@ const BookAppointment = () => {
     try {
       setIsSubmitting(true);
       
-      // 1. Create Razorpay order for booking fee
-      const orderResponse = await apiService.createPaymentOrder();
+      // 1. Create Razorpay order for platform fee (online payment)
+      const orderResponse = await apiService.createPaymentOrder({ doctorId });
       
       if (!orderResponse.data.success) {
         throw new Error('Failed to initiate payment. Please try again.');
@@ -444,13 +444,19 @@ const BookAppointment = () => {
       
       const orderData = orderResponse.data.data;
       
+      // Verify we have the correct amount
+      const expectedOnlineAmount = Math.round(((doctor?.bookingFee || doctor?.consultationFee || 500) * platformFeePercentage) / 100);
+      if (orderData.amount !== expectedOnlineAmount * 100) {
+        console.warn('Order amount mismatch. Expected:', expectedOnlineAmount, 'Got:', orderData.amount / 100);
+      }
+      
       // 2. Initialize Razorpay Checkout
       const options = {
         key: orderData.keyId,
         amount: orderData.amount,
         currency: orderData.currency,
         name: 'DOXI Healthcare',
-        description: `Booking Fee for Dr. ${doctor?.name}`,
+        description: `Platform Fee for Dr. ${doctor?.name} appointment`,
         order_id: orderData.orderId,
         handler: async (response) => {
           try {
@@ -700,7 +706,12 @@ const BookAppointment = () => {
         )}
 
         {/* Cost Breakdown */}
-        {doctor && (
+        {doctor && (() => {
+          const doctorBookingFee = doctor.bookingFee || doctor.consultationFee || 500;
+          const onlineAmount = Math.round((doctorBookingFee * platformFeePercentage) / 100);
+          const clinicAmount = doctorBookingFee - onlineAmount;
+          
+          return (
           <div className="bg-white dark:bg-gray-800 rounded-xl shadow-md p-6 mb-6 border border-gray-200 dark:border-gray-700">
              <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-4 flex items-center gap-2">
                <svg className="w-5 h-5 text-gray-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -710,20 +721,24 @@ const BookAppointment = () => {
              </h3>
              <div className="space-y-3">
                <div className="flex justify-between items-center text-gray-600 dark:text-gray-400">
-                 <span>Doctor Consultation Fee</span>
-                 <span className="font-medium text-gray-900 dark:text-white">₹{doctor.consultationFee || 500}</span>
+                 <span>Doctor's Booking Fee</span>
+                 <span className="font-medium text-gray-900 dark:text-white">₹{doctorBookingFee}</span>
                </div>
                <div className="flex justify-between items-center text-gray-600 dark:text-gray-400">
-                 <span>Fixed Booking Fee <span className="text-sm font-medium bg-blue-100 text-blue-800 px-2 py-0.5 rounded-full ml-2">Pay Now</span></span>
-                 <span className="font-medium text-gray-900 dark:text-white">₹{bookingFee}</span>
+                 <span>Pay Online Now ({platformFeePercentage}%) <span className="text-sm font-medium bg-blue-100 text-blue-800 dark:bg-blue-900/30 dark:text-blue-400 px-2 py-0.5 rounded-full ml-2">Platform Fee</span></span>
+                 <span className="font-semibold text-blue-600 dark:text-blue-400">₹{onlineAmount}</span>
                </div>
                <div className="border-t border-gray-200 dark:border-gray-700 pt-3 flex justify-between items-center">
-                 <span className="font-semibold text-gray-900 dark:text-white">Balance to Pay at Clinic</span>
-                 <span className="font-semibold text-xl text-green-600 dark:text-green-500">₹{Math.max(0, (doctor.consultationFee || 500) - bookingFee)}</span>
+                 <span className="font-semibold text-gray-900 dark:text-white">Pay at Clinic</span>
+                 <span className="font-semibold text-xl text-green-600 dark:text-green-500">₹{clinicAmount}</span>
                </div>
              </div>
+             <p className="mt-4 text-sm text-gray-500 dark:text-gray-400">
+               Pay the platform fee online to secure your appointment slot. The remaining amount is paid directly to the doctor at the clinic.
+             </p>
           </div>
-        )}
+          );
+        })()}
 
         {/* Appointment Rules - Full Width */}
         <div className="bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-xl p-5 mb-6">
@@ -843,16 +858,17 @@ const BookAppointment = () => {
                     min={getMinDate()}
                     max={getMaxDate()}
                     required
-                    className={`w-full px-4 py-3 text-base border rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:ring-2 focus:ring-blue-500 focus:border-transparent ${
-                      fieldErrors.appointmentDate 
-                        ? 'border-red-500 dark:border-red-500 focus:ring-red-500' 
+                    className={`w-full px-4 py-3 pr-12 text-base border rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:ring-2 focus:ring-blue-500 focus:border-transparent appearance-none ${
+                      fieldErrors.appointmentDate
+                        ? 'border-red-500 dark:border-red-500 focus:ring-red-500'
                         : 'border-gray-300 dark:border-gray-600'
                     }`}
+                    style={{ WebkitAppearance: 'none', MozAppearance: 'none' }}
                   />
                   <button
                     type="button"
                     onClick={() => setShowCalendar(!showCalendar)}
-                    className="absolute right-3 top-1/2 -translate-y-1/2 p-2 hover:bg-gray-100 dark:hover:bg-gray-600 rounded-lg transition-colors"
+                    className="absolute right-3 top-1/2 -translate-y-1/2 p-2 hover:bg-gray-100 dark:hover:bg-gray-600 rounded-lg transition-colors pointer-events-auto"
                   >
                     <svg className="w-5 h-5 text-gray-500 dark:text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
@@ -996,7 +1012,7 @@ const BookAppointment = () => {
                   <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M17 9V7a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2m2 4h10a2 2 0 002-2v-6a2 2 0 00-2-2H9a2 2 0 00-2 2v6a2 2 0 002 2zm7-5a2 2 0 11-4 0 2 2 0 014 0z"></path>
                   </svg>
-                  {isSubmitting ? 'Processing Payment...' : `Pay ₹${bookingFee} & Book`}
+                  {isSubmitting ? 'Processing Payment...' : `Pay ₹${Math.round(((doctor?.bookingFee || doctor?.consultationFee || 500) * platformFeePercentage) / 100)} Online & Book`}
                 </button>
                 <button
                   type="button"
