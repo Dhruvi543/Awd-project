@@ -73,6 +73,7 @@ export const apiService = {
   register: (userData) => apiClient.post('/api/auth/register', userData),
   logout: () => apiClient.post('/api/auth/logout'),
   refreshToken: () => apiClient.post('/api/auth/refresh'),
+  googleLogin: (credential) => apiClient.post('/api/auth/google', { credential }),
   
   // User methods
   getProfile: () => apiClient.get('/api/users/profile'),
@@ -105,7 +106,7 @@ export const apiService = {
   completeAppointment: (id, prescription) => apiClient.patch(`/api/appointments/${id}/complete`, { prescription }),
 
   // Payment methods
-  createPaymentOrder: () => apiClient.post('/api/payment/create-order'),
+  createPaymentOrder: (data) => apiClient.post('/api/payment/create-order', data),
   getPaymentHistory: () => apiClient.get('/api/payment/history'),
   getDoctorEarnings: () => apiClient.get('/api/payment/doctor-earnings'),
   

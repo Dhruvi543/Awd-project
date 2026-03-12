@@ -281,6 +281,75 @@ export const AuthProvider = ({ children }) => {
     return { success: true };
   };
 
+  const googleLogin = async (credential) => {
+    dispatch({ type: 'LOGIN_START' });
+    try {
+      const response = await apiService.googleLogin(credential);
+      const { user, isNewGoogleLink, isNewUser, isRejected, isPending, rejectionReason } = response.data;
+      
+      if (isRejected) {
+        dispatch({ type: 'LOGIN_FAILURE', payload: response.data.message });
+        return { 
+          success: false, 
+          error: response.data.message,
+          isRejected: true,
+          rejectionReason: rejectionReason
+        };
+      }
+      
+      if (isPending) {
+        dispatch({ type: 'LOGIN_FAILURE', payload: response.data.message });
+        return { 
+          success: false, 
+          error: response.data.message,
+          isPending: true
+        };
+      }
+      
+      if (user) {
+        const normalizedUser = {
+          ...user,
+          _id: user._id || user.id
+        };
+        localStorage.setItem('user', JSON.stringify(normalizedUser));
+        dispatch({ type: 'LOGIN_SUCCESS', payload: { user: normalizedUser } });
+        return { 
+          success: true, 
+          user: normalizedUser,
+          isNewGoogleLink,
+          isNewUser,
+          message: response.data.message
+        };
+      }
+      
+      dispatch({ type: 'LOGIN_FAILURE', payload: 'Google login failed: Unexpected response format' });
+      return { success: false, error: 'Google login failed: Unexpected response format' };
+    } catch (error) {
+      if (error.response?.data?.isRejected) {
+        const errorMessage = error.response?.data?.message || 'Google login failed';
+        dispatch({ type: 'LOGIN_FAILURE', payload: errorMessage });
+        return { 
+          success: false, 
+          error: errorMessage,
+          isRejected: true,
+          rejectionReason: error.response?.data?.rejectionReason
+        };
+      }
+      if (error.response?.data?.isPending) {
+        const errorMessage = error.response?.data?.message || 'Google login failed';
+        dispatch({ type: 'LOGIN_FAILURE', payload: errorMessage });
+        return { 
+          success: false, 
+          error: errorMessage,
+          isPending: true
+        };
+      }
+      const errorMessage = error.response?.data?.message || 'Google login failed. Please try again.';
+      dispatch({ type: 'LOGIN_FAILURE', payload: errorMessage });
+      return { success: false, error: errorMessage };
+    }
+  };
+
   const clearError = () => {
     dispatch({ type: 'CLEAR_ERROR' });
   };
@@ -293,6 +362,7 @@ export const AuthProvider = ({ children }) => {
     login,
     register,
     logout,
+    googleLogin,
     clearError,
     getCurrentUser,
   };

@@ -91,6 +91,7 @@ const updateProfileSchema = z.object({
     .trim()
     .optional()
     .or(z.literal('')),
+  profileComplete: z.boolean().optional(),
 });
 
 // Get user profile
@@ -220,6 +221,11 @@ const updateProfile = asyncHandler(async (req, res) => {
       if (validatedData.clinicHospitalName !== undefined) {
         user.clinicHospitalName = validatedData.clinicHospitalName.trim() || null;
       }
+    }
+
+    // Update profileComplete status
+    if (validatedData.profileComplete !== undefined) {
+      user.profileComplete = validatedData.profileComplete;
     }
 
     // Save user - validateBeforeSave ensures schema validation

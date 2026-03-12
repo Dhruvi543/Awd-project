@@ -1,11 +1,15 @@
 import bcrypt from "bcryptjs";
 import jwt from "jsonwebtoken";
 import { z } from "zod";
+import { OAuth2Client } from "google-auth-library";
 import User from "../models/User.js";
 import Notification from "../models/Notification.js";
 import Setting from "../models/Setting.js";
 import { ENV } from "../config/env.js";
 import asyncHandler from "../utils/asyncHandler.js";
+
+// Initialize Google OAuth client
+const googleClient = new OAuth2Client(ENV.GOOGLE_CLIENT_ID);
 
 // Base schemas without password validation (will be added dynamically)
 const patientRegisterSchemaBase = z.object({
@@ -411,4 +415,196 @@ const logout = asyncHandler(async (req, res) => {
   });
 });
 
-export { register, login, logout };
+// Google OAuth Login
+const googleLogin = asyncHandler(async (req, res) => {
+  const { credential } = req.body;
+
+  if (!credential) {
+    return res.status(400).json({
+      success: false,
+      message: "Google credential token is required",
+    });
+  }
+
+  try {
+    // Verify the Google token
+    const ticket = await googleClient.verifyIdToken({
+      idToken: credential,
+      audience: ENV.GOOGLE_CLIENT_ID,
+    });
+
+    const payload = ticket.getPayload();
+    const googleId = payload.sub;
+    const email = payload.email;
+    const name = payload.name;
+    const profilePicture = payload.picture;
+
+    // Check if email exists in payload
+    if (!email) {
+      return res.status(400).json({
+        success: false,
+        message: "Could not get email from Google. Please use email registration.",
+      });
+    }
+
+    const normalizedEmail = email.toLowerCase().trim();
+
+    // Check if user exists with this Google ID
+    let user = await User.findOne({ googleId });
+
+    // If no user with Google ID, check by email
+    if (!user) {
+      user = await User.findOne({ email: normalizedEmail });
+    }
+
+    // If user exists
+    if (user) {
+      // Check if account is soft-deleted (deactivated)
+      if (user.isDeleted) {
+        return res.status(403).json({
+          success: false,
+          message: "This account has been deactivated. Contact support@doxi.com",
+        });
+      }
+
+      // Check if this is an admin account - admin cannot use Google login
+      if (user.role === "admin") {
+        return res.status(403).json({
+          success: false,
+          message: "Admin accounts cannot use Google login. Please use email and password.",
+        });
+      }
+
+      // If user exists but doesn't have googleId, link the Google account
+      const isNewGoogleLink = !user.googleId;
+      
+      if (isNewGoogleLink) {
+        user.googleId = googleId;
+        user.authProvider = "google";
+        if (profilePicture) user.profilePicture = profilePicture;
+        await user.save();
+      }
+
+      // Check if doctor is approved
+      if (user.role === "doctor" && !user.isApproved) {
+        if (user.rejectionReason) {
+          return res.status(403).json({
+            success: false,
+            message: "Your doctor registration has been rejected by the admin.",
+            rejectionReason: user.rejectionReason,
+            isRejected: true,
+          });
+        }
+        return res.status(403).json({
+          success: false,
+          message: "Your account is pending admin approval. You will be able to login once your account is approved.",
+          isPending: true,
+        });
+      }
+
+      // Generate JWT token
+      const token = jwt.sign({ userId: user._id }, ENV.JWT_SECRET, {
+        expiresIn: ENV.JWT_EXPIRES_IN,
+      });
+
+      res.cookie("jwt", token, {
+        httpOnly: true,
+        secure: process.env.NODE_ENV === "production",
+        sameSite: "strict",
+        maxAge: 7 * 24 * 60 * 60 * 1000, // 7 days
+      });
+
+      return res.json({
+        success: true,
+        message: isNewGoogleLink ? "Google account linked successfully" : "Login successful",
+        user: {
+          id: user._id,
+          name: user.name,
+          email: user.email,
+          role: user.role,
+          profilePicture: user.profilePicture,
+          profileComplete: user.profileComplete,
+          authProvider: user.authProvider,
+        },
+        isNewGoogleLink,
+      });
+    }
+
+    // User doesn't exist - create new patient account
+    // Check if registration is allowed
+    const settings = await Setting.getSettings();
+    if (settings.allowRegistration === false) {
+      return res.status(403).json({
+        success: false,
+        message: "Registration is currently disabled. Please contact the administrator.",
+      });
+    }
+
+    // Create new user with Google data
+    const newUser = new User({
+      name: name || email.split("@")[0],
+      email: normalizedEmail,
+      googleId: googleId,
+      authProvider: "google",
+      role: "patient", // Default role for Google signup is Patient
+      isApproved: true, // Patients are auto-approved
+      profilePicture: profilePicture,
+      profileComplete: false, // New Google users need to complete their profile
+      password: await bcrypt.hash(Math.random().toString(36).slice(-8) + Date.now(), 12), // Random password
+    });
+
+    await newUser.save();
+
+    // Create notification for admin
+    try {
+      const adminUsers = await User.find({ role: "admin" });
+      for (const admin of adminUsers) {
+        const notification = new Notification({
+          user: admin._id,
+          type: "patient_registered",
+          message: `New patient ${newUser.name} has registered via Google`,
+          link: `/admin/patients`,
+          relatedUser: newUser._id,
+        });
+        await notification.save();
+      }
+    } catch (error) {
+      console.error("Error creating notification:", error);
+    }
+
+    // Generate JWT token
+    const token = jwt.sign({ userId: newUser._id }, ENV.JWT_SECRET, {
+      expiresIn: ENV.JWT_EXPIRES_IN,
+    });
+
+    res.cookie("jwt", token, {
+      httpOnly: true,
+      secure: process.env.NODE_ENV === "production",
+      sameSite: "strict",
+      maxAge: 7 * 24 * 60 * 60 * 1000, // 7 days
+    });
+
+    return res.status(201).json({
+      success: true,
+      message: "Account created successfully",
+      user: {
+        id: newUser._id,
+        name: newUser.name,
+        email: newUser.email,
+        role: newUser.role,
+        profilePicture: newUser.profilePicture,
+        profileComplete: newUser.profileComplete,
+        authProvider: newUser.authProvider,
+      },
+      isNewUser: true,
+    });
+  } catch (error) {
+    console.error("Google login error:", error);
+    return res.status(401).json({
+      success: false,
+      message: "Google login failed. Please try again.",
+    });
+  }
+});
+
+export { register, login, logout, googleLogin };

@@ -93,7 +93,29 @@ const userSchema = new mongoose.Schema({
     type: Boolean,
     default: false
   },
-  deletedAt: Date
+  deletedAt: Date,
+  
+  // Google OAuth fields
+  googleId: {
+    type: String,
+    unique: true,
+    sparse: true // Allows null/undefined values while maintaining uniqueness
+  },
+  authProvider: {
+    type: String,
+    enum: ['local', 'google'],
+    default: 'local'
+  },
+  profilePicture: {
+    type: String,
+    trim: true
+  },
+  
+  // Profile completeness tracking for Google users
+  profileComplete: {
+    type: Boolean,
+    default: true // Default true for local users, will be false for new Google users
+  }
 }, {
   timestamps: true
 });
@@ -113,6 +135,7 @@ userSchema.methods.comparePassword = async function(candidatePassword) {
 userSchema.index({ role: 1, isApproved: 1, isDeleted: 1 });
 userSchema.index({ name: 1 });
 userSchema.index({ specialization: 1 });
+userSchema.index({ googleId: 1 });
 
 // Soft delete global filter hook
 const filterDeleted = function(next) {
