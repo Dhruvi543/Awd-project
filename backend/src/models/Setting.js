@@ -75,6 +75,20 @@ const settingSchema = new mongoose.Schema({
     default: Date.now
   },
   
+  // Privacy Policy Settings
+  privacyPolicy: {
+    type: String,
+    default: 'Please read our Privacy Policy to understand how we handle your data.'
+  },
+  privacyPolicyVersion: {
+    type: Number,
+    default: 1
+  },
+  privacyPolicyLastUpdated: {
+    type: Date,
+    default: Date.now
+  },
+  
   // Appointment Settings
   maxAppointmentsPerDay: {
     type: Number,

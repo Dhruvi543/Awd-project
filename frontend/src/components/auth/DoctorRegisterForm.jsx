@@ -1,6 +1,5 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState } from 'react';
 import PasswordInput from '../forms/PasswordInput';
-import { apiService } from '../../api/apiService';
 
 const DoctorRegisterForm = ({ setDoctorData }) => {
   const [formData, setFormData] = useState({
@@ -22,9 +21,6 @@ const DoctorRegisterForm = ({ setDoctorData }) => {
   });
 
   const [errors, setErrors] = useState({});
-  const [termsContent, setTermsContent] = useState('');
-  const [showTermsModal, setShowTermsModal] = useState(false);
-  const [isLoadingTerms, setIsLoadingTerms] = useState(false);
 
   const validateName = (name) => {
     const nameRegex = /^[a-zA-Z\s]{2,}$/;
@@ -68,36 +64,6 @@ const DoctorRegisterForm = ({ setDoctorData }) => {
     // Examples: TN/2020/123456, MH/2018/54321
     const licenseRegex = /^[A-Z]{2}\/(19|20)\d{2}\/\d{5,6}$/;
     return licenseRegex.test(licenseNo.trim());
-  };
-
-  // Fetch Terms & Conditions on mount
-  useEffect(() => {
-    fetchTerms();
-  }, []);
-
-  const fetchTerms = async () => {
-    try {
-      setIsLoadingTerms(true);
-      const response = await apiService.get('/api/terms/current');
-      if (response.data.success) {
-        setTermsContent(response.data.data.content);
-      }
-    } catch (error) {
-      console.error('Error fetching terms:', error);
-      setTermsContent('Please read and accept our Terms & Conditions to use the platform.');
-    } finally {
-      setIsLoadingTerms(false);
-    }
-  };
-
-  const handleTermsAccept = () => {
-    setFormData(prev => ({ ...prev, termsAccepted: true }));
-    setShowTermsModal(false);
-    setDoctorData(prev => ({ ...prev, termsAccepted: true }));
-    // Clear error if exists
-    if (errors.termsAccepted) {
-      setErrors(prev => ({ ...prev, termsAccepted: '' }));
-    }
   };
 
   const handleChange = (e) => {
@@ -680,11 +646,11 @@ const DoctorRegisterForm = ({ setDoctorData }) => {
             name="termsAccepted"
             checked={formData.termsAccepted}
             onChange={(e) => {
-              if (e.target.checked) {
-                setShowTermsModal(true);
-              } else {
-                setFormData(prev => ({ ...prev, termsAccepted: false }));
-                setDoctorData(prev => ({ ...prev, termsAccepted: false }));
+              setFormData(prev => ({ ...prev, termsAccepted: e.target.checked }));
+              setDoctorData(prev => ({ ...prev, termsAccepted: e.target.checked }));
+              // Clear error if exists
+              if (errors.termsAccepted && e.target.checked) {
+                setErrors(prev => ({ ...prev, termsAccepted: '' }));
               }
             }}
             className="mt-1 w-4 h-4 text-blue-600 bg-gray-100 border-gray-300 rounded focus:ring-blue-500 dark:focus:ring-blue-600 dark:ring-offset-gray-800 focus:ring-2 dark:bg-gray-700 dark:border-gray-600"
@@ -692,13 +658,14 @@ const DoctorRegisterForm = ({ setDoctorData }) => {
           <div className="flex-1">
             <label htmlFor="termsAccepted" className="text-sm text-gray-700 dark:text-gray-300">
               I have read and accept the{' '}
-              <button
-                type="button"
-                onClick={() => setShowTermsModal(true)}
+              <a
+                href="/terms-and-conditions"
+                target="_blank"
+                rel="noopener noreferrer"
                 className="text-blue-600 dark:text-blue-400 hover:text-blue-800 dark:hover:text-blue-300 underline font-medium"
               >
                 Terms & Conditions
-              </button>
+              </a>
               {' '}<span className="text-red-500">*</span>
             </label>
             {errors.termsAccepted && (
@@ -707,53 +674,6 @@ const DoctorRegisterForm = ({ setDoctorData }) => {
           </div>
         </div>
       </div>
-
-      {/* Terms & Conditions Modal */}
-      {showTermsModal && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm">
-          <div className="bg-white dark:bg-gray-800 rounded-2xl shadow-2xl max-w-2xl w-full max-h-[80vh] flex flex-col">
-            {/* Header */}
-            <div className="p-6 border-b border-gray-200 dark:border-gray-700">
-              <h3 className="text-xl font-bold text-gray-900 dark:text-white">
-                Terms & Conditions
-              </h3>
-              <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">
-                Please read carefully before accepting
-              </p>
-            </div>
-
-            {/* Content */}
-            <div className="p-6 overflow-y-auto flex-1">
-              {isLoadingTerms ? (
-                <div className="text-center py-8 text-gray-500">Loading...</div>
-              ) : (
-                <div className="prose dark:prose-invert max-w-none text-sm text-gray-700 dark:text-gray-300 whitespace-pre-wrap">
-                  {termsContent}
-                </div>
-              )}
-            </div>
-
-            {/* Footer */}
-            <div className="p-6 border-t border-gray-200 dark:border-gray-700 flex gap-3">
-              <button
-                type="button"
-                onClick={() => setShowTermsModal(false)}
-                className="flex-1 px-4 py-2 bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300 rounded-lg hover:bg-gray-200 dark:hover:bg-gray-600 transition-colors font-medium"
-              >
-                Cancel
-              </button>
-              <button
-                type="button"
-                onClick={handleTermsAccept}
-                disabled={isLoadingTerms}
-                className="flex-1 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors font-medium disabled:opacity-50"
-              >
-                I Accept Terms & Conditions
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
     </div>
   );
 };

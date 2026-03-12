@@ -56,12 +56,15 @@ import AdminSettings from './pages/Admin/Settings';
 import AdminNotifications from './pages/Admin/Notifications';
 import AdminPayments from './pages/Admin/Payments';
 import TermsEditor from './pages/Admin/TermsEditor';
+import PrivacyPolicyEditor from './pages/Admin/PrivacyPolicyEditor';
 import CommissionEditor from './pages/Admin/CommissionEditor';
 import RevenueDashboard from './pages/Admin/RevenueDashboard';
 
 // Common Pages
 import Doctors from './pages/Common/Doctors';
 import DoctorDetails from './pages/Common/DoctorDetails';
+import TermsAndConditions from './pages/Common/TermsAndConditions';
+import PrivacyPolicy from './pages/Common/PrivacyPolicy';
 import NotFound from './pages/Common/NotFound';
 import Unauthorized from './pages/Common/Unauthorized';
 
@@ -115,6 +118,8 @@ function App() {
             <Route index element={<LandingPage />} />
             <Route path="doctors" element={<Doctors />} />
             <Route path="doctors/:id" element={<DoctorDetails />} />
+            <Route path="terms-and-conditions" element={<TermsAndConditions />} />
+            <Route path="privacy-policy" element={<PrivacyPolicy />} />
           </Route>
 
           {/* Auth Routes */}
@@ -177,6 +182,7 @@ function App() {
             <Route path="notifications" element={<AdminNotifications />} />
             <Route path="payments" element={<AdminPayments />} />
             <Route path="terms" element={<TermsEditor />} />
+            <Route path="privacy-policy" element={<PrivacyPolicyEditor />} />
             <Route path="commission" element={<CommissionEditor />} />
             <Route path="revenue" element={<RevenueDashboard />} />
             <Route path="settings" element={<AdminSettings />} />

@@ -469,7 +469,14 @@ const Auth = () => {
       </div>
 
       <div className="px-8 pb-6 text-center text-xs text-gray-500 dark:text-gray-400">
-        By continuing you agree to our <Link to="#" className="underline hover:text-gray-700 dark:hover:text-gray-300">Terms</Link> and <Link to="#" className="underline hover:text-gray-700 dark:hover:text-gray-300">Privacy Policy</Link>.
+        By continuing you agree to our{' '}
+        <Link to="/terms-and-conditions" target="_blank" rel="noopener noreferrer" className="underline hover:text-gray-700 dark:hover:text-gray-300">
+          Terms & Conditions
+        </Link>
+        {' '}and{' '}
+        <Link to="/privacy-policy" target="_blank" rel="noopener noreferrer" className="underline hover:text-gray-700 dark:hover:text-gray-300">
+          Privacy Policy
+        </Link>.
       </div>
 
       {/* Doctor Registration Success Modal */}

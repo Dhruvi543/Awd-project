@@ -59,8 +59,16 @@ const AdminSettings = () => {
       if (response.data.success) {
         setSettings(response.data.data);
         setFormData(response.data.data);
-        // Store settings in localStorage for use across the app
-        localStorage.setItem('siteSettings', JSON.stringify(response.data.data));
+        // Store only non-sensitive settings in localStorage (NOT platform fee for security)
+        const safeSettings = {
+          siteName: response.data.data.siteName,
+          siteDescription: response.data.data.siteDescription,
+          workingHoursStart: response.data.data.workingHoursStart,
+          workingHoursEnd: response.data.data.workingHoursEnd,
+          appointmentDuration: response.data.data.appointmentDuration,
+          maxAppointmentsPerDay: response.data.data.maxAppointmentsPerDay
+        };
+        localStorage.setItem('siteSettings', JSON.stringify(safeSettings));
         // Update page title
         if (response.data.data.siteName) {
           document.title = `${response.data.data.siteName} - Admin Dashboard`;
@@ -119,7 +127,7 @@ const AdminSettings = () => {
         appointmentDuration: formData.appointmentDuration || 30,
         workingHoursStart: formData.workingHoursStart || '09:00',
         workingHoursEnd: formData.workingHoursEnd || '17:00',
-        platformCommissionPercentage: formData.platformCommissionPercentage || 20,
+
         minPasswordLength: formData.minPasswordLength || 6,
         sessionTimeout: formData.sessionTimeout || 30,
         allowRegistration: formData.allowRegistration !== undefined ? formData.allowRegistration : true,
@@ -134,8 +142,16 @@ const AdminSettings = () => {
       if (response.data.success) {
         setSettings(response.data.data);
         setFormData(response.data.data); // Update form data with response
-        // Store updated settings in localStorage for use across the app
-        localStorage.setItem('siteSettings', JSON.stringify(response.data.data));
+        // Store only non-sensitive settings in localStorage (NOT platform fee for security)
+        const safeSettings = {
+          siteName: response.data.data.siteName,
+          siteDescription: response.data.data.siteDescription,
+          workingHoursStart: response.data.data.workingHoursStart,
+          workingHoursEnd: response.data.data.workingHoursEnd,
+          appointmentDuration: response.data.data.appointmentDuration,
+          maxAppointmentsPerDay: response.data.data.maxAppointmentsPerDay
+        };
+        localStorage.setItem('siteSettings', JSON.stringify(safeSettings));
         // Trigger storage event so other components can update
         window.dispatchEvent(new Event('storage'));
         setSuccess('Settings saved successfully! Changes are now permanent and will persist after refresh/logout.');
@@ -165,11 +181,6 @@ const AdminSettings = () => {
       const num = parseInt(value);
       if (isNaN(num) || num < 5 || num > 480) {
         error = 'Appointment duration must be between 5 and 480 minutes';
-      }
-    } else if (name === 'platformCommissionPercentage') {
-      const num = parseInt(value);
-      if (isNaN(num) || num < 0 || num > 100) {
-        error = 'Platform fee percentage must be between 0 and 100';
       }
     } else if (name === 'minPasswordLength') {
       const num = parseInt(value);
@@ -317,37 +328,6 @@ const AdminSettings = () => {
                 </div>
               </div>
 
-              {/* Payment Settings */}
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mt-6">
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1.5">
-                    Platform Fee Percentage (%) <span className="text-red-500">*</span>
-                  </label>
-                  <input
-                    type="number"
-                    name="platformCommissionPercentage"
-                    value={formData.platformCommissionPercentage === 0 ? 0 : (formData.platformCommissionPercentage || '')}
-                    onChange={handleInputChange}
-                    onBlur={handleBlur}
-                    min="0"
-                    max="100"
-                    placeholder="e.g., 20"
-                    required
-                    className={`w-full px-3 py-2 border rounded-md bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent ${
-                      errors.platformCommissionPercentage 
-                        ? 'border-red-500 dark:border-red-500' 
-                        : 'border-gray-300 dark:border-gray-600'
-                    }`}
-                  />
-                  {errors.platformCommissionPercentage && (
-                    <p className="text-xs text-red-500 dark:text-red-400 mt-1">{errors.platformCommissionPercentage}</p>
-                  )}
-                  <p className="text-xs text-gray-500 dark:text-gray-400 mt-1.5">
-                    Percentage of booking fee collected online by the platform. Doctors collect the remaining amount at the clinic.
-                  </p>
-                </div>
-              </div>
-              
               {/* Save Button for General Settings - Prominent and Visible */}
               <div className="mt-6 pt-6 border-t border-gray-200 dark:border-gray-700 flex justify-end gap-3">
                 <button

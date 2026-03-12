@@ -206,10 +206,83 @@ const updateTerms = asyncHandler(async (req, res) => {
   }
 });
 
+/**
+ * Get current Privacy Policy
+ * Public endpoint - no authentication required
+ */
+const getPrivacyPolicy = asyncHandler(async (req, res) => {
+  try {
+    const settings = await Setting.getSettings();
+    
+    res.json({
+      success: true,
+      data: {
+        content: settings.privacyPolicy,
+        version: settings.privacyPolicyVersion,
+        lastUpdated: settings.privacyPolicyLastUpdated
+      }
+    });
+  } catch (error) {
+    res.status(500).json({
+      success: false,
+      message: 'Error fetching Privacy Policy',
+      error: error.message
+    });
+  }
+});
+
+/**
+ * Update Privacy Policy (Admin only)
+ */
+const updatePrivacyPolicy = asyncHandler(async (req, res) => {
+  try {
+    const { content } = req.body;
+    
+    if (!content || content.trim().length === 0) {
+      return res.status(400).json({
+        success: false,
+        message: 'Privacy Policy content is required'
+      });
+    }
+    
+    // Get current settings
+    const settings = await Setting.getSettings();
+    
+    // Increment version
+    const newVersion = (settings.privacyPolicyVersion || 1) + 1;
+    
+    // Update settings
+    settings.privacyPolicy = content.trim();
+    settings.privacyPolicyVersion = newVersion;
+    settings.privacyPolicyLastUpdated = new Date();
+    settings.updatedAt = new Date();
+    settings.updatedBy = req.user._id;
+    
+    await settings.save();
+    
+    res.json({
+      success: true,
+      message: 'Privacy Policy updated successfully.',
+      data: {
+        version: newVersion,
+        lastUpdated: settings.privacyPolicyLastUpdated
+      }
+    });
+  } catch (error) {
+    res.status(500).json({
+      success: false,
+      message: 'Error updating Privacy Policy',
+      error: error.message
+    });
+  }
+});
+
 export {
   getCurrentTerms,
   acceptTerms,
   getTermsStatus,
-  updateTerms
+  updateTerms,
+  getPrivacyPolicy,
+  updatePrivacyPolicy
 };
 
