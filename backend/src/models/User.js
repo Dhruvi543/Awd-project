@@ -31,6 +31,7 @@ const userSchema = new mongoose.Schema({
     enum: ['male', 'female', 'other'],
     trim: true 
   },
+  dateOfBirth: { type: Date },
   phone: { type: String, trim: true },
   specialization: { type: String, trim: true },
   experience: { type: String, trim: true },

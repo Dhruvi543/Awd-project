@@ -114,11 +114,33 @@ const BookAppointment = () => {
     return `${hour12}:${minutes} ${ampm}`;
   };
 
-  // Fetch working hours settings
+  // Fetch working hours and platform fee settings
+  // IMPORTANT: Platform fee is NEVER cached for security - always fetched fresh from API
   useEffect(() => {
-    const fetchWorkingHours = async () => {
+    const fetchSettings = async () => {
       try {
-        // Try to get from localStorage first (faster)
+        // Fetch fresh settings from API - platform fee must always come from backend for security
+        const response = await apiService.getSettings();
+        if (response.data.success && response.data.data) {
+          const settings = response.data.data;
+          setWorkingHours({
+            start: settings.workingHoursStart || '09:00',
+            end: settings.workingHoursEnd || '17:00',
+            duration: settings.appointmentDuration || 30
+          });
+          // Platform fee is ALWAYS from backend - never trust localStorage for payment amounts
+          setPlatformFeePercentage(settings.platformFeePercentage || settings.platformCommissionPercentage || 20);
+          // Cache only non-sensitive settings (working hours, etc.) - NOT platform fee
+          const safeSettings = {
+            workingHoursStart: settings.workingHoursStart,
+            workingHoursEnd: settings.workingHoursEnd,
+            appointmentDuration: settings.appointmentDuration
+          };
+          localStorage.setItem('siteSettings', JSON.stringify(safeSettings));
+        }
+      } catch (error) {
+        console.error('Error fetching settings:', error);
+        // Try to get working hours from cache as fallback (not platform fee)
         const cachedSettings = localStorage.getItem('siteSettings');
         if (cachedSettings) {
           const settings = JSON.parse(cachedSettings);
@@ -128,35 +150,13 @@ const BookAppointment = () => {
               end: settings.workingHoursEnd,
               duration: settings.appointmentDuration || 30
             });
-            return;
           }
         }
-        
-        // Fetch from API if not in cache
-        const response = await apiService.getSettings();
-        if (response.data.success && response.data.data) {
-          const settings = response.data.data;
-          setWorkingHours({
-            start: settings.workingHoursStart || '09:00',
-            end: settings.workingHoursEnd || '17:00',
-            duration: settings.appointmentDuration || 30
-          });
-          setPlatformFeePercentage(settings.platformFeePercentage || settings.platformCommissionPercentage || 20);
-          // Cache for future use
-          localStorage.setItem('siteSettings', JSON.stringify(settings));
-        }
-      } catch (error) {
-        console.error('Error fetching working hours:', error);
-        // Use defaults if fetch fails
-        setWorkingHours({
-          start: '09:00',
-          end: '17:00',
-          duration: 30
-        });
+        // Platform fee stays at default 20 if API fails - user will see correct amount in Razorpay
       }
     };
     
-    fetchWorkingHours();
+    fetchSettings();
   }, []);
 
   // Generate time slots when working hours change
@@ -851,19 +851,19 @@ const BookAppointment = () => {
                 </label>
                 <div className="relative">
                   <input
-                    type="date"
+                    type="text"
                     name="appointmentDate"
-                    value={formData.appointmentDate}
+                    value={formData.appointmentDate ? new Date(formData.appointmentDate).toLocaleDateString('en-US', { year: 'numeric', month: 'short', day: 'numeric' }) : ''}
                     onChange={handleChange}
-                    min={getMinDate()}
-                    max={getMaxDate()}
+                    placeholder="Select appointment date"
+                    readOnly
                     required
-                    className={`w-full px-4 py-3 pr-12 text-base border rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:ring-2 focus:ring-blue-500 focus:border-transparent appearance-none ${
+                    className={`w-full px-4 py-3 pr-12 text-base border rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:ring-2 focus:ring-blue-500 focus:border-transparent cursor-pointer ${
                       fieldErrors.appointmentDate
                         ? 'border-red-500 dark:border-red-500 focus:ring-red-500'
                         : 'border-gray-300 dark:border-gray-600'
                     }`}
-                    style={{ WebkitAppearance: 'none', MozAppearance: 'none' }}
+                    onClick={() => setShowCalendar(!showCalendar)}
                   />
                   <button
                     type="button"
