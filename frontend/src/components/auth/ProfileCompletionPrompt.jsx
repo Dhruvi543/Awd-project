@@ -36,7 +36,14 @@ const ProfileCompletionPrompt = ({ onClose, onComplete }) => {
   };
 
   const handleChange = (e) => {
-    const { name, value } = e.target;
+    const { name, value: rawValue } = e.target;
+    let value = rawValue;
+
+    // Enforce max 10 digits for phone number input
+    if (name === 'phone') {
+      value = rawValue.replace(/\D/g, '').slice(0, 10);
+    }
+
     setFormData(prev => ({ ...prev, [name]: value }));
     if (errors[name]) {
       setErrors(prev => ({ ...prev, [name]: '' }));
@@ -123,6 +130,8 @@ const ProfileCompletionPrompt = ({ onClose, onComplete }) => {
                 value={formData.phone}
                 onChange={handleChange}
                 placeholder="Enter your phone number"
+                maxLength={10}
+                inputMode="numeric"
                 className={`w-full px-3 py-2 border rounded-md bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent ${
                   errors.phone ? 'border-red-500' : 'border-gray-300 dark:border-gray-600'
                 }`}

@@ -48,6 +48,7 @@ const updateProfileSchema = z.object({
     errorMap: () => ({ message: 'Gender must be male, female, or other' })
   }).optional()
     .or(z.literal('')), // Allow empty string
+  dateOfBirth: z.union([z.date(), z.string()]).optional().nullable(),
   location: z.string()
     .max(200, 'Location must be less than 200 characters')
     .trim()
@@ -194,6 +195,21 @@ const updateProfile = asyncHandler(async (req, res) => {
     // Update gender if provided (allow empty string to clear)
     if (validatedData.gender !== undefined) {
       user.gender = validatedData.gender.trim() || null;
+    }
+
+    // Update dateOfBirth if provided
+    if (validatedData.dateOfBirth !== undefined) {
+      if (validatedData.dateOfBirth === null || validatedData.dateOfBirth === '') {
+        user.dateOfBirth = null;
+      } else if (validatedData.dateOfBirth instanceof Date) {
+        user.dateOfBirth = validatedData.dateOfBirth;
+      } else if (typeof validatedData.dateOfBirth === 'string') {
+        // Try to parse the date string
+        const parsedDate = new Date(validatedData.dateOfBirth);
+        if (!isNaN(parsedDate.getTime())) {
+          user.dateOfBirth = parsedDate;
+        }
+      }
     }
 
     // Update location if provided (allow empty string to clear)

@@ -15,6 +15,7 @@ const PatientSettings = () => {
     email: user?.email || '',
     phone: user?.phone || '',
     gender: user?.gender || '',
+    dateOfBirth: user?.dateOfBirth || '',
     location: user?.location || '',
   });
   const [passwordData, setPasswordData] = useState({
@@ -35,6 +36,7 @@ const PatientSettings = () => {
         email: user?.email || '',
         phone: user?.phone || '',
         gender: user?.gender || '',
+        dateOfBirth: user?.dateOfBirth || '',
         location: user?.location || '',
       });
     }
@@ -125,6 +127,7 @@ const PatientSettings = () => {
         name: profileData.name.trim(),
         phone: profileData.phone?.trim() || '',
         location: profileData.location?.trim() || '',
+        dateOfBirth: profileData.dateOfBirth || null,
       };
       const response = await apiService.updateProfile(normalizedData);
       if (response.data.success) {
@@ -138,6 +141,7 @@ const PatientSettings = () => {
             email: updatedUser.email || '',
             phone: updatedUser.phone || '',
             gender: updatedUser.gender || '',
+            dateOfBirth: updatedUser.dateOfBirth || '',
             location: updatedUser.location || '',
           });
           
@@ -515,6 +519,26 @@ const PatientSettings = () => {
                       </div>
                     </div>
 
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                        Date of Birth
+                      </label>
+                      <div className="relative">
+                        <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+                          <svg className="w-5 h-5 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
+                          </svg>
+                        </div>
+                        <input
+                          type="date"
+                          value={profileData.dateOfBirth ? new Date(profileData.dateOfBirth).toISOString().split('T')[0] : ''}
+                          onChange={(e) => setProfileData({ ...profileData, dateOfBirth: e.target.value ? new Date(e.target.value) : '' })}
+                          className="w-full pl-10 pr-4 py-3 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all"
+                          max={new Date().toISOString().split('T')[0]}
+                        />
+                      </div>
+                    </div>
+
                     <div className="md:col-span-2">
                       <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
                         Location
@@ -548,6 +572,7 @@ const PatientSettings = () => {
                         email: user?.email || '',
                         phone: user?.phone || '',
                         gender: user?.gender || '',
+                        dateOfBirth: user?.dateOfBirth || '',
                         location: user?.location || '',
                       });
                       setError('');
