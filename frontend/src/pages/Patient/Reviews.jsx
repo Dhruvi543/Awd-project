@@ -596,7 +596,7 @@ const PatientReviews = () => {
                             <div className="flex items-center gap-2 mb-1">
                               <StarRating rating={review.rating} editable={false} size="w-4 h-4" />
                               <span className="text-xs text-gray-500 dark:text-gray-400">
-                                {new Date(review.createdAt).toLocaleDateString('en-US', {
+                                {new Date(review.createdAt).toLocaleDateString('en-GB', {
                                   month: 'short',
                                   day: 'numeric',
                                   year: 'numeric',

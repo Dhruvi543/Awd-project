@@ -324,7 +324,7 @@ const AdminReviews = () => {
                         </td>
                         <td className="px-4 py-4">
                           <div className="text-sm text-gray-900 dark:text-white">
-                            {new Date(review.createdAt).toLocaleDateString()}
+                            {new Date(review.createdAt).toLocaleDateString('en-GB')}
                           </div>
                           <div className="text-xs text-gray-500 dark:text-gray-400 mt-0.5">
                             {new Date(review.createdAt).toLocaleTimeString()}
@@ -434,7 +434,7 @@ const AdminReviews = () => {
                   <div className="flex items-center border-b border-gray-200 dark:border-gray-700 pb-3">
                     <div className="w-1/3 font-medium text-gray-700 dark:text-gray-300">Appointment Date:</div>
                     <div className="w-2/3 text-gray-900 dark:text-white">
-                      {new Date(selectedReview.appointment.appointmentDate).toLocaleDateString()}
+                      {new Date(selectedReview.appointment.appointmentDate).toLocaleDateString('en-GB')}
                     </div>
                   </div>
                 )}

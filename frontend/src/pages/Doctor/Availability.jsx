@@ -648,7 +648,7 @@ const DoctorAvailability = () => {
   const formatDate = (dateString) => {
     if (!dateString) return '';
     const date = new Date(dateString);
-    return date.toLocaleDateString('en-US', { 
+    return date.toLocaleDateString('en-GB', { 
       month: 'short', 
       day: 'numeric',
       year: 'numeric'
@@ -748,7 +748,7 @@ const DoctorAvailability = () => {
                       <div className="relative">
                         <input
                           type="text"
-                          value={scheduleForm.date ? formatDateForInput(new Date(scheduleForm.date)) : ''}
+                          value={scheduleForm.date ? new Date(scheduleForm.date).toLocaleDateString('en-GB') : ''}
                           readOnly
                           onClick={() => {
                             setShowAvailabilityCalendar(!showAvailabilityCalendar);
@@ -1004,7 +1004,7 @@ const DoctorAvailability = () => {
                       <div className="relative">
                         <input
                           type="text"
-                          value={leaveForm.startDate ? formatDateForInput(new Date(leaveForm.startDate)) : ''}
+                          value={leaveForm.startDate ? new Date(leaveForm.startDate).toLocaleDateString('en-GB') : ''}
                           readOnly
                           onClick={() => {
                             setShowStartCalendar(!showStartCalendar);
@@ -1051,7 +1051,7 @@ const DoctorAvailability = () => {
                       <div className="relative">
                         <input
                           type="text"
-                          value={leaveForm.endDate ? formatDateForInput(new Date(leaveForm.endDate)) : ''}
+                          value={leaveForm.endDate ? new Date(leaveForm.endDate).toLocaleDateString('en-GB') : ''}
                           readOnly
                           onClick={() => {
                             setShowEndCalendar(!showEndCalendar);

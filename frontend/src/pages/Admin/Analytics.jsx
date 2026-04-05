@@ -160,11 +160,11 @@ const AdminAnalytics = () => {
           const [year, month, day] = dateStr.split('-');
           const date = new Date(parseInt(year), parseInt(month) - 1, parseInt(day));
           if (isNaN(date.getTime())) return dateStr;
-          return date.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+          return date.toLocaleDateString('en-GB', { month: 'short', day: 'numeric' });
         }
         const date = new Date(dateStr);
         if (isNaN(date.getTime())) return dateStr;
-        return date.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+        return date.toLocaleDateString('en-GB', { month: 'short', day: 'numeric' });
       } catch (e) {
         return dateStr;
       }
@@ -253,11 +253,11 @@ const AdminAnalytics = () => {
           const [year, month, day] = dateStr.split('-');
           const date = new Date(parseInt(year), parseInt(month) - 1, parseInt(day));
           if (isNaN(date.getTime())) return dateStr;
-          return date.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+          return date.toLocaleDateString('en-GB', { month: 'short', day: 'numeric' });
         }
         const date = new Date(dateStr);
         if (isNaN(date.getTime())) return dateStr;
-        return date.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+        return date.toLocaleDateString('en-GB', { month: 'short', day: 'numeric' });
       } catch (e) {
         return dateStr;
       }

@@ -399,7 +399,7 @@ const DoctorLayout = () => {
                                   </p>
                                   {notification.relatedAppointment?.appointmentDate ? (
                                     <p className="text-xs text-blue-600 dark:text-blue-400 mt-1 font-medium">
-                                      Appointment Date: {new Date(notification.relatedAppointment.appointmentDate).toLocaleDateString('en-US', { 
+                                      Appointment Date: {new Date(notification.relatedAppointment.appointmentDate).toLocaleDateString('en-GB', { 
                                         weekday: 'long', 
                                         year: 'numeric', 
                                         month: 'long', 

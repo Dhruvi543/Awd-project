@@ -853,7 +853,7 @@ const BookAppointment = () => {
                   <input
                     type="text"
                     name="appointmentDate"
-                    value={formData.appointmentDate ? new Date(formData.appointmentDate).toLocaleDateString('en-US', { year: 'numeric', month: 'short', day: 'numeric' }) : ''}
+                    value={formData.appointmentDate ? new Date(formData.appointmentDate).toLocaleDateString('en-GB', { year: 'numeric', month: 'short', day: 'numeric' }) : ''}
                     onChange={handleChange}
                     placeholder="Select appointment date"
                     readOnly
@@ -889,7 +889,7 @@ const BookAppointment = () => {
                   </p>
                 ) : formData.appointmentDate && (
                   <p className="text-base text-gray-600 dark:text-gray-400 mt-2">
-                    Selected: {new Date(formData.appointmentDate).toLocaleDateString('en-US', { 
+                    Selected: {new Date(formData.appointmentDate).toLocaleDateString('en-GB', { 
                       weekday: 'long',
                       year: 'numeric', 
                       month: 'long', 

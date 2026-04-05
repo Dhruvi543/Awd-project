@@ -133,7 +133,7 @@ const DoctorDashboard = () => {
           }).length;
           
           last7Days.push({
-            date: date.toLocaleDateString('en-US', { month: 'short', day: 'numeric' }),
+            date: date.toLocaleDateString('en-GB', { month: 'short', day: 'numeric' }),
             count
           });
         }
@@ -209,7 +209,7 @@ const DoctorDashboard = () => {
 
   const formatDate = (dateString) => {
     const date = new Date(dateString);
-    return date.toLocaleDateString('en-US', { 
+    return date.toLocaleDateString('en-GB', { 
       weekday: 'short', 
       year: 'numeric', 
       month: 'short', 
@@ -619,7 +619,7 @@ const DoctorDashboard = () => {
                           {review.patient?.name || 'This patient is no longer available'}
                         </p>
                         <p className="text-xs text-gray-500 dark:text-gray-400">
-                          {new Date(review.createdAt).toLocaleDateString('en-US', {
+                          {new Date(review.createdAt).toLocaleDateString('en-GB', {
                             month: 'short',
                             day: 'numeric',
                             year: 'numeric'

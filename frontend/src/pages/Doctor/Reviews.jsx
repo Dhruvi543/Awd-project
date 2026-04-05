@@ -453,7 +453,7 @@ const DoctorReviews = () => {
                         </span>
                       </div>
                       <p className="text-xs text-gray-500 dark:text-gray-400">
-                        {new Date(review.createdAt).toLocaleDateString('en-US', {
+                        {new Date(review.createdAt).toLocaleDateString('en-GB', {
                           year: 'numeric',
                           month: 'short',
                           day: 'numeric',

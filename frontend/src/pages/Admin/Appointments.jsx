@@ -384,10 +384,10 @@ const AdminAppointments = () => {
                         </td>
                         <td className="px-6 py-4 whitespace-nowrap">
                           <div className="text-sm font-medium text-gray-900 dark:text-white">
-                            {appointment.appointmentDate ? new Date(appointment.appointmentDate).toLocaleDateString() : 'Not specified'}
+                            {appointment.appointmentDate ? new Date(appointment.appointmentDate).toLocaleDateString('en-GB') : 'Not specified'}
                           </div>
                           <div className="text-xs text-gray-500 dark:text-gray-400 mt-0.5">
-                            {appointment.createdAt ? `Created: ${new Date(appointment.createdAt).toLocaleDateString()}` : ''}
+                            {appointment.createdAt ? `Created: ${new Date(appointment.createdAt).toLocaleDateString('en-GB')}` : ''}
                           </div>
                         </td>
                         <td className="px-6 py-4 whitespace-nowrap">
@@ -503,7 +503,7 @@ const AdminAppointments = () => {
                 <div className="flex items-center border-b border-gray-200 dark:border-gray-700 pb-3">
                   <div className="w-1/3 font-medium text-gray-700 dark:text-gray-300">Date:</div>
                   <div className="w-2/3 text-gray-900 dark:text-white">
-                    {selectedAppointment.appointmentDate ? new Date(selectedAppointment.appointmentDate).toLocaleDateString() : 'Not specified'}
+                    {selectedAppointment.appointmentDate ? new Date(selectedAppointment.appointmentDate).toLocaleDateString('en-GB') : 'Not specified'}
                   </div>
                 </div>
                 <div className="flex items-center border-b border-gray-200 dark:border-gray-700 pb-3">

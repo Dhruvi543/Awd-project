@@ -44,7 +44,7 @@ const cancelAppointmentsForLeave = async (doctorId, leave, doctorName) => {
         // Update appointment status
         appointment.status = 'cancelled';
         appointment.cancellationSource = 'system_cascade';
-        appointment.rejectionReason = `Doctor is on leave from ${leaveStart.toLocaleDateString()} to ${leaveEnd.toLocaleDateString()}${leave.reason ? ': ' + leave.reason : ''}`;
+        appointment.rejectionReason = `Doctor is on leave from ${leaveStart.toLocaleDateString('en-GB')} to ${leaveEnd.toLocaleDateString('en-GB')}${leave.reason ? ': ' + leave.reason : ''}`;
         await appointment.save();
         
         // Create notification for patient
@@ -52,7 +52,7 @@ const cancelAppointmentsForLeave = async (doctorId, leave, doctorName) => {
           const patientNotification = new Notification({
             user: appointment.patient._id,
             type: 'appointment_cancelled',
-            message: `Your appointment with Dr. ${doctorName} on ${new Date(appointment.appointmentDate).toLocaleDateString()} has been cancelled because the doctor is on leave.${refundResult.refundAmount > 0 ? ` Refund of ₹${refundResult.refundAmount} has been initiated.` : ''}`,
+            message: `Your appointment with Dr. ${doctorName} on ${new Date(appointment.appointmentDate).toLocaleDateString('en-GB')} has been cancelled because the doctor is on leave.${refundResult.refundAmount > 0 ? ` Refund of ₹${refundResult.refundAmount} has been initiated.` : ''}`,
             link: `/patient/appointments`,
             relatedUser: doctorId,
             relatedAppointment: appointment._id
@@ -80,7 +80,7 @@ const cancelAppointmentsForLeave = async (doctorId, leave, doctorName) => {
         const doctorNotification = new Notification({
           user: doctorId,
           type: 'appointment_cancelled',
-          message: `You have marked leave from ${leaveStart.toLocaleDateString()} to ${leaveEnd.toLocaleDateString()}. ${cancelledAppointments.length} appointment(s) have been automatically cancelled and refunds initiated for patients.`,
+          message: `You have marked leave from ${leaveStart.toLocaleDateString('en-GB')} to ${leaveEnd.toLocaleDateString('en-GB')}. ${cancelledAppointments.length} appointment(s) have been automatically cancelled and refunds initiated for patients.`,
           link: `/doctor/appointments`
         });
         await doctorNotification.save();
@@ -322,7 +322,7 @@ const createMyAvailability = asyncHandler(async (req, res) => {
           if ((leaveStart <= existingEnd && leaveEnd >= existingStart)) {
             return res.status(400).json({
               success: false,
-              message: `Leave dates overlap with existing leave from ${existingStart.toLocaleDateString()} to ${existingEnd.toLocaleDateString()}. Please adjust your dates.`
+              message: `Leave dates overlap with existing leave from ${existingStart.toLocaleDateString('en-GB')} to ${existingEnd.toLocaleDateString('en-GB')}. Please adjust your dates.`
             });
           }
         }
@@ -435,7 +435,7 @@ const updateMyAvailability = asyncHandler(async (req, res) => {
             if ((leaveStart <= existingEnd && leaveEnd >= existingStart)) {
               return res.status(400).json({
                 success: false,
-                message: `Leave dates overlap with existing leave from ${existingStart.toLocaleDateString()} to ${existingEnd.toLocaleDateString()}. Please adjust your dates.`
+                message: `Leave dates overlap with existing leave from ${existingStart.toLocaleDateString('en-GB')} to ${existingEnd.toLocaleDateString('en-GB')}. Please adjust your dates.`
               });
             }
           }

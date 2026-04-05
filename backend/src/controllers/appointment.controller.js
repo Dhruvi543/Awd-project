@@ -300,8 +300,8 @@ const bookAppointment = asyncHandler(async (req, res) => {
       // Check if doctor is on leave on the requested date
       const leaveCheck = await isDateOnLeave(doctorId, appointmentDate);
       if (leaveCheck.isOnLeave) {
-        const leaveStart = new Date(leaveCheck.leave.startDate).toLocaleDateString();
-        const leaveEnd = new Date(leaveCheck.leave.endDate).toLocaleDateString();
+        const leaveStart = new Date(leaveCheck.leave.startDate).toLocaleDateString('en-GB');
+        const leaveEnd = new Date(leaveCheck.leave.endDate).toLocaleDateString('en-GB');
         return res.status(400).json({
           success: false,
           message: `Doctor is on leave from ${leaveStart} to ${leaveEnd}. Please select another date.`
@@ -618,8 +618,8 @@ const updatePatientAppointment = asyncHandler(async (req, res) => {
       // Check if doctor is on leave on the requested date
       const leaveCheck = await isDateOnLeave(appointment.doctor, appointmentDate);
       if (leaveCheck.isOnLeave) {
-        const leaveStart = new Date(leaveCheck.leave.startDate).toLocaleDateString();
-        const leaveEnd = new Date(leaveCheck.leave.endDate).toLocaleDateString();
+        const leaveStart = new Date(leaveCheck.leave.startDate).toLocaleDateString('en-GB');
+        const leaveEnd = new Date(leaveCheck.leave.endDate).toLocaleDateString('en-GB');
         return res.status(400).json({
           success: false,
           message: `Doctor is on leave from ${leaveStart} to ${leaveEnd}. Please select another date.`

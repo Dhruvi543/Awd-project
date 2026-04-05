@@ -184,7 +184,7 @@ const DoctorAvailabilityCalendar = ({
           </svg>
         </button>
         <h2 className="text-2xl font-bold text-gray-900 dark:text-white">
-          {new Date(currentYear, currentMonth).toLocaleDateString('en-US', { month: 'long', year: 'numeric' })}
+          {new Date(currentYear, currentMonth).toLocaleDateString('en-GB', { month: 'long', year: 'numeric' })}
         </h2>
         <button
           onClick={() => {
