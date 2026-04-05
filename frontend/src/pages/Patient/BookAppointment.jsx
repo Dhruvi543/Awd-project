@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useMemo } from 'react';
-import { useNavigate, useSearchParams } from 'react-router-dom';
+import { useLocation, useNavigate, useSearchParams } from 'react-router-dom';
 import { apiService } from '../../api/apiService';
 import { useAuth } from '../../contexts/AuthContext';
 import Toast from '../../components/feedback/Toast';
@@ -7,6 +7,7 @@ import { useRazorpay } from 'react-razorpay';
 
 const BookAppointment = () => {
   const navigate = useNavigate();
+  const location = useLocation();
   const { isAuthenticated, user } = useAuth();
   const [searchParams] = useSearchParams();
   const doctorId = searchParams.get('doctorId');
@@ -29,6 +30,7 @@ const BookAppointment = () => {
   });
   const [platformFeePercentage, setPlatformFeePercentage] = useState(20);
   const { Razorpay } = useRazorpay();
+  const needsBookingDetails = !user?.name?.trim() || !user?.phone?.trim() || user?.profileComplete === false;
 
   const [formData, setFormData] = useState({
     patientName: user?.name || '',
@@ -174,6 +176,20 @@ const BookAppointment = () => {
       setIsLoading(false);
       return;
     }
+
+    if (needsBookingDetails) {
+      setToast({ message: 'Please fill required details first before booking an appointment.', type: 'error' });
+      navigate('/patient/settings', {
+        replace: true,
+        state: {
+          bookingProfileRequired: true,
+          message: 'Please fill required details first before booking an appointment.',
+          from: `${location.pathname}${location.search}`,
+        },
+      });
+      setIsLoading(false);
+      return;
+    }
     
     if (user?.name) {
       setFormData(prev => ({ ...prev, patientName: user.name }));
@@ -188,7 +204,7 @@ const BookAppointment = () => {
     } else {
       setIsLoading(false);
     }
-  }, [doctorId, isAuthenticated, user]);
+  }, [doctorId, isAuthenticated, user, needsBookingDetails, navigate, location.pathname, location.search]);
 
   useEffect(() => {
     if (formData.appointmentDate && doctorId) {

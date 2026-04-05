@@ -6,6 +6,7 @@ import { useTheme } from '../../contexts/ThemeContext';
 import { UserRole } from '../../common/enums/enumConstant';
 import PatientRegisterForm from '../../components/auth/PatientRegisterForm';
 import DoctorRegisterForm from '../../components/auth/DoctorRegisterForm';
+import ProfileCompletionPrompt from '../../components/auth/ProfileCompletionPrompt';
 import PasswordInput from '../../components/forms/PasswordInput';
 import logo from '../../logo.png';
 
@@ -28,8 +29,10 @@ const Auth = () => {
   const [showRejectionModal, setShowRejectionModal] = useState(false);
   const [rejectionReason, setRejectionReason] = useState('');
   const [showApprovalModal, setShowApprovalModal] = useState(false);
+  const [showGoogleCompletionPrompt, setShowGoogleCompletionPrompt] = useState(false);
+  const [showDoctorGooglePendingModal, setShowDoctorGooglePendingModal] = useState(false);
 
-  const { login, register, googleLogin, error, clearError, user, isAuthenticated } = useAuth();
+  const { login, register, googleLogin, logout, error, clearError, user, isAuthenticated } = useAuth();
   const { theme } = useTheme();
   const [googleError, setGoogleError] = useState('');
 
@@ -42,9 +45,20 @@ const Auth = () => {
     }
   }, [location.pathname]);
 
+  useEffect(() => {
+    const needsGoogleCompletion = user?.authProvider === 'google' && user?.profileComplete === false;
+
+    if (isAuthenticated && needsGoogleCompletion) {
+      setActiveTab('login');
+      setShowGoogleCompletionPrompt(true);
+    }
+  }, [isAuthenticated, user]);
+
   // Redirect based on role after login/register (but not if showing approval modal)
   useEffect(() => {
-    if (isAuthenticated && user && !showApprovalModal) {
+    const needsGoogleCompletion = user?.authProvider === 'google' && user?.profileComplete === false;
+
+    if (isAuthenticated && user && !showApprovalModal && !showGoogleCompletionPrompt && !showDoctorGooglePendingModal && !needsGoogleCompletion) {
       if (user.role === UserRole.PATIENT) {
         navigate('/patient/dashboard', { replace: true });
       } else if (user.role === UserRole.DOCTOR) {
@@ -53,7 +67,7 @@ const Auth = () => {
         navigate('/admin/dashboard', { replace: true });
       }
     }
-  }, [isAuthenticated, user, navigate, showApprovalModal]);
+  }, [isAuthenticated, user, navigate, showApprovalModal, showGoogleCompletionPrompt, showDoctorGooglePendingModal]);
 
   const validateEmail = (email) => {
     // Email validation - relaxed to allow standard TLDs
@@ -206,9 +220,10 @@ const Auth = () => {
           // Show success message for account linking
           setGoogleError(''); // Clear any errors
         }
-        
-        // If new user with incomplete profile, could show completion modal here
-        // For now, redirect happens automatically via useEffect
+
+        if (result.user?.authProvider === 'google' && result.user?.profileComplete === false) {
+          setShowGoogleCompletionPrompt(true);
+        }
       } else {
         // Handle specific error cases
         if (result.isRejected) {
@@ -233,8 +248,31 @@ const Auth = () => {
     setGoogleError('Google login failed. Please try again.');
   };
 
+  const handleGoogleCompletion = async (responseData) => {
+    if (responseData?.requiresApproval) {
+      setShowGoogleCompletionPrompt(false);
+      setShowDoctorGooglePendingModal(true);
+      return;
+    }
+
+    if (responseData?.data?.role === UserRole.DOCTOR) {
+      navigate('/doctor/dashboard', { replace: true });
+      return;
+    }
+
+    navigate('/patient/dashboard', { replace: true });
+  };
+
   return (
     <div className="bg-white dark:bg-gray-800 rounded-2xl shadow-2xl w-full max-w-2xl overflow-hidden transition-colors duration-200 relative">
+      {showGoogleCompletionPrompt && (
+        <ProfileCompletionPrompt
+          onClose={() => setShowGoogleCompletionPrompt(false)}
+          onComplete={handleGoogleCompletion}
+          allowClose={false}
+        />
+      )}
+
       {/* Back Button - Top Left Corner */}
       <button
         onClick={() => navigate('/')}
@@ -689,6 +727,45 @@ const Auth = () => {
                 Continue to Dashboard
               </button>
             </div>
+          </div>
+        </div>
+      )}
+
+      {showDoctorGooglePendingModal && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+          <div className="bg-white dark:bg-gray-800 rounded-lg shadow-xl max-w-md w-full p-6">
+            <div className="flex justify-center mb-4">
+              <div className="w-16 h-16 bg-blue-100 dark:bg-blue-900/30 rounded-full flex items-center justify-center">
+                <svg className="w-8 h-8 text-blue-600 dark:text-blue-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                </svg>
+              </div>
+            </div>
+
+            <h3 className="text-xl font-bold text-center text-gray-900 dark:text-white mb-2">
+              Doctor Profile Submitted
+            </h3>
+
+            <p className="text-gray-600 dark:text-gray-300 mb-6 text-center">
+              Your Google login is linked successfully. Your doctor details are now pending admin approval.
+            </p>
+
+            <div className="bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-lg p-4 mb-6">
+              <p className="text-sm text-blue-800 dark:text-blue-300">
+                You will be able to access the doctor dashboard after an admin approves your account.
+              </p>
+            </div>
+
+            <button
+              onClick={async () => {
+                await logout();
+                setShowDoctorGooglePendingModal(false);
+                navigate('/login', { replace: true });
+              }}
+              className="w-full bg-blue-600 hover:bg-blue-700 text-white font-medium py-2.5 px-4 rounded-lg transition-colors"
+            >
+              Return to Login
+            </button>
           </div>
         </div>
       )}

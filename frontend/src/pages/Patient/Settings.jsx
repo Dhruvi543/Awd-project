@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useLocation, useNavigate } from 'react-router-dom';
 import { useAuth } from '../../contexts/AuthContext';
 import { apiService } from '../../api/apiService';
 import PasswordInput from '../../components/forms/PasswordInput';
@@ -7,6 +7,7 @@ import PasswordInput from '../../components/forms/PasswordInput';
 const PatientSettings = () => {
   const { user, getCurrentUser, logout } = useAuth();
   const navigate = useNavigate();
+  const location = useLocation();
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
   const [deleteConfirmText, setDeleteConfirmText] = useState('');
   const [isDeleting, setIsDeleting] = useState(false);
@@ -28,6 +29,13 @@ const PatientSettings = () => {
   const [error, setError] = useState('');
   const [success, setSuccess] = useState('');
   const [passwordStrength, setPasswordStrength] = useState(0);
+
+  useEffect(() => {
+    if (location.state?.bookingProfileRequired) {
+      setActiveTab('profile');
+      setError(location.state.message || 'Please fill required details first before booking an appointment.');
+    }
+  }, [location.state]);
 
   useEffect(() => {
     if (user) {
@@ -128,6 +136,7 @@ const PatientSettings = () => {
         phone: profileData.phone?.trim() || '',
         location: profileData.location?.trim() || '',
         dateOfBirth: profileData.dateOfBirth || null,
+        profileComplete: true,
       };
       const response = await apiService.updateProfile(normalizedData);
       if (response.data.success) {
@@ -166,6 +175,13 @@ const PatientSettings = () => {
             const mergedUser = { ...currentUser, ...updatedUser };
             localStorage.setItem('user', JSON.stringify(mergedUser));
           }
+        }
+
+        if (location.state?.bookingProfileRequired) {
+          const redirectPath = location.state.from || '/patient/find-doctor';
+          setTimeout(() => {
+            navigate(redirectPath, { replace: true });
+          }, 1200);
         }
         
         setTimeout(() => setSuccess(''), 3000);

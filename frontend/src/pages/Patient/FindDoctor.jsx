@@ -1,8 +1,11 @@
 import React, { useState, useEffect } from 'react';
-import { Link, useSearchParams } from 'react-router-dom';
+import { Link, useNavigate, useSearchParams } from 'react-router-dom';
 import { apiService } from '../../api/apiService';
+import { useAuth } from '../../contexts/AuthContext';
 
 const FindDoctor = () => {
+  const navigate = useNavigate();
+  const { user } = useAuth();
   const [searchParams] = useSearchParams();
   const [doctors, setDoctors] = useState([]);
   const [isLoading, setIsLoading] = useState(true);
@@ -14,6 +17,8 @@ const FindDoctor = () => {
   const [reviews, setReviews] = useState([]);
   const [showReviewsModal, setShowReviewsModal] = useState(false);
   const [isLoadingReviews, setIsLoadingReviews] = useState(false);
+
+  const needsBookingDetails = !user?.name?.trim() || !user?.phone?.trim() || user?.profileComplete === false;
 
   // Sync search term from URL
   useEffect(() => {
@@ -100,6 +105,20 @@ const FindDoctor = () => {
     });
   };
 
+  const handleBookingAttempt = (e, doctorId) => {
+    if (!needsBookingDetails) {
+      return;
+    }
+
+    e.preventDefault();
+    navigate('/patient/settings', {
+      state: {
+        bookingProfileRequired: true,
+        message: 'Please fill required details first before booking an appointment.',
+      },
+    });
+  };
+
   return (
     <div className="w-full max-w-full">
       <div className="max-w-full">
@@ -113,6 +132,26 @@ const FindDoctor = () => {
         {error && (
           <div className="mb-6 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-lg p-4">
             <p className="text-red-800 dark:text-red-300">{error}</p>
+          </div>
+        )}
+
+        {needsBookingDetails && (
+          <div className="mb-6 bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-800 rounded-lg p-4">
+            <p className="text-amber-800 dark:text-amber-300">
+              Please fill required details first before booking an appointment.
+              <button
+                type="button"
+                onClick={() => navigate('/patient/settings', {
+                  state: {
+                    bookingProfileRequired: true,
+                    message: 'Please fill required details first before booking an appointment.',
+                  },
+                })}
+                className="ml-2 underline font-medium"
+              >
+                Complete profile
+              </button>
+            </p>
           </div>
         )}
 
@@ -232,6 +271,7 @@ const FindDoctor = () => {
                     </div>
                     <Link
                       to={`/patient/book-appointment?doctorId=${doctor._id}`}
+                      onClick={(e) => handleBookingAttempt(e, doctor._id)}
                       className="w-full px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors text-sm font-medium flex items-center justify-center gap-2"
                     >
                       <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">

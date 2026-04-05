@@ -5,6 +5,7 @@ import Review from '../models/Review.js';
 import Appointment from '../models/Appointment.js';
 import Notification from '../models/Notification.js';
 import { processRefund } from './payment.controller.js';
+import { hasCompletedDoctorProfile } from '../utils/doctorProfile.js';
 
 /**
  * Helper function to cancel appointments when doctor marks leave
@@ -114,13 +115,15 @@ const getDoctors = asyncHandler(async (req, res) => {
       ];
     }
     
-    let doctors = await User.find(query)
+    const doctors = await User.find(query)
       .select('-password')
       .sort({ name: 1 });
+
+    const visibleDoctors = doctors.filter(hasCompletedDoctorProfile);
     
     // Get ratings for each doctor
     const doctorsWithRatings = await Promise.all(
-      doctors.map(async (doctor) => {
+      visibleDoctors.map(async (doctor) => {
         const reviews = await Review.find({ doctor: doctor._id });
         const rating = reviews.length > 0
           ? reviews.reduce((sum, review) => sum + review.rating, 0) / reviews.length
@@ -153,7 +156,7 @@ const getDoctor = asyncHandler(async (req, res) => {
     const doctor = await User.findOne({ _id: req.params.id, role: 'doctor', isApproved: true })
       .select('-password');
     
-    if (!doctor) {
+    if (!doctor || !hasCompletedDoctorProfile(doctor)) {
       return res.status(404).json({
         success: false,
         message: 'Doctor not found'
@@ -189,7 +192,7 @@ const getDoctorAvailability = asyncHandler(async (req, res) => {
     const doctorId = req.params.id;
     
     const doctor = await User.findById(doctorId);
-    if (!doctor || doctor.role !== 'doctor') {
+    if (!doctor || !hasCompletedDoctorProfile(doctor)) {
       return res.status(404).json({
         success: false,
         message: 'Doctor not found'

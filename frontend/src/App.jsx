@@ -71,6 +71,7 @@ import Unauthorized from './pages/Common/Unauthorized';
 // Protected Route Component
 const ProtectedRoute = ({ children, allowedRoles = [] }) => {
   const { isAuthenticated, user } = useAuth();
+  const needsGoogleCompletion = user?.authProvider === 'google' && user?.profileComplete === false;
 
   if (!isAuthenticated) {
     // Redirect to appropriate login page based on route
@@ -78,6 +79,10 @@ const ProtectedRoute = ({ children, allowedRoles = [] }) => {
       return <Navigate to="/admin-login" replace />;
     }
     return <Navigate to="/login" replace />;
+  }
+
+  if (needsGoogleCompletion) {
+    return <Navigate to="/login" replace state={{ profileCompletionRequired: true }} />;
   }
 
   if (allowedRoles.length > 0 && !allowedRoles.includes(user?.role)) {
@@ -93,8 +98,9 @@ const ProtectedRoute = ({ children, allowedRoles = [] }) => {
 // Public Route Component (redirect if authenticated)
 const PublicRoute = ({ children }) => {
   const { isAuthenticated, user } = useAuth();
+  const needsGoogleCompletion = user?.authProvider === 'google' && user?.profileComplete === false;
 
-  if (isAuthenticated) {
+  if (isAuthenticated && !needsGoogleCompletion) {
     if (user?.role === UserRole.ADMIN) {
       return <Navigate to="/admin/dashboard" replace />;
     } else if (user?.role === UserRole.DOCTOR) {

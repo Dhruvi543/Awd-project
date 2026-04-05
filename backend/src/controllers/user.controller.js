@@ -8,9 +8,11 @@ import Availability from '../models/Availability.js';
 import crypto from 'crypto';
 import { logLifecycleEvent } from '../utils/auditLogger.js';
 import mongoose from 'mongoose';
+import Setting from '../models/Setting.js';
 
 // Validation schema for profile update
 const updateProfileSchema = z.object({
+  role: z.enum(['patient', 'doctor']).optional(),
   name: z.string()
     .min(2, 'Name must be at least 2 characters')
     .max(100, 'Name must be less than 100 characters')
@@ -92,7 +94,52 @@ const updateProfileSchema = z.object({
     .trim()
     .optional()
     .or(z.literal('')),
+  termsAccepted: z.boolean().optional(),
   profileComplete: z.boolean().optional(),
+}).superRefine((data, ctx) => {
+  if (data.role === 'patient') {
+    if (!data.name || data.name.trim().length < 2) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: ['name'],
+        message: 'Full name is required'
+      });
+    }
+  }
+
+  if (data.role === 'doctor') {
+    const requiredDoctorFields = [
+      ['firstName', data.firstName, 'First name is required'],
+      ['lastName', data.lastName, 'Last name is required'],
+      ['phone', data.phone, 'Phone number is required'],
+      ['gender', data.gender, 'Gender is required'],
+      ['specialization', data.specialization, 'Specialization is required'],
+      ['experience', data.experience, 'Experience is required'],
+      ['qualification', data.qualification, 'Qualification is required'],
+      ['location', data.location, 'Location is required'],
+      ['licenseNo', data.licenseNo, 'License number is required'],
+      ['clinicHospitalType', data.clinicHospitalType, 'Type is required'],
+      ['clinicHospitalName', data.clinicHospitalName, 'Clinic/Hospital name is required'],
+    ];
+
+    requiredDoctorFields.forEach(([field, value, message]) => {
+      if (value === undefined || value === null || value === '') {
+        ctx.addIssue({
+          code: z.ZodIssueCode.custom,
+          path: [field],
+          message
+        });
+      }
+    });
+
+    if (data.termsAccepted !== true) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: ['termsAccepted'],
+        message: 'You must accept the Terms & Conditions to continue'
+      });
+    }
+  }
 });
 
 // Get user profile
@@ -147,6 +194,25 @@ const updateProfile = asyncHandler(async (req, res) => {
     }
 
     const validatedData = validationResult.data;
+    const isCompletingGoogleProfile = user.authProvider === 'google' && user.profileComplete === false;
+    const requestedRole = validatedData.role || user.role;
+    const isGoogleRoleSelection = isCompletingGoogleProfile && requestedRole !== user.role;
+    let settings = null;
+
+    if (isGoogleRoleSelection || (isCompletingGoogleProfile && requestedRole === 'doctor')) {
+      settings = await Setting.getSettings();
+    }
+
+    if (validatedData.role !== undefined) {
+      if (!isCompletingGoogleProfile) {
+        return res.status(400).json({
+          success: false,
+          message: 'Role can only be changed during Google profile completion'
+        });
+      }
+
+      user.role = requestedRole;
+    }
     
     // Update name if provided
     if (validatedData.name !== undefined && validatedData.name.trim() !== '') {
@@ -168,6 +234,12 @@ const updateProfile = asyncHandler(async (req, res) => {
         if (firstName || lastName) {
           user.name = `${firstName} ${lastName}`.trim();
         }
+      }
+    }
+
+    if (user.role === 'patient') {
+      if (validatedData.name !== undefined && validatedData.name.trim() !== '') {
+        user.name = validatedData.name.trim();
       }
     }
 
@@ -237,6 +309,20 @@ const updateProfile = asyncHandler(async (req, res) => {
       if (validatedData.clinicHospitalName !== undefined) {
         user.clinicHospitalName = validatedData.clinicHospitalName.trim() || null;
       }
+
+      if (isCompletingGoogleProfile) {
+        user.isApproved = settings?.autoApproveDoctors === true;
+        user.termsAccepted = validatedData.termsAccepted === true;
+        user.termsAcceptedAt = validatedData.termsAccepted === true ? new Date() : user.termsAcceptedAt;
+        user.termsVersionAccepted = validatedData.termsAccepted === true ? (settings?.termsVersion || 1) : user.termsVersionAccepted;
+        user.termsReacceptRequired = false;
+      }
+    } else if (isCompletingGoogleProfile) {
+      user.isApproved = true;
+      user.termsAccepted = false;
+      user.termsAcceptedAt = undefined;
+      user.termsVersionAccepted = undefined;
+      user.termsReacceptRequired = false;
     }
 
     // Update profileComplete status
@@ -259,11 +345,33 @@ const updateProfile = asyncHandler(async (req, res) => {
         message: 'User not found after update'
       });
     }
+
+    if (isCompletingGoogleProfile) {
+      try {
+        const adminUsers = await User.find({ role: 'admin' });
+        for (const admin of adminUsers) {
+          const notification = new Notification({
+            user: admin._id,
+            type: updatedUser.role === 'doctor' ? 'doctor_registered' : 'patient_registered',
+            message: updatedUser.role === 'doctor'
+              ? `Google user ${updatedUser.name} completed doctor registration and is pending approval`
+              : `Google user ${updatedUser.name} completed patient registration`,
+            link: updatedUser.role === 'doctor' ? '/admin/doctors?status=pending' : '/admin/patients',
+            relatedUser: updatedUser._id,
+          });
+          await notification.save();
+        }
+      } catch (notificationError) {
+        console.error('Error creating completion notification:', notificationError);
+      }
+    }
     
     res.json({
       success: true,
       message: 'Profile updated successfully',
-      data: updatedUser
+      data: updatedUser,
+      requiresApproval: updatedUser.role === 'doctor' && !updatedUser.isApproved,
+      isApproved: updatedUser.isApproved
     });
   } catch (error) {
     // Handle duplicate email error

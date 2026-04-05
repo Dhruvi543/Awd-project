@@ -6,6 +6,7 @@ import Availability from '../models/Availability.js';
 import Notification from '../models/Notification.js';
 import Setting from '../models/Setting.js';
 import { verifyPaymentSignature, processRefund } from './payment.controller.js';
+import { hasCompletedDoctorProfile } from '../utils/doctorProfile.js';
 
 // Helper function to compare ObjectIds reliably
 const compareObjectIds = (id1, id2) => {
@@ -174,10 +175,10 @@ const bookAppointment = asyncHandler(async (req, res) => {
       });
     }
     
-    if (!doctor.isApproved) {
+    if (!hasCompletedDoctorProfile(doctor)) {
       return res.status(400).json({
         success: false,
-        message: 'Doctor is not approved yet'
+        message: 'Doctor is not available for booking yet'
       });
     }
     
@@ -901,7 +902,7 @@ const getDoctorAvailability = asyncHandler(async (req, res) => {
     const doctorId = req.params.id;
     
     const doctor = await User.findById(doctorId);
-    if (!doctor || doctor.role !== 'doctor') {
+    if (!doctor || !hasCompletedDoctorProfile(doctor)) {
       return res.status(404).json({
         success: false,
         message: 'Doctor not found'

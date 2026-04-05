@@ -4,6 +4,7 @@ import Review from '../models/Review.js';
 import User from '../models/User.js';
 import Appointment from '../models/Appointment.js';
 import asyncHandler from '../utils/asyncHandler.js';
+import { hasCompletedDoctorProfile } from '../utils/doctorProfile.js';
 
 // Helper function to compare ObjectIds reliably
 const compareObjectIds = (id1, id2) => {
@@ -159,10 +160,10 @@ const createReview = asyncHandler(async (req, res) => {
       });
     }
 
-    if (!doctor.isApproved) {
+    if (!hasCompletedDoctorProfile(doctor)) {
       return res.status(400).json({
         success: false,
-        message: 'Doctor is not approved yet',
+        message: 'Doctor is not available for reviews yet',
       });
     }
 
