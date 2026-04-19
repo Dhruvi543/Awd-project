@@ -3,18 +3,18 @@ import { Link } from 'react-router-dom';
 import { useTheme } from '../contexts/ThemeContext';
 import logo from '../logo.png';
 // Import hero images from src root
-import heroImage1 from '../hero_image1.jpeg';
-import heroImage2 from '../hero_image2.jpeg';
-import heroImage3 from '../hero_image3.jpeg';
-import heroImage4 from '../hero_image4.jpeg';
-import heroImage5 from '../hero_image5.jpeg';
-import heroImage6 from '../hero_image6.jpeg';
-import heroImage7 from '../hero_image7.jpeg';
-import heroImage8 from '../hero_image8.jpeg';
+import heroImage1 from '../hero_image1.png';
+import heroImage2 from '../hero_image2.png';
+import heroImage3 from '../hero_image3.png';
+import heroImage4 from '../hero_image4.png';
+import heroImage5 from '../hero_image5.png';
+import heroImage6 from '../hero_image6.png';
+import heroImage7 from '../hero_image7.png';
+import heroImage8 from '../hero_image8.png';
 // Import feature images from assets
-import featureImage1 from '../assets/images/feature-image-1.jpeg';
-import featureImage2 from '../assets/images/feature-image-2.jpeg';
-import featureImage3 from '../assets/images/feature-image-3.jpeg';
+import featureImage1 from '../assets/images/feature-image-1.png';
+import featureImage2 from '../assets/images/feature-image-2.png';
+import featureImage3 from '../assets/images/feature-image-3.png';
 
 const LandingPage = () => {
   const { theme } = useTheme();

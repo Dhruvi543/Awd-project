@@ -111,11 +111,21 @@ const getDoctorEarningsDetailed = asyncHandler(async (req, res) => {
     const settings = await Setting.getSettings();
     const currentPlatformFeePercentage = settings.platformFeePercentage || settings.platformCommissionPercentage || 20;
     
+    const { status, startDate, endDate } = req.query;
+    
     // Get all appointments for this doctor
-    const appointments = await Appointment.find({
+    let query = {
       doctor: doctorId,
       status: { $ne: 'deleted' }
-    })
+    };
+    
+    if (startDate || endDate) {
+      query.appointmentDate = {};
+      if (startDate) query.appointmentDate.$gte = new Date(startDate);
+      if (endDate) query.appointmentDate.$lte = new Date(endDate);
+    }
+
+    const appointments = await Appointment.find(query)
       .populate('patient', 'name')
       .sort({ createdAt: -1 })
       .select('patient appointmentDate startTime endTime totalFee onlineAmount clinicAmount platformFeePercentage paymentStatus status onlinePaymentAt createdAt totalAmount amountPaid amountPending commissionPercentage platformCommissionAmount doctorShareAmount bookingFeePaidAt razorpayPaymentId');
@@ -126,6 +136,7 @@ const getDoctorEarningsDetailed = asyncHandler(async (req, res) => {
     let totalClinicCollections = 0;  // Doctor earnings
     let totalAppointments = 0;
     let pendingAppointments = 0;
+    let pendingEarnings = 0;
     let paidAppointments = 0;
     
     const formattedAppointments = appointments.map(apt => {
@@ -136,19 +147,26 @@ const getDoctorEarningsDetailed = asyncHandler(async (req, res) => {
       const platformFeePercent = apt.platformFeePercentage || apt.commissionPercentage || currentPlatformFeePercentage;
       
       // Determine payment status
-      const isPaid = apt.paymentStatus === 'completed' || apt.paymentStatus === 'paid';
-      const isPending = apt.paymentStatus === 'pending' || apt.status === 'pending';
+      // Platform fee is paid online (paymentStatus flag), but clinic collection is only "paid" when appointment is marked completed
+      const isPlatformPaid = apt.paymentStatus === 'completed' || apt.paymentStatus === 'paid';
       const isCancelled = apt.status === 'cancelled';
+      const isClinicPaid = apt.status === 'completed';
+      const isClinicPending = !isCancelled && !isClinicPaid;
       
       // Count appointments
       totalAppointments++;
-      if (isPaid && !isCancelled) {
-        paidAppointments++;
+      
+      if (isPlatformPaid && !isCancelled) {
         totalBookingFees += bookingFee;
         totalOnlinePayments += onlineAmount;
+      }
+
+      if (isClinicPaid && !isCancelled) {
+        paidAppointments++;
         totalClinicCollections += clinicAmount;
-      } else if (isPending && !isCancelled) {
+      } else if (isClinicPending) {
         pendingAppointments++;
+        pendingEarnings += clinicAmount;
       }
       
       return {
@@ -164,10 +182,16 @@ const getDoctorEarningsDetailed = asyncHandler(async (req, res) => {
         clinicAmount: clinicAmount,  // Doctor collects at clinic
         platformFeePercentage: platformFeePercent,
         onlinePaymentAt: apt.onlinePaymentAt || apt.bookingFeePaidAt || apt.createdAt,
-        paymentStatus: isPaid ? 'paid' : 'pending',
+        paymentStatus: isClinicPaid ? 'paid' : 'pending',
         appointmentStatus: apt.status
       };
     });
+
+    // Filter appointments array if status filter is applied
+    let filteredAppointments = formattedAppointments;
+    if (status && status !== 'all') {
+      filteredAppointments = formattedAppointments.filter(apt => apt.paymentStatus === status);
+    }
     
     // Monthly earnings breakdown
     const sixMonthsAgo = new Date();
@@ -215,7 +239,7 @@ const getDoctorEarningsDetailed = asyncHandler(async (req, res) => {
         currentCommissionPercentage: currentPlatformFeePercentage,
         summary: {
           totalEarnings: totalClinicCollections,  // Doctor's actual earnings
-          pendingEarnings: 0,  // No pending - doctor collects at clinic
+          pendingEarnings: pendingEarnings,
           paidEarnings: totalClinicCollections,
           totalCommission: totalOnlinePayments,  // Platform revenue
           totalBookingFees: totalBookingFees,
@@ -223,7 +247,7 @@ const getDoctorEarningsDetailed = asyncHandler(async (req, res) => {
           pendingAppointments,
           paidAppointments
         },
-        appointments: formattedAppointments,
+        appointments: filteredAppointments,
         monthlyBreakdown: formattedMonthly
       }
     });

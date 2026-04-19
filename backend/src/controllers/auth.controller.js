@@ -254,6 +254,12 @@ const register = asyncHandler(async (req, res) => {
         email: user.email,
         role: user.role,
         isApproved: false,
+        phone: user.phone,
+        gender: user.gender,
+        location: user.location,
+        dateOfBirth: user.dateOfBirth,
+        profileComplete: user.profileComplete,
+        profilePicture: user.profilePicture,
       },
     });
   }
@@ -279,6 +285,12 @@ const register = asyncHandler(async (req, res) => {
       email: user.email,
       role: user.role,
       isApproved: true,
+      phone: user.phone,
+      gender: user.gender,
+      location: user.location,
+      dateOfBirth: user.dateOfBirth,
+      profileComplete: user.profileComplete,
+      profilePicture: user.profilePicture,
     },
   });
 });
@@ -395,6 +407,12 @@ const login = asyncHandler(async (req, res) => {
       termsAcceptedAt: user.termsAcceptedAt,
       termsVersionAccepted: user.termsVersionAccepted,
       termsReacceptRequired: termsReacceptRequired,
+      phone: user.phone,
+      gender: user.gender,
+      location: user.location,
+      dateOfBirth: user.dateOfBirth,
+      profileComplete: user.profileComplete,
+      profilePicture: user.profilePicture,
     },
     approvalMessage: approvalMessage, // Include approval message separately for frontend handling
     termsReacceptRequired: termsReacceptRequired,
@@ -527,6 +545,10 @@ const googleLogin = asyncHandler(async (req, res) => {
           profilePicture: user.profilePicture,
           profileComplete: user.profileComplete,
           authProvider: user.authProvider,
+          phone: user.phone,
+          gender: user.gender,
+          location: user.location,
+          dateOfBirth: user.dateOfBirth,
         },
         isNewGoogleLink,
       });
@@ -597,6 +619,10 @@ const googleLogin = asyncHandler(async (req, res) => {
         profilePicture: newUser.profilePicture,
         profileComplete: newUser.profileComplete,
         authProvider: newUser.authProvider,
+        phone: newUser.phone,
+        gender: newUser.gender,
+        location: newUser.location,
+        dateOfBirth: newUser.dateOfBirth,
       },
       isNewUser: true,
     });
