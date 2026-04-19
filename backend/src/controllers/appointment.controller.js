@@ -455,6 +455,12 @@ const bookAppointment = asyncHandler(async (req, res) => {
     
   } catch (error) {
     console.error('Error booking appointment:', error);
+    if (error?.code === 11000) {
+      return res.status(400).json({
+        success: false,
+        message: `This time slot (${startTime} - ${endTime}) is already booked. Please select another time.`
+      });
+    }
     res.status(500).json({
       success: false,
       message: 'Error booking appointment',
@@ -685,6 +691,12 @@ const updatePatientAppointment = asyncHandler(async (req, res) => {
     });
   } catch (error) {
     console.error('Error updating appointment:', error);
+    if (error?.code === 11000) {
+      return res.status(400).json({
+        success: false,
+        message: `This time slot (${startTime} - ${endTime}) is already booked. Please select another time.`
+      });
+    }
     res.status(500).json({
       success: false,
       message: 'Error updating appointment',
@@ -1315,4 +1327,3 @@ export {
   completeAppointment,
   getDoctorAvailability
 };
-
