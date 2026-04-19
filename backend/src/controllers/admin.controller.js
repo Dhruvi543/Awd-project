@@ -539,6 +539,23 @@ const deleteDoctor = asyncHandler(async (req, res) => {
       status: { $in: ['pending', 'confirmed'] } 
     });
     
+    let refundsProcessed = 0;
+    let refundsSkipped = 0;
+    for (const apt of allAppointments) {
+      const requiresRefund = apt.paymentStatus === 'completed' && (apt.amountPaid || 0) > 0;
+      if (!requiresRefund) {
+        refundsSkipped += 1;
+        continue;
+      }
+
+      const refundResult = await processRefund(apt._id, 'doctor');
+      const alreadyRefunded = refundResult?.reason === 'Refund already processed for this appointment';
+      if (!refundResult?.success && !alreadyRefunded) {
+        throw new Error(`Refund processing failed for appointment ${apt._id}: ${refundResult?.reason || 'Unknown refund error'}`);
+      }
+      refundsProcessed += 1;
+    }
+
     if (allAppointments.length > 0) {
       const bulkOps = allAppointments.map(apt => ({
         updateOne: {
@@ -555,6 +572,7 @@ const deleteDoctor = asyncHandler(async (req, res) => {
       }));
       await Appointment.bulkWrite(bulkOps);
       console.log(`Cancelled ${allAppointments.length} appointment(s) for deleted doctor`);
+      console.log(`Refund summary for deleted doctor ${doctor._id}: processed=${refundsProcessed}, skipped=${refundsSkipped}`);
     }
 
     await Review.updateMany(
@@ -2322,4 +2340,3 @@ export {
   markAllNotificationsRead,
   deleteNotification,
 };
-
