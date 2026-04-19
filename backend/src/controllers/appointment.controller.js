@@ -456,9 +456,13 @@ const bookAppointment = asyncHandler(async (req, res) => {
   } catch (error) {
     console.error('Error booking appointment:', error);
     if (error?.code === 11000) {
+      const requestedStartTime = req?.body?.startTime;
+      const requestedEndTime = req?.body?.endTime;
       return res.status(400).json({
         success: false,
-        message: `This time slot (${startTime} - ${endTime}) is already booked. Please select another time.`
+        message: requestedStartTime && requestedEndTime
+          ? `This time slot (${requestedStartTime} - ${requestedEndTime}) is already booked. Please select another time.`
+          : 'This time slot is already booked. Please select another time.'
       });
     }
     res.status(500).json({
@@ -692,9 +696,13 @@ const updatePatientAppointment = asyncHandler(async (req, res) => {
   } catch (error) {
     console.error('Error updating appointment:', error);
     if (error?.code === 11000) {
+      const requestedStartTime = req?.body?.startTime;
+      const requestedEndTime = req?.body?.endTime;
       return res.status(400).json({
         success: false,
-        message: `This time slot (${startTime} - ${endTime}) is already booked. Please select another time.`
+        message: requestedStartTime && requestedEndTime
+          ? `This time slot (${requestedStartTime} - ${requestedEndTime}) is already booked. Please select another time.`
+          : 'This time slot is already booked. Please select another time.'
       });
     }
     res.status(500).json({
