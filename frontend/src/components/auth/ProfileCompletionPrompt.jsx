@@ -129,7 +129,7 @@ const ProfileCompletionPrompt = ({ onClose, onComplete, allowClose = true }) => 
         specialization: 'Specialization is required',
         experience: 'Experience is required',
         qualification: 'Qualification is required',
-        location: 'Location is required',
+        location: 'Full address is required',
         licenseNo: 'License number is required',
         clinicHospitalType: 'Please select clinic or hospital',
         clinicHospitalName: 'Clinic or hospital name is required',
@@ -345,9 +345,9 @@ const ProfileCompletionPrompt = ({ onClose, onComplete, allowClose = true }) => 
                   </div>
                   <div>
                     <label htmlFor="location" className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-                      Location <span className="text-red-500">*</span>
+                      Full Clinic/Hospital Address <span className="text-red-500">*</span>
                     </label>
-                    <input id="location" name="location" type="text" value={formData.location} onChange={handleChange} className={`w-full px-3 py-2 border rounded-md bg-white dark:bg-gray-700 text-gray-900 dark:text-white ${errors.location ? 'border-red-500' : 'border-gray-300 dark:border-gray-600'}`} />
+                    <input id="location" name="location" type="text" value={formData.location} onChange={handleChange} placeholder="Enter complete clinic/hospital address" className={`w-full px-3 py-2 border rounded-md bg-white dark:bg-gray-700 text-gray-900 dark:text-white ${errors.location ? 'border-red-500' : 'border-gray-300 dark:border-gray-600'}`} />
                     {errors.location && <p className="mt-1 text-sm text-red-500">{errors.location}</p>}
                   </div>
                 </div>

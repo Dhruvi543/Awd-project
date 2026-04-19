@@ -256,17 +256,41 @@ const AdminPatients = () => {
       if (selectedPatient) {
         // Update
         await apiService.updatePatient(selectedPatient._id, formData);
-        alert('Patient updated successfully');
+        setConfirmModal({
+          isOpen: true,
+          title: 'Success',
+          message: 'Patient updated successfully',
+          confirmText: 'OK',
+          cancelText: '',
+          type: 'info',
+          onConfirm: () => setConfirmModal(prev => ({ ...prev, isOpen: false }))
+        });
       } else {
         // Create
         await apiService.createPatient(formData);
-        alert('Patient created successfully');
+        setConfirmModal({
+          isOpen: true,
+          title: 'Success',
+          message: 'Patient created successfully',
+          confirmText: 'OK',
+          cancelText: '',
+          type: 'info',
+          onConfirm: () => setConfirmModal(prev => ({ ...prev, isOpen: false }))
+        });
       }
       setShowModal(false);
       setErrors({});
       fetchPatients();
     } catch (err) {
-      alert(err.response?.data?.message || 'Failed to save patient');
+      setConfirmModal({
+        isOpen: true,
+        title: 'Error',
+        message: err.response?.data?.message || 'Failed to save patient',
+        confirmText: 'OK',
+        cancelText: '',
+        type: 'danger',
+        onConfirm: () => setConfirmModal(prev => ({ ...prev, isOpen: false }))
+      });
     }
   };
 

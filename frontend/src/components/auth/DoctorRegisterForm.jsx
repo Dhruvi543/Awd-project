@@ -223,9 +223,9 @@ const DoctorRegisterForm = ({ setDoctorData }) => {
       }
     } else if (name === 'location') {
       if (!trimmedValue) {
-        error = 'Location is required';
-      } else if (trimmedValue.length < 2) {
-        error = 'Location must be at least 2 characters';
+        error = 'Full address is required';
+      } else if (trimmedValue.length < 10) {
+        error = 'Please provide a complete address (minimum 10 characters)';
       }
     } else if (name === 'clinicHospitalType') {
       if (!value) {
@@ -508,7 +508,7 @@ const DoctorRegisterForm = ({ setDoctorData }) => {
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
         <div>
           <label htmlFor="location" className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-            Location <span className="text-red-500">*</span>
+            Full Clinic/Hospital Address <span className="text-red-500">*</span>
           </label>
           <input
             type="text"
@@ -521,7 +521,7 @@ const DoctorRegisterForm = ({ setDoctorData }) => {
             className={`w-full px-3 py-2 text-sm border rounded-md bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent ${
               errors.location ? 'border-red-500 dark:border-red-500' : 'border-gray-300 dark:border-gray-600'
             }`}
-            placeholder="Location/city"
+            placeholder="Enter complete clinic/hospital address"
           />
           {errors.location && <p className="mt-1 text-xs text-red-500">{errors.location}</p>}
         </div>

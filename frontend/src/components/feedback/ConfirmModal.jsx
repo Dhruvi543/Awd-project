@@ -82,12 +82,14 @@ const ConfirmModal = ({
 
         {/* Buttons */}
         <div className="p-6 pt-0 flex gap-3">
-          <button
-            onClick={onClose}
-            className="flex-1 px-4 py-3 bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300 rounded-xl font-medium hover:bg-gray-200 dark:hover:bg-gray-600 transition-colors border border-gray-300 dark:border-gray-600"
-          >
-            {cancelText}
-          </button>
+          {cancelText && (
+            <button
+              onClick={onClose}
+              className="flex-1 px-4 py-3 bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300 rounded-xl font-medium hover:bg-gray-200 dark:hover:bg-gray-600 transition-colors border border-gray-300 dark:border-gray-600"
+            >
+              {cancelText}
+            </button>
+          )}
           <button
             onClick={handleConfirm}
             className={`flex-1 px-4 py-3 text-white rounded-xl font-medium transition-colors ${styles.confirmButton}`}

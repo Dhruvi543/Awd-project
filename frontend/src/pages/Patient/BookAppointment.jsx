@@ -68,27 +68,45 @@ const BookAppointment = () => {
     return formatDateLocal(maxDate);
   };
 
-  // Generate time slots based on admin working hours settings
-  const generateTimeSlots = () => {
+  // Generate time slots based on admin working hours settings or doctor custom schedule
+  const generateTimeSlots = (selectedDateStr) => {
     const slots = [];
     
-    // Parse working hours from settings
-    const [startHour, startMinute] = workingHours.start.split(':').map(Number);
-    const [endHour, endMinute] = workingHours.end.split(':').map(Number);
-    const duration = workingHours.duration || 30;
+    // Default to global working hours
+    let activeStart = workingHours.start;
+    let activeEnd = workingHours.end;
+    let activeDuration = workingHours.duration || 30;
+
+    // Check for custom schedule override for the selected date
+    if (selectedDateStr && doctorAvailability && doctorAvailability.length > 0) {
+      const customSchedule = doctorAvailability.find(a => 
+        a.type === 'schedule' && 
+        a.isActive && 
+        formatDateLocal(a.startDate) === selectedDateStr
+      );
+      
+      if (customSchedule) {
+        if (customSchedule.startTime) activeStart = customSchedule.startTime;
+        if (customSchedule.endTime) activeEnd = customSchedule.endTime;
+      }
+    }
+    
+    // Parse active working hours
+    const [startHour, startMinute] = activeStart.split(':').map(Number);
+    const [endHour, endMinute] = activeEnd.split(':').map(Number);
     
     // Convert to minutes for easier calculation
     const startMinutes = startHour * 60 + startMinute;
     const endMinutes = endHour * 60 + endMinute;
     
     // Generate slots based on duration
-    for (let currentMinutes = startMinutes; currentMinutes + duration <= endMinutes; currentMinutes += duration) {
+    for (let currentMinutes = startMinutes; currentMinutes + activeDuration <= endMinutes; currentMinutes += activeDuration) {
       const hour = Math.floor(currentMinutes / 60);
       const minute = currentMinutes % 60;
       const timeString = `${hour.toString().padStart(2, '0')}:${minute.toString().padStart(2, '0')}`;
       
       // Calculate end time
-      const endTimeMinutes = currentMinutes + duration;
+      const endTimeMinutes = currentMinutes + activeDuration;
       const endHourCalc = Math.floor(endTimeMinutes / 60);
       const endMinuteCalc = endTimeMinutes % 60;
       const endTimeString = `${endHourCalc.toString().padStart(2, '0')}:${endMinuteCalc.toString().padStart(2, '0')}`;
@@ -161,8 +179,8 @@ const BookAppointment = () => {
     fetchSettings();
   }, []);
 
-  // Generate time slots when working hours change
-  const timeSlots = useMemo(() => generateTimeSlots(), [workingHours]);
+  // Generate time slots when working hours, appointment date, or doctor availability change
+  const timeSlots = useMemo(() => generateTimeSlots(formData.appointmentDate), [workingHours, formData.appointmentDate, doctorAvailability]);
 
   useEffect(() => {
     if (!isAuthenticated) {
@@ -324,13 +342,22 @@ const BookAppointment = () => {
         }));
       }
     } else if (name === 'appointmentDate') {
-      // Validate that the selected date is not a Sunday or on leave
+      // Validate that the selected date is not a Sunday or on leave, unless there is a custom schedule override
       if (value) {
         const selectedDate = new Date(value);
         const dayOfWeek = selectedDate.getDay();
         
-        if (dayOfWeek === 0) {
-          setFieldErrors(prev => ({ ...prev, appointmentDate: 'Appointments cannot be booked on Sundays. Please select another day.' }));
+        let hasCustomSchedule = false;
+        if (doctorAvailability && doctorAvailability.length > 0) {
+          hasCustomSchedule = doctorAvailability.some(a => 
+            a.type === 'schedule' && 
+            a.isActive && 
+            formatDateLocal(a.startDate) === value
+          );
+        }
+        
+        if (dayOfWeek === 0 && !hasCustomSchedule) {
+          setFieldErrors(prev => ({ ...prev, appointmentDate: 'Appointments cannot be booked on Sundays unless the doctor has set special availability.' }));
           return;
         }
         
@@ -382,9 +409,18 @@ const BookAppointment = () => {
       const selectedDate = new Date(formData.appointmentDate);
       const dayOfWeek = selectedDate.getDay();
       
-      // Check if Sunday
-      if (dayOfWeek === 0) {
-        errors.appointmentDate = 'Appointments cannot be booked on Sundays. Please select another day.';
+      let hasCustomSchedule = false;
+      if (doctorAvailability && doctorAvailability.length > 0) {
+        hasCustomSchedule = doctorAvailability.some(a => 
+          a.type === 'schedule' && 
+          a.isActive && 
+          formatDateLocal(a.startDate) === formData.appointmentDate
+        );
+      }
+      
+      // Check if Sunday and no custom schedule override exists
+      if (dayOfWeek === 0 && !hasCustomSchedule) {
+        errors.appointmentDate = 'Appointments cannot be booked on Sundays unless the doctor has set special availability.';
         isValid = false;
       }
       
@@ -570,14 +606,21 @@ const BookAppointment = () => {
       const isSunday = date.getDay() === 0;
       const isOnLeave = leaveDates.includes(dateString);
       
+      const hasCustomSchedule = doctorAvailability.some(a => 
+        a.type === 'schedule' && 
+        a.isActive && 
+        formatDateLocal(a.startDate) === dateString
+      );
+      
       days.push({
         day,
         date: dateString,
-        disabled: isPast || isFuture || isSunday || isOnLeave,
+        disabled: isPast || isFuture || (isSunday && !hasCustomSchedule) || isOnLeave,
         selected: isSelected,
         today: isToday,
         isSunday,
-        isOnLeave
+        isOnLeave,
+        hasCustomSchedule
       });
     }
     

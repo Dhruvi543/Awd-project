@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { useAuth } from '../../contexts/AuthContext';
 import { apiService } from '../../api/apiService';
+import ConfirmModal from '../../components/feedback/ConfirmModal';
 
 const DoctorProfile = () => {
   const { user } = useAuth();
@@ -15,6 +16,15 @@ const DoctorProfile = () => {
   });
   const [isLoading, setIsLoading] = useState(false);
   const [isEditing, setIsEditing] = useState(false);
+  const [confirmModal, setConfirmModal] = useState({
+    isOpen: false,
+    title: '',
+    message: '',
+    confirmText: 'OK',
+    cancelText: '',
+    type: 'info',
+    onConfirm: null
+  });
 
   useEffect(() => {
     if (user) {
@@ -36,12 +46,28 @@ const DoctorProfile = () => {
       setIsLoading(true);
       const response = await apiService.updateDoctorProfile(profileData);
       if (response.data.success) {
-        alert('Profile updated successfully!');
+        setConfirmModal({
+          isOpen: true,
+          title: 'Success',
+          message: 'Profile updated successfully!',
+          confirmText: 'OK',
+          cancelText: '',
+          type: 'info',
+          onConfirm: () => setConfirmModal(prev => ({ ...prev, isOpen: false }))
+        });
         setIsEditing(false);
       }
     } catch (error) {
       console.error('Error updating profile:', error);
-      alert('Failed to update profile. Please try again.');
+      setConfirmModal({
+        isOpen: true,
+        title: 'Error',
+        message: 'Failed to update profile. Please try again.',
+        confirmText: 'OK',
+        cancelText: '',
+        type: 'danger',
+        onConfirm: () => setConfirmModal(prev => ({ ...prev, isOpen: false }))
+      });
     } finally {
       setIsLoading(false);
     }
@@ -294,6 +320,17 @@ const DoctorProfile = () => {
           </div>
         </div>
       </div>
+      
+      <ConfirmModal
+        isOpen={confirmModal.isOpen}
+        onClose={() => setConfirmModal(prev => ({ ...prev, isOpen: false }))}
+        onConfirm={() => confirmModal.onConfirm && confirmModal.onConfirm()}
+        title={confirmModal.title}
+        message={confirmModal.message}
+        confirmText={confirmModal.confirmText}
+        cancelText={confirmModal.cancelText}
+        type={confirmModal.type}
+      />
     </div>
   );
 };

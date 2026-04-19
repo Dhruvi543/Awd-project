@@ -3,6 +3,7 @@ import { useLocation, useNavigate } from 'react-router-dom';
 import { useAuth } from '../../contexts/AuthContext';
 import { apiService } from '../../api/apiService';
 import PasswordInput from '../../components/forms/PasswordInput';
+import ConfirmModal from '../../components/feedback/ConfirmModal';
 
 const PatientSettings = () => {
   const { user, getCurrentUser, logout } = useAuth();
@@ -29,6 +30,15 @@ const PatientSettings = () => {
   const [error, setError] = useState('');
   const [success, setSuccess] = useState('');
   const [passwordStrength, setPasswordStrength] = useState(0);
+  const [confirmModal, setConfirmModal] = useState({
+    isOpen: false,
+    title: '',
+    message: '',
+    confirmText: 'OK',
+    cancelText: '',
+    type: 'info',
+    onConfirm: null
+  });
 
   useEffect(() => {
     if (location.state?.bookingProfileRequired) {
@@ -273,12 +283,19 @@ const PatientSettings = () => {
     try {
       const response = await apiService.deleteAccount();
       if (response.data.success) {
-        // Logout user after successful deletion
-        await logout();
-        // Redirect to home page
-        navigate('/');
-        // Show success message (optional - since we're redirecting)
-        alert('Your account has been deleted successfully.');
+        setConfirmModal({
+          isOpen: true,
+          title: 'Account Deleted',
+          message: 'Your account has been deleted successfully.',
+          confirmText: 'OK',
+          cancelText: '',
+          type: 'info',
+          onConfirm: async () => {
+            setConfirmModal(prev => ({ ...prev, isOpen: false }));
+            await logout();
+            navigate('/');
+          }
+        });
       }
     } catch (error) {
       console.error('Error deleting account:', error);
@@ -870,6 +887,17 @@ const PatientSettings = () => {
           </div>
         </div>
       </div>
+      
+      <ConfirmModal
+        isOpen={confirmModal.isOpen}
+        onClose={() => setConfirmModal(prev => ({ ...prev, isOpen: false }))}
+        onConfirm={() => confirmModal.onConfirm && confirmModal.onConfirm()}
+        title={confirmModal.title}
+        message={confirmModal.message}
+        confirmText={confirmModal.confirmText}
+        cancelText={confirmModal.cancelText}
+        type={confirmModal.type}
+      />
     </div>
   );
 };

@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
 import { useAuth } from '../../contexts/AuthContext';
 import { apiService } from '../../api/apiService';
+import ConfirmModal from '../../components/feedback/ConfirmModal';
 
 const DoctorDashboard = () => {
   const { user } = useAuth();
@@ -22,6 +23,15 @@ const DoctorDashboard = () => {
   const [recentReviews, setRecentReviews] = useState([]);
   const [appointmentsOverTime, setAppointmentsOverTime] = useState([]);
   const [isLoading, setIsLoading] = useState(true);
+  const [confirmModal, setConfirmModal] = useState({
+    isOpen: false,
+    title: '',
+    message: '',
+    confirmText: 'OK',
+    cancelText: '',
+    type: 'info',
+    onConfirm: null
+  });
 
   useEffect(() => {
     fetchDashboardData();
@@ -238,7 +248,15 @@ const DoctorDashboard = () => {
       fetchDashboardData();
     } catch (error) {
       console.error(`Error ${action}ing appointment:`, error);
-      alert(`Failed to ${action} appointment. Please try again.`);
+      setConfirmModal({
+        isOpen: true,
+        title: 'Error',
+        message: `Failed to ${action} appointment. Please try again.`,
+        confirmText: 'OK',
+        cancelText: '',
+        type: 'danger',
+        onConfirm: () => setConfirmModal(prev => ({ ...prev, isOpen: false }))
+      });
     }
   };
 
@@ -662,6 +680,17 @@ const DoctorDashboard = () => {
           </div>
         </div>
       </div>
+      
+      <ConfirmModal
+        isOpen={confirmModal.isOpen}
+        onClose={() => setConfirmModal(prev => ({ ...prev, isOpen: false }))}
+        onConfirm={() => confirmModal.onConfirm && confirmModal.onConfirm()}
+        title={confirmModal.title}
+        message={confirmModal.message}
+        confirmText={confirmModal.confirmText}
+        cancelText={confirmModal.cancelText}
+        type={confirmModal.type}
+      />
     </div>
   );
 };

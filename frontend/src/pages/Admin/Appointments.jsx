@@ -166,11 +166,27 @@ const AdminAppointments = () => {
     e.preventDefault();
     try {
       await apiService.updateAppointmentAdmin(selectedAppointment._id, formData);
-      alert('Appointment updated successfully');
+      setConfirmModal({
+        isOpen: true,
+        title: 'Success',
+        message: 'Appointment updated successfully',
+        confirmText: 'OK',
+        cancelText: '',
+        type: 'info',
+        onConfirm: () => setConfirmModal(prev => ({ ...prev, isOpen: false }))
+      });
       setShowModal(false);
       fetchAppointments();
     } catch (err) {
-      alert(err.response?.data?.message || 'Failed to update appointment');
+      setConfirmModal({
+        isOpen: true,
+        title: 'Error',
+        message: err.response?.data?.message || 'Failed to update appointment',
+        confirmText: 'OK',
+        cancelText: '',
+        type: 'danger',
+        onConfirm: () => setConfirmModal(prev => ({ ...prev, isOpen: false }))
+      });
     }
   };
 

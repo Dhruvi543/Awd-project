@@ -463,15 +463,10 @@ const changePassword = asyncHandler(async (req, res) => {
 
 // Delete account
 const deleteAccount = asyncHandler(async (req, res) => {
-  const session = await mongoose.startSession();
-  session.startTransaction();
-
   try {
-    const user = await User.findOne({ _id: req.user._id, isDeleted: { $ne: true } }).session(session);
+    const user = await User.findOne({ _id: req.user._id, isDeleted: { $ne: true } });
     
     if (!user) {
-      await session.abortTransaction();
-      session.endSession();
       return res.status(404).json({
         success: false,
         message: 'User not found'
@@ -482,7 +477,7 @@ const deleteAccount = asyncHandler(async (req, res) => {
       const allAppointments = await Appointment.find({ 
         patient: user._id,
         status: { $in: ['pending', 'confirmed'] }
-      }).session(session);
+      });
       
       if (allAppointments.length > 0) {
         const bulkOps = allAppointments.map(apt => ({
@@ -498,14 +493,14 @@ const deleteAccount = asyncHandler(async (req, res) => {
             }
           }
         }));
-        await Appointment.bulkWrite(bulkOps, { session });
+        await Appointment.bulkWrite(bulkOps);
         console.log(`Cancelled ${allAppointments.length} appointment(s) for deleted patient`);
       }
     } else if (user.role === 'doctor') {
       const allAppointments = await Appointment.find({ 
         doctor: user._id,
         status: { $in: ['pending', 'confirmed'] }
-      }).session(session);
+      });
       
       if (allAppointments.length > 0) {
          const bulkOps = allAppointments.map(apt => ({
@@ -521,26 +516,24 @@ const deleteAccount = asyncHandler(async (req, res) => {
             }
           }
         }));
-        await Appointment.bulkWrite(bulkOps, { session });
+        await Appointment.bulkWrite(bulkOps);
         console.log(`Cancelled ${allAppointments.length} appointment(s) for deleted doctor`);
       }
 
       await Review.updateMany(
         { doctor: user._id, isDeleted: { $ne: true } },
-        { $set: { isDeleted: true, deletedAt: new Date(), deletedBy: 'system_cascade' } },
-        { session }
+        { $set: { isDeleted: true, deletedAt: new Date(), deletedBy: 'system_cascade' } }
       );
 
       await Availability.updateMany(
         { doctor: user._id, isDeleted: { $ne: true } },
-        { $set: { isDeleted: true, deletedAt: new Date(), deletedBy: 'system_cascade' } },
-        { session }
+        { $set: { isDeleted: true, deletedAt: new Date(), deletedBy: 'system_cascade' } }
       );
     }
 
     // Delete all notifications for this user
     try {
-      await Notification.deleteMany({ user: user._id }).session(session);
+      await Notification.deleteMany({ user: user._id });
     } catch (notificationError) {
       console.error('Error deleting notifications:', notificationError);
       // Continue with deletion even if notification deletion fails
@@ -548,10 +541,10 @@ const deleteAccount = asyncHandler(async (req, res) => {
 
     user.isDeleted = true;
     user.deletedAt = new Date();
-    await user.save({ session });
+    await user.save();
     
     // Post-Delete Operational Assertion
-    const verifyUserHidden = await User.findOne({ _id: user._id }).session(session);
+    const verifyUserHidden = await User.findOne({ _id: user._id });
     if (verifyUserHidden) {
       throw new Error("Integrity Failure: User remains visible to standard queries.");
     }
@@ -559,9 +552,9 @@ const deleteAccount = asyncHandler(async (req, res) => {
     // Role-specific cascade verification
     let activeAppointments = 0;
     if (user.role === 'patient') {
-      activeAppointments = await Appointment.countDocuments({ patient: user._id, status: { $in: ['pending', 'confirmed'] } }).session(session);
+      activeAppointments = await Appointment.countDocuments({ patient: user._id, status: { $in: ['pending', 'confirmed'] } });
     } else if (user.role === 'doctor') {
-      activeAppointments = await Appointment.countDocuments({ doctor: user._id, status: { $in: ['pending', 'confirmed'] } }).session(session);
+      activeAppointments = await Appointment.countDocuments({ doctor: user._id, status: { $in: ['pending', 'confirmed'] } });
     }
 
     if (activeAppointments > 0) {
@@ -571,10 +564,10 @@ const deleteAccount = asyncHandler(async (req, res) => {
     // Calculate approx cascades
     let appointmentsCount = 0;
     if (user.role === 'patient') {
-        const checkApts = await Appointment.countDocuments({ patient: user._id, cancellationSource: 'system_cascade' }).session(session);
+        const checkApts = await Appointment.countDocuments({ patient: user._id, cancellationSource: 'system_cascade' });
         appointmentsCount = checkApts;
     } else if (user.role === 'doctor') {
-        const checkApts = await Appointment.countDocuments({ doctor: user._id, cancellationSource: 'system_cascade' }).session(session);
+        const checkApts = await Appointment.countDocuments({ doctor: user._id, cancellationSource: 'system_cascade' });
         appointmentsCount = checkApts;
     }
 
@@ -590,16 +583,11 @@ const deleteAccount = asyncHandler(async (req, res) => {
       }
     });
     
-    await session.commitTransaction();
-    session.endSession();
-    
     res.json({
       success: true,
       message: 'Account deleted successfully'
     });
   } catch (error) {
-    await session.abortTransaction();
-    session.endSession();
     console.error('Error deleting account:', error);
     res.status(500).json({
       success: false,

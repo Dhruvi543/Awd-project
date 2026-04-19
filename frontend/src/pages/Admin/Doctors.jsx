@@ -317,16 +317,40 @@ const AdminDoctors = () => {
   const handleRejectConfirm = async () => {
     const rejectionReason = document.getElementById('rejectionReason').value;
     if (!rejectionReason.trim()) {
-      alert('Please provide a rejection reason');
+      setConfirmModal({
+        isOpen: true,
+        title: 'Error',
+        message: 'Please provide a rejection reason',
+        confirmText: 'OK',
+        cancelText: '',
+        type: 'danger',
+        onConfirm: () => setConfirmModal(prev => ({ ...prev, isOpen: false }))
+      });
       return;
     }
     try {
       await apiService.rejectDoctor(selectedDoctor._id, rejectionReason);
       setShowRejectModal(false);
       fetchDoctors();
-      alert('Doctor rejected successfully');
+      setConfirmModal({
+        isOpen: true,
+        title: 'Success',
+        message: 'Doctor rejected successfully',
+        confirmText: 'OK',
+        cancelText: '',
+        type: 'info',
+        onConfirm: () => setConfirmModal(prev => ({ ...prev, isOpen: false }))
+      });
     } catch (err) {
-      alert(err.response?.data?.message || 'Failed to reject doctor');
+      setConfirmModal({
+        isOpen: true,
+        title: 'Error',
+        message: err.response?.data?.message || 'Failed to reject doctor',
+        confirmText: 'OK',
+        cancelText: '',
+        type: 'danger',
+        onConfirm: () => setConfirmModal(prev => ({ ...prev, isOpen: false }))
+      });
     }
   };
 
@@ -454,17 +478,41 @@ const AdminDoctors = () => {
       if (selectedDoctor) {
         // Update
         await apiService.updateDoctor(selectedDoctor._id, formData);
-        alert('Doctor updated successfully');
+        setConfirmModal({
+          isOpen: true,
+          title: 'Success',
+          message: 'Doctor updated successfully',
+          confirmText: 'OK',
+          cancelText: '',
+          type: 'info',
+          onConfirm: () => setConfirmModal(prev => ({ ...prev, isOpen: false }))
+        });
       } else {
         // Create
         await apiService.createDoctor(formData);
-        alert('Doctor created successfully');
+        setConfirmModal({
+          isOpen: true,
+          title: 'Success',
+          message: 'Doctor created successfully',
+          confirmText: 'OK',
+          cancelText: '',
+          type: 'info',
+          onConfirm: () => setConfirmModal(prev => ({ ...prev, isOpen: false }))
+        });
       }
       setShowModal(false);
       setErrors({});
       fetchDoctors();
     } catch (err) {
-      alert(err.response?.data?.message || 'Failed to save doctor');
+      setConfirmModal({
+        isOpen: true,
+        title: 'Error',
+        message: err.response?.data?.message || 'Failed to save doctor',
+        confirmText: 'OK',
+        cancelText: '',
+        type: 'danger',
+        onConfirm: () => setConfirmModal(prev => ({ ...prev, isOpen: false }))
+      });
     }
   };
 

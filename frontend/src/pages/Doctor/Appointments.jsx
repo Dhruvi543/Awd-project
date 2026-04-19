@@ -1,9 +1,19 @@
 import React, { useState, useEffect } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import { apiService } from '../../api/apiService';
+import ConfirmModal from '../../components/feedback/ConfirmModal';
 
 const DoctorAppointments = () => {
   const [searchParams, setSearchParams] = useSearchParams();
+  const [confirmModal, setConfirmModal] = useState({
+    isOpen: false,
+    title: '',
+    message: '',
+    confirmText: 'OK',
+    cancelText: '',
+    type: 'info',
+    onConfirm: null
+  });
   const [appointments, setAppointments] = useState([]);
   const [isLoading, setIsLoading] = useState(true);
   const [filter, setFilter] = useState(searchParams.get('filter') || searchParams.get('status') || 'all');
@@ -107,25 +117,57 @@ const DoctorAppointments = () => {
     try {
       const response = await apiService.confirmAppointment(appointmentId);
       if (response.data.success) {
-        alert('Appointment confirmed successfully!');
+        setConfirmModal({
+          isOpen: true,
+          title: 'Success',
+          message: 'Appointment confirmed successfully!',
+          confirmText: 'OK',
+          cancelText: '',
+          type: 'info',
+          onConfirm: () => setConfirmModal(prev => ({ ...prev, isOpen: false }))
+        });
         fetchAppointments();
       }
     } catch (error) {
       console.error('Error confirming appointment:', error);
-      alert(error.response?.data?.message || 'Failed to confirm appointment. Please try again.');
+      setConfirmModal({
+        isOpen: true,
+        title: 'Error',
+        message: error.response?.data?.message || 'Failed to confirm appointment. Please try again.',
+        confirmText: 'OK',
+        cancelText: '',
+        type: 'danger',
+        onConfirm: () => setConfirmModal(prev => ({ ...prev, isOpen: false }))
+      });
     }
   };
 
   const handleRejectAppointment = async () => {
     if (!rejectionReason.trim()) {
-      alert('Please provide a reason for rejection');
+      setConfirmModal({
+        isOpen: true,
+        title: 'Error',
+        message: 'Please provide a reason for rejection',
+        confirmText: 'OK',
+        cancelText: '',
+        type: 'warning',
+        onConfirm: () => setConfirmModal(prev => ({ ...prev, isOpen: false }))
+      });
       return;
     }
     
     try {
       const response = await apiService.rejectAppointment(rejectingAppointment._id, rejectionReason);
       if (response.data.success) {
-        alert('Appointment rejected successfully!');
+        setConfirmModal({
+          isOpen: true,
+          title: 'Success',
+          message: 'Appointment rejected successfully!',
+          confirmText: 'OK',
+          cancelText: '',
+          type: 'info',
+          onConfirm: () => setConfirmModal(prev => ({ ...prev, isOpen: false }))
+        });
         setShowRejectModal(false);
         setRejectingAppointment(null);
         setRejectionReason('');
@@ -133,7 +175,15 @@ const DoctorAppointments = () => {
       }
     } catch (error) {
       console.error('Error rejecting appointment:', error);
-      alert(error.response?.data?.message || 'Failed to reject appointment. Please try again.');
+      setConfirmModal({
+        isOpen: true,
+        title: 'Error',
+        message: error.response?.data?.message || 'Failed to reject appointment. Please try again.',
+        confirmText: 'OK',
+        cancelText: '',
+        type: 'danger',
+        onConfirm: () => setConfirmModal(prev => ({ ...prev, isOpen: false }))
+      });
     }
   };
 
@@ -141,7 +191,15 @@ const DoctorAppointments = () => {
     try {
       const response = await apiService.completeAppointment(completingAppointment._id, prescription);
       if (response.data.success) {
-        alert('Appointment completed successfully!');
+        setConfirmModal({
+          isOpen: true,
+          title: 'Success',
+          message: 'Appointment completed successfully!',
+          confirmText: 'OK',
+          cancelText: '',
+          type: 'info',
+          onConfirm: () => setConfirmModal(prev => ({ ...prev, isOpen: false }))
+        });
         setShowCompleteModal(false);
         setCompletingAppointment(null);
         setPrescription('');
@@ -149,7 +207,15 @@ const DoctorAppointments = () => {
       }
     } catch (error) {
       console.error('Error completing appointment:', error);
-      alert(error.response?.data?.message || 'Failed to complete appointment. Please try again.');
+      setConfirmModal({
+        isOpen: true,
+        title: 'Error',
+        message: error.response?.data?.message || 'Failed to complete appointment. Please try again.',
+        confirmText: 'OK',
+        cancelText: '',
+        type: 'danger',
+        onConfirm: () => setConfirmModal(prev => ({ ...prev, isOpen: false }))
+      });
     }
   };
 
@@ -178,14 +244,30 @@ const DoctorAppointments = () => {
 
   const handleCancelConfirmedAppointment = async () => {
     if (!cancellationReason.trim()) {
-      alert('Please provide a reason for cancellation');
+      setConfirmModal({
+        isOpen: true,
+        title: 'Error',
+        message: 'Please provide a reason for cancellation',
+        confirmText: 'OK',
+        cancelText: '',
+        type: 'warning',
+        onConfirm: () => setConfirmModal(prev => ({ ...prev, isOpen: false }))
+      });
       return;
     }
     
     try {
       const response = await apiService.cancelConfirmedAppointment(cancellingAppointment._id, cancellationReason);
       if (response.data.success) {
-        alert('Appointment cancelled successfully!');
+        setConfirmModal({
+          isOpen: true,
+          title: 'Success',
+          message: 'Appointment cancelled successfully!',
+          confirmText: 'OK',
+          cancelText: '',
+          type: 'info',
+          onConfirm: () => setConfirmModal(prev => ({ ...prev, isOpen: false }))
+        });
         setShowCancelModal(false);
         setCancellingAppointment(null);
         setCancellationReason('');
@@ -193,7 +275,15 @@ const DoctorAppointments = () => {
       }
     } catch (error) {
       console.error('Error cancelling appointment:', error);
-      alert(error.response?.data?.message || 'Failed to cancel appointment. Please try again.');
+      setConfirmModal({
+        isOpen: true,
+        title: 'Error',
+        message: error.response?.data?.message || 'Failed to cancel appointment. Please try again.',
+        confirmText: 'OK',
+        cancelText: '',
+        type: 'danger',
+        onConfirm: () => setConfirmModal(prev => ({ ...prev, isOpen: false }))
+      });
     }
   };
 
@@ -809,6 +899,17 @@ const DoctorAppointments = () => {
           </div>
         </div>
       )}
+
+      <ConfirmModal
+        isOpen={confirmModal.isOpen}
+        onClose={() => setConfirmModal(prev => ({ ...prev, isOpen: false }))}
+        onConfirm={() => confirmModal.onConfirm && confirmModal.onConfirm()}
+        title={confirmModal.title}
+        message={confirmModal.message}
+        confirmText={confirmModal.confirmText}
+        cancelText={confirmModal.cancelText}
+        type={confirmModal.type}
+      />
     </div>
   );
 };

@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../../contexts/AuthContext';
 import { apiService } from '../../api/apiService';
 import PasswordInput from '../../components/forms/PasswordInput';
+import ConfirmModal from '../../components/feedback/ConfirmModal';
 
 const DoctorSettings = () => {
   const { user, getCurrentUser, logout } = useAuth();
@@ -36,6 +37,15 @@ const DoctorSettings = () => {
   const [success, setSuccess] = useState('');
   const [passwordStrength, setPasswordStrength] = useState(0);
   const [fieldErrors, setFieldErrors] = useState({});
+  const [confirmModal, setConfirmModal] = useState({
+    isOpen: false,
+    title: '',
+    message: '',
+    confirmText: 'OK',
+    cancelText: '',
+    type: 'info',
+    onConfirm: null
+  });
 
   useEffect(() => {
     if (user) {
@@ -138,8 +148,10 @@ const DoctorSettings = () => {
         error = 'Qualification must be at least 2 characters';
       }
     } else if (name === 'location') {
-      if (value && value.trim() !== '' && value.trim().length < 2) {
-        error = 'Location must be at least 2 characters';
+      if (!value || value.trim() === '') {
+        error = 'Full address is required';
+      } else if (value.trim().length < 10) {
+        error = 'Please provide a complete address (minimum 10 characters)';
       }
     } else if (name === 'clinicHospitalName') {
       if (value && value.trim() !== '' && value.trim().length < 2) {
@@ -223,6 +235,10 @@ const DoctorSettings = () => {
     }
     if (!profileData.email || profileData.email.trim() === '') {
       setError('Email is required');
+      return;
+    }
+    if (!profileData.location || profileData.location.trim() === '' || profileData.location.trim().length < 10) {
+      setError('Full Clinic/Hospital Address is required (minimum 10 characters)');
       return;
     }
 
@@ -404,12 +420,19 @@ const DoctorSettings = () => {
     try {
       const response = await apiService.deleteAccount();
       if (response.data.success) {
-        // Logout user after successful deletion
-        await logout();
-        // Redirect to home page
-        navigate('/');
-        // Show success message (optional - since we're redirecting)
-        alert('Your account has been deleted successfully.');
+        setConfirmModal({
+          isOpen: true,
+          title: 'Account Deleted',
+          message: 'Your account has been deleted successfully.',
+          confirmText: 'OK',
+          cancelText: '',
+          type: 'info',
+          onConfirm: async () => {
+            setConfirmModal(prev => ({ ...prev, isOpen: false }));
+            await logout();
+            navigate('/');
+          }
+        });
       }
     } catch (error) {
       console.error('Error deleting account:', error);
@@ -664,7 +687,7 @@ const DoctorSettings = () => {
 
                     <div>
                       <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-                        Location
+                        Full Clinic/Hospital Address <span className="text-red-500">*</span>
                       </label>
                       <input
                         type="text"
@@ -674,7 +697,8 @@ const DoctorSettings = () => {
                         className={`w-full px-4 py-3 border rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all ${
                           fieldErrors.location ? 'border-red-300 dark:border-red-600' : 'border-gray-300 dark:border-gray-600'
                         }`}
-                        placeholder="Enter your location"
+                        placeholder="Enter full clinic/hospital address"
+                        required
                       />
                       {fieldErrors.location && (
                         <p className="mt-1 text-xs text-red-600 dark:text-red-400">{fieldErrors.location}</p>
@@ -1185,6 +1209,17 @@ const DoctorSettings = () => {
           </div>
         </div>
       </div>
+      
+      <ConfirmModal
+        isOpen={confirmModal.isOpen}
+        onClose={() => setConfirmModal(prev => ({ ...prev, isOpen: false }))}
+        onConfirm={() => confirmModal.onConfirm && confirmModal.onConfirm()}
+        title={confirmModal.title}
+        message={confirmModal.message}
+        confirmText={confirmModal.confirmText}
+        cancelText={confirmModal.cancelText}
+        type={confirmModal.type}
+      />
     </div>
   );
 };

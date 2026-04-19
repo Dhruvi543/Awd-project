@@ -8,6 +8,7 @@ import PatientRegisterForm from '../../components/auth/PatientRegisterForm';
 import DoctorRegisterForm from '../../components/auth/DoctorRegisterForm';
 import ProfileCompletionPrompt from '../../components/auth/ProfileCompletionPrompt';
 import PasswordInput from '../../components/forms/PasswordInput';
+import ConfirmModal from '../../components/feedback/ConfirmModal';
 import logo from '../../logo.png';
 
 const Auth = () => {
@@ -31,6 +32,15 @@ const Auth = () => {
   const [showApprovalModal, setShowApprovalModal] = useState(false);
   const [showGoogleCompletionPrompt, setShowGoogleCompletionPrompt] = useState(false);
   const [showDoctorGooglePendingModal, setShowDoctorGooglePendingModal] = useState(false);
+  const [confirmModal, setConfirmModal] = useState({
+    isOpen: false,
+    title: '',
+    message: '',
+    confirmText: 'OK',
+    cancelText: '',
+    type: 'info',
+    onConfirm: null
+  });
 
   const { login, register, googleLogin, logout, error, clearError, user, isAuthenticated } = useAuth();
   const { theme } = useTheme();
@@ -62,7 +72,9 @@ const Auth = () => {
       if (user.role === UserRole.PATIENT) {
         navigate('/patient/dashboard', { replace: true });
       } else if (user.role === UserRole.DOCTOR) {
-        navigate('/doctor/dashboard', { replace: true });
+        if (user.isApproved !== false) {
+          navigate('/doctor/dashboard', { replace: true });
+        }
       } else if (user.role === UserRole.ADMIN) {
         navigate('/admin/dashboard', { replace: true });
       }
@@ -149,14 +161,30 @@ const Auth = () => {
     
     const data = role === 'patient' ? patientData : doctorData;
     if (data.password !== data.confirmPassword) {
-      alert('Passwords do not match');
+      setConfirmModal({
+        isOpen: true,
+        title: 'Error',
+        message: 'Passwords do not match',
+        confirmText: 'OK',
+        cancelText: '',
+        type: 'danger',
+        onConfirm: () => setConfirmModal(prev => ({ ...prev, isOpen: false }))
+      });
       return;
     }
     
     // Validate T&C acceptance for doctors
     if (role === 'doctor') {
       if (!data.termsAccepted) {
-        alert('You must accept the Terms & Conditions to register');
+        setConfirmModal({
+          isOpen: true,
+          title: 'Error',
+          message: 'You must accept the Terms & Conditions to register',
+          confirmText: 'OK',
+          cancelText: '',
+          type: 'danger',
+          onConfirm: () => setConfirmModal(prev => ({ ...prev, isOpen: false }))
+        });
         return;
       }
       // Call validateTerms if available to show error in form
@@ -769,6 +797,17 @@ const Auth = () => {
           </div>
         </div>
       )}
+
+      <ConfirmModal
+        isOpen={confirmModal.isOpen}
+        onClose={() => setConfirmModal(prev => ({ ...prev, isOpen: false }))}
+        onConfirm={() => confirmModal.onConfirm && confirmModal.onConfirm()}
+        title={confirmModal.title}
+        message={confirmModal.message}
+        confirmText={confirmModal.confirmText}
+        cancelText={confirmModal.cancelText}
+        type={confirmModal.type}
+      />
     </div>
   );
 };

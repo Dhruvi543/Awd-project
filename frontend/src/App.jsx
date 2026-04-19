@@ -85,6 +85,12 @@ const ProtectedRoute = ({ children, allowedRoles = [] }) => {
     return <Navigate to="/login" replace state={{ profileCompletionRequired: true }} />;
   }
 
+  if (user?.role === UserRole.DOCTOR && user?.isApproved === false) {
+    // Do not allow unapproved doctors inside protected doctor or generic routes
+    // They should instead see a pending message on the login screen
+    return <Navigate to="/login" replace />;
+  }
+
   if (allowedRoles.length > 0 && !allowedRoles.includes(user?.role)) {
     if (allowedRoles.includes(UserRole.ADMIN)) {
       return <Navigate to="/admin-login" replace />;
@@ -104,6 +110,9 @@ const PublicRoute = ({ children }) => {
     if (user?.role === UserRole.ADMIN) {
       return <Navigate to="/admin/dashboard" replace />;
     } else if (user?.role === UserRole.DOCTOR) {
+      if (user?.isApproved === false) {
+        return children;
+      }
       return <Navigate to="/doctor/dashboard" replace />;
     } else if (user?.role === UserRole.PATIENT) {
       return <Navigate to="/patient/dashboard" replace />;
